@@ -2,7 +2,8 @@
 
 Order follows the pattern in the sibling projects (see README).
 
-1. **Scorer** (`js/rating.js`): a rule table (rule, tier, weight) and a human-style solver that always applies the
+1. **Scorer** (`js/rating.js`): first rule table done (it solves all 12 borrowed puzzles). Next: play puzzles with Josh and
+   record the inferences he makes, add the missing rules, settle where `noEarlyClose` belongs, tune weights. Original plan: a rule table (rule, tier, weight) and a human-style solver that always applies the
    easiest applicable rule. Seed it with the techniques from PuzzleMadness's tutorial (0-clues make loop cells, a loop
    cell with two exits, dead ends become shaded, shaded neighbours become loop, forced clue shading, a closing loop can't
    skip cells) and then add rules by playing puzzles with Josh and writing down the inferences he makes. Compare the
