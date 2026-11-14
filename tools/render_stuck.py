@@ -12,7 +12,7 @@ For every case it writes
                                         (red = what they force) until something breaks; what that proves is written under the panel
 and an index README.md. Needs Pillow (a virtualenv: python3 -m venv v && v/bin/pip install pillow).
 """
-import json, math, os, sys
+import json, math, os, sys, textwrap
 from PIL import Image, ImageDraw, ImageFont
 
 FONTS = ['/System/Library/Fonts/Helvetica.ttc', '/System/Library/Fonts/SFNS.ttf', '/Library/Fonts/Arial.ttf']
@@ -184,6 +184,9 @@ def lookahead_text(case, la):
 def render_case(case, out):
     rows, cols = case['rows'], case['cols']
     opn = open_cells(case)
+    if case['lookahead']:  # the window must also show where the trial breaks and what it assumes
+        la0 = case['lookahead'][0]
+        opn = opn + (la0['chain'].get('why') or {}).get('cells', []) + [i for k, i, v in la0['assumption'] if k == 'c'] + [EDGE_CELLS(case, i)[0] for k, i, v in la0['assumption'] if k == 'e']
     rs = [i // cols for i in opn] or [0]; cs = [i % cols for i in opn] or [0]
     M = 3
     r0, r1, c0, c1 = max(0, min(rs) - M), min(rows - 1, max(rs) + M), max(0, min(cs) - M), min(cols - 1, max(cs) + M)
@@ -199,19 +202,22 @@ def render_case(case, out):
     w = (r0, c0, r1, c1)
     la = case['lookahead'][0] if case['lookahead'] else None
     what, rules, concl = lookahead_text(case, la) if la else ('', [], [])
-    panels = [draw_board(case, S, w, {'tint'}, caption=f"POSITION  ({len(case['undecided'])} undecided cells, yellow)"),
-              draw_board(case, S, w, {'tint', 'answer'}, caption='ANSWER  (red outline = box, green = segment to find)')]
-    if la: panels.append(draw_board(case, S, w, {'tint'}, chain=la, caption=f"LOOKAHEAD  {what}"))
-    W = sum(p.width for p in panels) + 20 * (len(panels) - 1); H = max(p.height for p in panels)
-    head = 64 + (40 if la else 0)
-    img = Image.new('RGB', (W, H + head), 'white'); dd = ImageDraw.Draw(img)
+    panels = [draw_board(case, S, w, {'tint'}, caption=f"POSITION ({len(case['undecided'])} open, yellow)"),
+              draw_board(case, S, w, {'tint', 'answer'}, caption='ANSWER (red = box, green = segment)')]
+    if la: panels.append(draw_board(case, S, w, {'tint'}, chain=la, caption='LOOKAHEAD (red = the trial)'))
+    W = max(1180, sum(p.width for p in panels) + 20 * (len(panels) - 1)); H = max(p.height for p in panels)
     title = f"{case['name']}   {cols}x{rows}   source: {case['source']}" + (f"   (derived from {case['derivedFrom']}, {case['cluesRemoved']} clue(s) removed)" if case.get('derivedFrom') else '')
-    dd.text((8, 8), title, fill=(10, 10, 10), font=font(26))
-    dd.text((8, 40), f"the rules (everything except trial and error) made {case['stepsBeforeStuck'] if isinstance(case['stepsBeforeStuck'], int) else len(case['stepsBeforeStuck'])} rounds of rules and then had nothing left", fill=(70, 70, 70), font=font(17))
+    rounds = case['stepsBeforeStuck'] if isinstance(case['stepsBeforeStuck'], int) else len(case['stepsBeforeStuck'])
+    lines = [(26, (10, 10, 10), textwrap.wrap(title, W // 14)), (17, (70, 70, 70), [f"the rules (everything except trial and error) made {rounds} rounds and then had nothing left"])]
     if la:
         proved = '; '.join(concl) if concl else '?'
         why = (la['chain'].get('why') or {}).get('text', 'a contradiction')
-        dd.text((8, 64), f"trial: {what} -> follow the easy rules ({' > '.join(rules[:8])}{' ...' if len(rules) > 8 else ''}) -> BREAKS: {why} (purple) -> so {proved}", fill=(150, 30, 30), font=font(17))
+        lines.append((17, (150, 30, 30), textwrap.wrap(f"TRIAL: {what}. Follow the easy rules ({' > '.join(rules[:8])}{' ...' if len(rules) > 8 else ''}). It BREAKS: {why} (purple). So: {proved}.", W // 9)))
+    head = 12 + sum(len(ls) * (sz + 6) for sz, _, ls in lines) + 8
+    img = Image.new('RGB', (W, H + head), 'white'); dd = ImageDraw.Draw(img)
+    y = 10
+    for sz, color, ls in lines:
+        for l in ls: dd.text((8, y), l, fill=color, font=font(sz)); y += sz + 6
     x = 0
     for p in panels: img.paste(p, (x, head)); x += p.width + 20
     img.save(os.path.join(out, f"{case['name']}_2_detail.png"))
