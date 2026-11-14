@@ -4,6 +4,26 @@
       "id": "large",
       "name": "Large (draft)",
       "file": "data/large.csv"
+    },
+    {
+      "id": "bonus-longway",
+      "name": "Bonus: the long way round",
+      "file": "data/bonus-longway.csv"
+    },
+    {
+      "id": "bonus-onedir",
+      "name": "Bonus: one direction",
+      "file": "data/bonus-onedir.csv"
+    },
+    {
+      "id": "bonus-bignum",
+      "name": "Bonus: big numbers",
+      "file": "data/bonus-bignum.csv"
+    },
+    {
+      "id": "bonus-intro",
+      "name": "Bonus: gentle intro",
+      "file": "data/bonus-intro.csv"
     }
   ],
   "default": "large"
