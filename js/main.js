@@ -28,7 +28,7 @@ const state = {
 const settings = {
   colorLines: store.get('yj_colorLines') === '1', // colour each separate path differently
   labels: store.get('yj_labels') === '1',         // number the rows and columns
-  autoDots: store.get('yj_autoDots') === '1',     // shading a cell dots its neighbours
+  autoDots: store.get('yj_autoDots') === '1',     // automatic dots: next to a box, and along a satisfied clue
 };
 
 const board = new Board($('board'), {
@@ -42,30 +42,84 @@ board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
 
 // ------------------------------------------------------------ marks
 
-const snapshot = () => ({ cells: state.marks.cells.slice(), edges: state.marks.edges.slice() });
-const sameMarks = (a, b) => a.cells.every((v, i) => v === b.cells[i]) && a.edges.every((v, i) => v === b.edges[i]);
+const snapshot = () => ({ cells: state.marks.cells.slice(), edges: state.marks.edges.slice(), auto: state.marks.auto.slice() });
+const sameMarks = (a, b) => a.cells.every((v, i) => v === b.cells[i]) && a.edges.every((v, i) => v === b.edges[i]) && a.auto.every((v, i) => v === b.auto[i]);
 const emptyMarks = (P) => {
-  const m = { cells: new Uint8Array(P.N), edges: new Uint8Array(P.numEdges) };
+  const m = { cells: new Uint8Array(P.N), edges: new Uint8Array(P.numEdges), auto: new Uint8Array(P.N) };
   for (const i of P.boxIdx) m.cells[i] = 1; // pre-placed boxes are always there
   return m;
 };
 const isBox = (i) => state.P.boxIdx.includes(i);
 
-/** Shade cell i: a shaded cell is not on the loop, so its segments go; with "auto dots", its neighbours become dots. */
+/** Nothing of the player's own on the board (automatic dots do not count). */
+function isPristine(m) {
+  const P = state.P;
+  if (m.edges.some((v) => v)) return false;
+  for (let i = 0; i < P.N; i++) {
+    const want = P.boxIdx.includes(i) ? 1 : 0;
+    if (m.cells[i] === want) continue;
+    if (!(m.cells[i] === 2 && m.auto[i])) return false;
+  }
+  return true;
+}
+
+// ---- automatic dots, with their reasons
+// A cell has a reason to be a dot when it is next to a box ('s<cell>') or in the line of a clue that has all its boxes
+// ('c<clue>'). A dot is placed automatically when a cell gains a reason it did not have before, and an automatic dot goes
+// away when its last reason does (take the box off, and the dots it caused go too). Dots the player placed are never touched.
+
+/** Map: cell -> Set of reasons it should be a dot. */
+function reasonsOf(P, m) {
+  const out = new Map();
+  const add = (i, r) => { let s = out.get(i); if (!s) out.set(i, (s = new Set())); s.add(r); };
+  for (let i = 0; i < P.N; i++) {
+    if (m.cells[i] !== 1) continue;
+    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0) add(j, `s${i}`); }
+  }
+  P.clues.forEach((cl, k) => {
+    let shaded = 0;
+    for (const i of P.rays[k]) if (m.cells[i] === 1) shaded++;
+    if (shaded === cl.n) for (const i of P.rays[k]) add(i, `c${k}`);
+  });
+  return out;
+}
+
+/** Bring the automatic dots of `cur` in line with its reasons; `prev` is the position before the change (null: a fresh board, where every reason is new). */
+function reconcile(P, prev, cur) {
+  const before = prev ? reasonsOf(P, prev) : new Map(), now = reasonsOf(P, cur);
+  for (let i = 0; i < P.N; i++) {
+    if (P.clueAt[i] >= 0 || P.boxIdx.includes(i)) continue;
+    const reasons = now.get(i);
+    if (cur.cells[i] === 2 && cur.auto[i]) {
+      if (!reasons) { cur.cells[i] = 0; cur.auto[i] = 0; }          // its reasons are gone
+    } else if (cur.cells[i] === 0 && reasons && settings.autoDots) {
+      const old = before.get(i);
+      for (const r of reasons) if (!old || !old.has(r)) { cur.cells[i] = 2; cur.auto[i] = 1; break; } // a new reason
+    }
+  }
+}
+
+/** The empty board (with automatic dots for reasons that exist from the start: pre-placed boxes, clues of 0). */
+function freshMarks(P) {
+  const m = emptyMarks(P);
+  if (settings.autoDots) reconcile(P, null, m);
+  return m;
+}
+
+/** Shade cell i: a shaded cell is not on the loop, so its segments go. (Automatic dots follow in reconcile.) */
 function shade(i) {
-  const P = state.P, m = state.marks;
-  m.cells[i] = 1;
+  const m = state.marks;
+  m.cells[i] = 1; m.auto[i] = 0;
   removeEdgesAt(i);
-  if (!settings.autoDots) return;
-  for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && m.cells[j] === 0) m.cells[j] = 2; }
 }
 
 function cycleCell(i) {
   const P = state.P;
   if (P.clueAt[i] >= 0 || isBox(i)) return;
-  const m = state.marks;
+  const m = state.marks, before = state.pending || snapshot();
   const next = [2, 0, 1][m.cells[i]]; // empty -> dot -> shaded -> empty
-  if (next === 1) shade(i); else m.cells[i] = next;
+  if (next === 1) shade(i); else { m.cells[i] = next; m.auto[i] = 0; }
+  reconcile(P, before, m);
   refresh();
 }
 
@@ -73,8 +127,9 @@ function cycleCell(i) {
 function toggleBox(i) {
   const P = state.P;
   if (P.clueAt[i] >= 0 || isBox(i)) return;
-  const m = state.marks;
-  if (m.cells[i] === 1) m.cells[i] = 0; else shade(i);
+  const m = state.marks, before = state.pending || snapshot();
+  if (m.cells[i] === 1) { m.cells[i] = 0; m.auto[i] = 0; } else shade(i);
+  reconcile(P, before, m);
   refresh();
 }
 
@@ -119,9 +174,9 @@ function redo() {
   save(); refresh();
 }
 function reset() {
-  if (sameMarks(state.marks, emptyMarks(state.P))) return;
+  if (isPristine(state.marks)) return;
   state.undo.push(snapshot()); state.redo = [];
-  state.marks = emptyMarks(state.P);
+  state.marks = freshMarks(state.P);
   save(); refresh();
 }
 
@@ -176,7 +231,7 @@ function refresh() {
 function updateButtons() {
   $('undo-btn').disabled = !state.undo.length;
   $('redo-btn').disabled = !state.redo.length;
-  $('reset-btn').disabled = sameMarks(state.marks, emptyMarks(state.P));
+  $('reset-btn').disabled = isPristine(state.marks);
 }
 
 // ------------------------------------------------------------ persistence
@@ -185,20 +240,22 @@ const saveKey = (P) => `yj_save_${puzzleHash(P)}`;
 
 function save() {
   const P = state.P, m = state.marks;
-  const empty = sameMarks(m, emptyMarks(P));
-  if (empty) { store.del(saveKey(P)); return; }
-  store.set(saveKey(P), JSON.stringify({ c: Array.from(m.cells).join(''), e: Array.from(m.edges).join('') }));
+  if (isPristine(m)) { store.del(saveKey(P)); return; }
+  store.set(saveKey(P), JSON.stringify({ c: Array.from(m.cells).join(''), e: Array.from(m.edges).join(''), a: Array.from(m.auto).join('') }));
 }
 
 function load(P) {
-  const m = emptyMarks(P);
+  let m = null;
   try {
     const s = JSON.parse(store.get(saveKey(P)) || 'null');
     if (s && s.c.length === P.N && s.e.length === P.numEdges) {
+      m = emptyMarks(P);
       for (let i = 0; i < P.N; i++) m.cells[i] = +s.c[i];
       for (let i = 0; i < P.numEdges; i++) m.edges[i] = +s.e[i];
+      if (s.a && s.a.length === P.N) for (let i = 0; i < P.N; i++) m.auto[i] = +s.a[i];
     }
-  } catch { /* corrupt save: start fresh */ }
+  } catch { m = null; /* corrupt save: start fresh */ }
+  if (!m) return freshMarks(P);
   for (const i of P.boxIdx) m.cells[i] = 1;
   return m;
 }

@@ -10,6 +10,13 @@
 // 2*i+1 is its bottom edge (i - i+cols). Edge states: 0 unknown, 1 on (loop passes), 2 off.
 // Cell states: 0 unknown, 1 shaded, 2 loop, 3 clue.
 
+/** Column letters like a spreadsheet: 0 -> A, 25 -> Z, 26 -> AA. */
+export function colName(c) {
+  let s = '';
+  for (let n = c + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+}
+
 export const DR = [-1, 0, 1, 0];
 export const DC = [0, 1, 0, -1];
 export const DIR_LETTERS = 'URDL';

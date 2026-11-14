@@ -70,7 +70,13 @@ parity rule) and nothing harder, rating in about 0.1 s. Generator ideas from thi
 ray holds several boxes), clue stacks (allow clue cells next to each other, same direction), the direction skew, higher box density.
 Transcribe more (97, 98, 100-103 were in the same photos; 97 is blurry) to confirm these are the style and not one puzzle's quirk.
 
-## Auto-dots (queued)
+## Auto-dots
 
-- Also dot every cell of a satisfied clue (a clue whose shaded count equals its number).
-- Remember WHY each auto-dot exists (a shaded neighbour, a satisfied clue) so it disappears when its reasons go away (star battle does this).
+Done: dots for satisfied clues, and each auto-dot's reasons (shaded neighbour 's<cell>', satisfied clue 'c<clue>') so it disappears with its last reason.
+
+## Hint to think about (from play, 2026-11-14)
+
+"If H9 sent a line down (column H, row 9... Josh's words: row 9 col 10), then the dot at row 10, col 11 can't be satisfied."
+A line-level consequence: drawing one segment leaves a dot cell that cannot get its two lines. `tryEdge` (Hard) may already find it;
+check against that exact position (14x14, the screenshot is in the session) before adding a cheaper named rule, and if it is a
+pattern, give it a name, a tier and a weight like the others.

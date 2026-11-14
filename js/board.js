@@ -5,6 +5,8 @@
 //   * a right-click on a cell              -> handlers.onRight(cell)
 //   * a press that moves into other cells  -> handlers.onStep(fromCell, toCell, isFirstStep) for each step
 // handlers.onStart() / handlers.onEnd() bracket every gesture, so a whole gesture is one undo step.
+import { colName } from './logic.js';
+
 const S = 44;     // cell size in SVG units
 const PAD = 4;    // room for the frame
 const LABEL = 16; // extra room at the top and left for row/column numbers
@@ -109,7 +111,7 @@ export class Board {
         if (boxes.has(i)) g += `<rect class="given-ring" x="${cellX(i) + 9}" y="${cellY(i) + 9}" width="${S - 18}" height="${S - 18}" rx="3"/>`;
       } else if (marks.cells[i] === 2 && deg[i] === 0) {
         // a dot only says "on the loop, exits unknown": once a segment passes through, the line says it better
-        g += `<circle class="dot" cx="${cx(c)}" cy="${cy(r)}" r="${S * 0.055}"/>`;
+        g += `<circle class="dot${marks.auto && marks.auto[i] ? ' auto' : ''}" cx="${cx(c)}" cy="${cy(r)}" r="${S * 0.055}"/>`;
       }
     }
     // loop segments, centre to centre (each separate path its own colour, if asked)
@@ -146,7 +148,7 @@ export class Board {
     }
     g += `<rect class="frame" x="${PAD}" y="${PAD}" width="${P.cols * S}" height="${P.rows * S}"/>`;
     if (this.opts.labels) {
-      for (let c = 0; c < P.cols; c++) g += `<text class="axis-label" x="${cx(c)}" y="${PAD - 6}">${c + 1}</text>`;
+      for (let c = 0; c < P.cols; c++) g += `<text class="axis-label" x="${cx(c)}" y="${PAD - 6}">${colName(c)}</text>`;
       for (let r = 0; r < P.rows; r++) g += `<text class="axis-label side" x="${PAD - 6}" y="${cy(r)}">${r + 1}</text>`;
     }
     const defs = '<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" class="hatch-bg"/><line x1="0" y1="0" x2="0" y2="8" class="hatch-line" stroke-width="4"/></pattern></defs>';

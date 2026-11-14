@@ -1,10 +1,11 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can colour them differently) and the marks the step makes.
-import { SHADED, LOOP, E_ON, E_OFF, E_UNKNOWN, edgeCells } from './logic.js';
+import { SHADED, LOOP, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName } from './logic.js';
 import { ruleLabel } from './rating.js';
 
 const ARROWS = ['↑', '→', '↓', '←'];
-const cellName = (P, i) => `row ${((i / P.cols) | 0) + 1}, column ${(i % P.cols) + 1}`;
+/** A cell's name like a spreadsheet's: column letter, then row number (E3). */
+const cellName = (P, i) => `${colName(i % P.cols)}${((i / P.cols) | 0) + 1}`;
 const clueName = (P, k) => `${P.clues[k].n}${ARROWS[P.clues[k].d]} clue at ${cellName(P, P.clues[k].r * P.cols + P.clues[k].c)}`;
 const clueCell = (P, k) => P.clues[k].r * P.cols + P.clues[k].c;
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;

@@ -117,6 +117,7 @@ button.ghost { background: transparent; }
 .shaded.bad { fill: var(--shaded-bad); }
 .seg { stroke: var(--loop); stroke-linecap: round; fill: none; }
 .dot { fill: var(--dot); }
+.dot.auto { opacity: 0.5; } /* placed automatically: goes away with its reason */
 .hover { fill: var(--cell-hover); pointer-events: none; }
 
 /* ---- hint overlay: each role its own colour or texture ---- */
