@@ -55,34 +55,67 @@
     <div id="toast" class="toast" role="status" hidden></div>
   </div>
 
-  <dialog id="help-dialog">
-    <h2>How to play</h2>
-    <p>Draw <b>one closed loop</b> through every cell that is not a clue cell and not shaded.</p>
-    <ul>
-      <li>A clue cell's number says how many cells are <b>shaded</b> in the direction of its arrow, to the edge of the board.</li>
-      <li>Shaded cells never touch each other orthogonally (diagonal is fine).</li>
-      <li>Every cell is a clue, shaded, or on the loop. No empty cells at the end.</li>
-    </ul>
-    <h3>Controls</h3>
-    <ul>
-      <li><b>Tap a cell</b> to cycle: empty → dot (known to be on the loop) → shaded → empty.</li>
-      <li><b>Drag across cells</b> to draw (or, starting on an existing segment, erase) loop segments.</li>
-      <li><b>←</b> / <b>→</b> move between puzzles. Ctrl/⌘-Z undo, Ctrl/⌘-Shift-Z redo. Esc cancels a drag.</li>
-      <li>A clue turns <span class="ok-text">green</span> when satisfied and <span class="bad-text">red</span> when it has too many shaded cells.</li>
-    </ul>
-    <form method="dialog"><button>Close</button></form>
-  </dialog>
-
-  <dialog id="settings-dialog">
-    <h2>Settings</h2>
-    <label class="row"><input type="checkbox" id="dark-toggle"> Dark mode</label>
-    <div class="row">
-      <label for="file-input">Load puzzles from a CSV file</label>
-      <input type="file" id="file-input" accept=".csv,text/csv,text/plain">
+  <div id="help-modal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+    <div class="modal-box modal-box--wide">
+      <div class="modal-header">
+        <h2 id="help-modal-title">How to play</h2>
+        <button data-close aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Draw <b>one closed loop</b> through every cell that is not a clue cell and not shaded.</p>
+        <ul>
+          <li>A clue cell's number says how many cells are <b>shaded</b> in the direction of its arrow, to the edge of the board.</li>
+          <li>Shaded cells never touch each other orthogonally (diagonal is fine).</li>
+          <li>Every cell is a clue, shaded, or on the loop. No empty cells at the end.</li>
+        </ul>
+        <h3>Controls</h3>
+        <ul>
+          <li><b>Tap a cell</b> to cycle: empty → dot (known to be on the loop) → shaded → empty.</li>
+          <li><b>Drag across cells</b> to draw (or, starting on an existing segment, erase) loop segments.</li>
+          <li><b>←</b> / <b>→</b> move between puzzles. Ctrl/⌘-Z undo, Ctrl/⌘-Shift-Z redo. Esc cancels a drag.</li>
+          <li>A clue turns <span class="ok-text">green</span> when satisfied and <span class="bad-text">red</span> when it has too many shaded cells.</li>
+        </ul>
+      </div>
     </div>
-    <div class="row"><button id="clear-saves" class="ghost">Clear saves</button></div>
-    <form method="dialog"><button>Close</button></form>
-  </dialog>
+  </div>
+
+  <div id="settings-modal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 id="settings-modal-title">Settings</h2>
+        <button data-close aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-list">
+          <label class="settings-row">
+            <div class="settings-row-text">
+              <span class="settings-label">Dark mode</span>
+              <span class="settings-desc">Use a dark color theme throughout the app</span>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="setting-dark-mode" role="switch">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </div>
+          </label>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <span class="settings-label">Load puzzles from a file</span>
+              <span class="settings-desc">Adds a temporary book from a CSV file on your computer. Nothing is uploaded.</span>
+            </div>
+            <button type="button" id="csv-btn">Choose file…</button>
+            <input type="file" id="csv-file" accept=".csv,text/csv,text/plain" hidden>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <span class="settings-label">Clear saves</span>
+              <span class="settings-desc">Erases your progress on every puzzle in this browser. Settings are kept. This can't be undone.</span>
+            </div>
+            <button type="button" id="clear-saves-btn" class="danger-btn">Clear saves</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="js/main.js"></script>
 </body>

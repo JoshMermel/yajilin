@@ -263,20 +263,43 @@ $('undo-btn').addEventListener('click', undo);
 $('redo-btn').addEventListener('click', redo);
 $('reset-btn').addEventListener('click', reset);
 $('check-btn').addEventListener('click', checkSoFar);
-$('help-btn').addEventListener('click', () => $('help-dialog').showModal());
-$('settings-btn').addEventListener('click', () => { $('dark-toggle').checked = document.documentElement.dataset.theme === 'dark'; $('settings-dialog').showModal(); });
-$('dark-toggle').addEventListener('change', (e) => {
+// --- Modals (settings, help): same overlay pattern as polyomino-panel
+const modals = [];
+function setupModal(modalId, openBtnId, onOpen) {
+  const modal = $(modalId), openBtn = $(openBtnId);
+  const close = () => { modal.classList.add('modal-hidden'); openBtn.focus(); };
+  const open = () => { onOpen?.(); modal.classList.remove('modal-hidden'); modal.querySelector('[data-close]').focus(); };
+  openBtn.addEventListener('click', open);
+  modal.querySelector('[data-close]').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  modals.push({ modal, close });
+  return { open, close };
+}
+const modalOpen = () => modals.some(({ modal }) => !modal.classList.contains('modal-hidden'));
+
+const clearBtn = $('clear-saves-btn');
+const disarmClear = () => { clearBtn.classList.remove('danger-btn--confirm'); clearBtn.textContent = 'Clear saves'; };
+const settingsModal = setupModal('settings-modal', 'settings-btn', () => {
+  $('setting-dark-mode').checked = document.documentElement.dataset.theme === 'dark';
+  disarmClear();
+});
+setupModal('help-modal', 'help-btn');
+
+$('setting-dark-mode').addEventListener('change', (e) => {
   document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
   store.set('yj_dark', e.target.checked ? '1' : '0');
 });
-$('clear-saves').addEventListener('click', (e) => {
-  if (e.target.dataset.armed !== '1') { e.target.dataset.armed = '1'; e.target.textContent = 'Are you sure?'; return; }
+clearBtn.addEventListener('click', () => {
+  if (!clearBtn.classList.contains('danger-btn--confirm')) { clearBtn.classList.add('danger-btn--confirm'); clearBtn.textContent = 'Are you sure?'; return; }
   try { Object.keys(localStorage).filter((k) => k.startsWith('yj_save_') || k === 'yj_solved').forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
-  e.target.dataset.armed = ''; e.target.textContent = 'Clear saves';
+  disarmClear();
   if (state.P) openPuzzle(state.idx);
+  toast('Saved progress cleared.');
 });
-$('file-input').addEventListener('change', async (e) => {
+$('csv-btn').addEventListener('click', () => $('csv-file').click());
+$('csv-file').addEventListener('change', async (e) => {
   const f = e.target.files[0];
+  e.target.value = '';
   if (!f) return;
   const puzzles = parseCsv(await f.text());
   if (!puzzles.length) { toast('No puzzles found in that file.'); return; }
@@ -284,16 +307,20 @@ $('file-input').addEventListener('change', async (e) => {
   state.books = state.books.filter((b) => b.id !== id);
   state.books.push({ id, name: f.name, puzzles });
   $('book-select').innerHTML = state.books.map((b) => `<option value="${b.id}">${b.name}</option>`).join('');
-  $('settings-dialog').close();
+  settingsModal.close();
   openBook(id, 0);
 });
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (board.gesture) { board.cancel(); return; }
+    modals.find(({ modal }) => !modal.classList.contains('modal-hidden'))?.close();
+    return;
+  }
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-  if (document.querySelector('dialog[open]')) return;
+  if (modalOpen()) return;
   const mod = e.metaKey || e.ctrlKey;
-  if (e.key === 'Escape') board.cancel();
-  else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
   else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
   else if (e.key === 'ArrowLeft') step(-1);
   else if (e.key === 'ArrowRight') step(1);
