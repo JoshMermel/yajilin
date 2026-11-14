@@ -138,3 +138,20 @@ repairs crossings locally: 12x12 to 20x36 loops in 0.07-0.4 s, and whole 20x36 p
 the README ("How the generator works"). Remaining generator work is tuning toward Nikoli's style (see the table below): the new large
 puzzles have more clue cells (15-17% vs 12.5%), fewer boxes (9-12% vs 14-16%), smaller clue numbers (0.9-1.6 vs 1.6-2.4) and more zeros
 than the three real puzzles; one-direction at 20x20 is slow (15 minutes for some seeds).
+
+## Tuning the generator toward Nikoli's mix (20x36, 3 seeds per setting, 2026-11-14)
+
+| setting | arrows at nearer edge | mean clue number | zeros (of ~110 clues) | clue cells | boxes |
+| --- | --- | --- | --- | --- | --- |
+| Nikoli (3 real puzzles) | 66-84% | 1.6-2.4 | 8-21 | 12.4-12.9% | 13.5-15.7% |
+| A: `--edge-bias 0.8 --shade 0.7` | 66-67% | 1.1-1.4 | 32-41 | 15-16% | 9-12% |
+| B/C: A plus `--numbers big --min-mean 1.6` | 39-47% | 2.2-2.6 | 5-8 | 14-16% | 11-13% |
+| D: A with `--accept 60` | 66-67% | 1.1-1.7 | 32-41 | 15-17% | 9-14% |
+
+With the current knobs we can match Nikoli's arrow direction (A) or its clue numbers (B/C), not both: the big-number weighting prefers
+long rays (more boxes to count), which fights the edge bias. Nikoli does both, so its clues must sit on rays that happen to hold several
+boxes while pointing at a near edge. Ideas: a milder number weighting (exponent 1, not 2) alongside the edge bias; choose the box layout
+with the clue rays in mind (more boxes along near-edge rays); and the biggest gap, clue cells (14-16% vs 12.5%): the real puzzles
+need less than the generator's clues because they lean on harder reasoning (nk_99 needs parity, nk_102 a trial), while the climb only
+accepts puzzles the non-lookahead rules solve. Letting it accept a small lookahead (the `acceptU` path) or adding the rules the stuck
+images suggest should lower the clue count.
