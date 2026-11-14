@@ -133,11 +133,8 @@ Evidence:
 - Early (naive) experiments adding random hole pairs until the loop is unique needed 34-48% holes at 10x10-12x12 and were far too slow
   beyond that: a smarter construction is needed.
 
-Done: `loopIsUnique` gate (cheap) before the clue climb. Next, in order of promise:
-1. Flip-aware construction. Two loops through the same cells differ by "flips" (two parallel loop edges in a 2x2 block swapped for
-   the other pair); a loop is unique only if no flip is possible (necessary, not sufficient). Build loops/holes so that no 2x2 block
-   of loop cells is flippable, instead of rejecting random ones.
-2. Compose big boards from small verified pieces: hole patterns for 6x6-8x8 blocks whose routing is forced given how the loop
-   enters and leaves them (ports), stitched with forced connections.
-3. Local search over holes with an incremental ambiguity measure (unknown segments after propagation), calling the exhaustive check
-   only at the end.
+**Solved (same day).** A loop with two interleaving chords is never unique, a loop without was unique every time, and `tightLoop`
+repairs crossings locally: 12x12 to 20x36 loops in 0.07-0.4 s, and whole 20x36 puzzles in 16-60 s (they never finished before). See
+the README ("How the generator works"). Remaining generator work is tuning toward Nikoli's style (see the table below): the new large
+puzzles have more clue cells (15-17% vs 12.5%), fewer boxes (9-12% vs 14-16%), smaller clue numbers (0.9-1.6 vs 1.6-2.4) and more zeros
+than the three real puzzles; one-direction at 20x20 is slow (15 minutes for some seeds).

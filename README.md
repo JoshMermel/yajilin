@@ -15,7 +15,7 @@ orthogonally. Every cell is a clue, shaded, or on the loop.
 | Browser GUI (`index.html`, `js/board.js`, `js/main.js`) | playable: tap to cycle empty/dot/shaded, drag to draw the loop, undo/redo, saves, "Correct so far?" |
 | Human-style scorer (`js/rating.js`) | first rule table done (below); solves all 12 borrowed puzzles; weights and tiers not yet calibrated with Josh |
 | Hint button | done: shows the draft solver's next step (rule, tier, weight, explanation, ghost marks); says when it is stuck |
-| Generator (`js/generator.js`, `tools/generate.mjs`) | done for boards up to about 12x12; bigger boards need long runs (see TODO) |
+| Generator (`js/generator.js`, `tools/generate.mjs`) | done up to 20x36: a unique-by-construction loop (`tightLoop`), then clues aimed so the human rules solve it; 14x14 in about a second, 20x36 in under a minute |
 | Corpus and books (`tools/library/`, `tools/build_book.mjs`) | first draft: one "Large (draft)" book; no tier shares, no picker, no print yet |
 
 See [TODO.md](TODO.md).
@@ -110,13 +110,23 @@ Josh described (`cluePlacements`, `shadeForcesLines`, `rangeSame`, `rangeFacing`
 solve at Medium, without trial-and-error lookahead (`shadeForcesLines` does the work), and only one still needs `tryCell`
 (9 uses, down from 24). With `shadeForcesLines` moved to Hard (Josh: "would force a line end to do two incompatible things"; the site's puzzles just do not need it much), three site-Hard puzzles rate Hard again. Open questions: `noEarlyClose` is taught early by the site's own tutorial and probably belongs in Beginner, and the Easy/Medium split looks driven by board size and clue density more than by technique.
 
-### How the generator targets human-viable puzzles
+### How the generator works
 
-The generator never uses exhaustive search to *make* a puzzle unique. The rules are sound, so a puzzle they solve has exactly one solution;
-the generator climbs (simulated annealing over clue directions and which non-loop cells are clues) until the rules leave nothing
-undecided, or only a small region that a complete exhaustive search then proves has one solution (a person finishes those with a little
-trial: tier Hard). That is also why rating is fast: a 12x12 puzzle rates in well under a second, where an arbitrary 36x20 board
-took minutes. Generating is the expensive part: 10x10 takes seconds, 12x12 under a minute, and 14x14 and up needs long runs.
+1. **A loop that is unique by construction** (`tightLoop`). Clues can only decide which non-loop cells are boxes, never how the loop
+   routes through the others, so the hole pattern itself has to admit exactly one loop. Alternative loops come from two flips (one
+   splits the loop in two, a second merges the halves again): each 2x2 block with two parallel loop edges is a *chord* of the cycle,
+   and two interleaving chords give another loop (`crossingChords`: a loop with a crossing pair is never unique, one without was
+   unique every time in testing). `tightLoop` starts from a random loop with few holes and adds hole pairs beside a crossing, keeping
+   a move only if the crossing count drops. Random loops are unique 55% of the time at 8x8 but almost never beyond 14x14; this builds
+   a verified-unique loop at every size, 12x12 to 20x36, in under half a second with 24-28% non-loop cells (Nikoli: about 28%).
+2. **Clues aimed at the rules.** The non-loop cells become boxes (a non-touching subset) or clue cells; simulated annealing re-aims
+   clues and moves clue/box roles until the human rules (no trial and error) solve it. The rules are sound, so a puzzle they solve is
+   unique with no exhaustive search. The climb uses only the cheap rules and asks the full set when few cells remain (on a stuck
+   20x36 board: 4 ms instead of 112 ms).
+3. **Style knobs** in the same climb: `--edge-bias` (arrows toward the nearer edge, Nikoli 66-84%), `--one-dir`, `--numbers big|small`,
+   `--max-tier medium`. The climb's objective includes how far the puzzle is from the requested style.
+
+Rating a generated puzzle is instant (a 20x36 takes under a second).
 
 ### Hint button
 
