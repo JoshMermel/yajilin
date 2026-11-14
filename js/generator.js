@@ -52,15 +52,13 @@ function gridNeighbours(rows, cols, i) {
 }
 
 /**
- * A random loop: { holes: Uint8Array (1 = a cell the loop does not visit), edges: Int8Array (numEdges, 1 = loop segment) }
- * for a rows x cols board, or null if this attempt failed (callers just try again). The holes are where the shaded and
- * the clue cells will go; choosing which is the generator's business.
+ * A loop builder: a single cycle through every cell that is not a hole, kept valid while holes are added.
  *
- * Start from a random 2-factor of the whole grid (every cell has two loop neighbours: a set of cycles) and merge it into
- * one cycle with local flips. Then make cells holes in nearby opposite-colour pairs: repair the 2-factor with augmenting
- * paths, merge it back to one cycle, and roll the pair back if either is impossible.
+ * Start from a random 2-factor of the whole grid (every cell has two loop neighbours: a set of cycles) and merge it into one
+ * cycle with local flips. `tryHoles(c1, c2)` then makes two cells of opposite chessboard colour holes: it repairs the 2-factor
+ * with augmenting paths, merges it back into one cycle, and rolls everything back (returning false) if either is impossible.
  */
-export function randomLoop(rows, cols, rng, { density = 0.3, clump = 0.7, attemptsPerHole = 150, mergeRounds = 40, info = null } = {}) {
+export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40 } = {}) {
   const N = rows * cols;
   if (N % 2) throw new Error('rows * cols must be even');
   const color = (i) => (((i / cols) | 0) + (i % cols)) & 1;
@@ -158,20 +156,12 @@ export function randomLoop(rows, cols, rng, { density = 0.3, clump = 0.7, attemp
     return count === 1;
   };
 
-  for (const v of shuffle([...Array(N).keys()], rng)) if (!fill(v)) return null;
-  if (!mergeCycles()) { if (info) info.fail = 'merge0'; return null; }
-
-  // make cells holes in nearby opposite-colour pairs, keeping a single cycle through what is left
-  const target = Math.round((N * density) / 2) * 2;
-  let holes = 0;
-  const near = (a, b, dist) => Math.abs(((a / cols) | 0) - ((b / cols) | 0)) + Math.abs((a % cols) - (b % cols)) <= dist;
-  // `clump` is the chance of refusing a hole next to another hole, so the non-loop cells are mostly scattered
-  const okCell = (c) => !hole[c] && adj[c].every((w) => adj[w].length - 1 >= 2) && !(grid[c].some((w) => hole[w]) && rng() < clump);
-  for (let attempt = 0; attempt < target * attemptsPerHole && holes < target; attempt++) {
-    const c1 = (rng() * N) | 0;
-    if (!okCell(c1)) continue;
-    const c2 = (rng() * N) | 0;
-    if (color(c2) === color(c1) || c2 === c1 || !near(c1, c2, 6) || !okCell(c2)) continue;
+  const init = () => { for (const v of shuffle([...Array(N).keys()], rng)) if (!fill(v)) return false; return mergeCycles(); };
+  // may this cell become a hole? (every neighbour keeps two neighbours; `clump` is the chance of refusing a hole next to a hole)
+  const okCell = (c, clump = 0) => !hole[c] && adj[c].every((w) => adj[w].length - 1 >= 2) && !(clump > 0 && grid[c].some((w) => hole[w]) && rng() < clump);
+  /** Make c1 and c2 (opposite colours) holes, keeping one cycle through the rest. Returns false, changing nothing, if impossible. */
+  const tryHoles = (c1, c2) => {
+    if (color(c1) === color(c2) || c1 === c2 || hole[c1] || hole[c2]) return false;
     const touched = [...new Set([c1, c2, ...adj[c1], ...adj[c2]])];
     const savedPartners = partners.map((p) => p.slice());
     const savedAdj = touched.map((v) => adj[v].slice());
@@ -185,22 +175,140 @@ export function randomLoop(rows, cols, rng, { density = 0.3, clump = 0.7, attemp
     let ok = deficient.every((u) => adj[u].length >= 2);
     for (const u of deficient) { if (!ok) break; if (!hole[u] && !fill(u)) ok = false; }
     if (ok) ok = mergeCycles();
-    if (ok) { holes += 2; continue; }
+    if (ok) return true;
     partners = savedPartners;
     hole[c1] = hole[c2] = 0;
     touched.forEach((v, k) => { adj[v] = savedAdj[k]; });
+    return false;
+  };
+  const snapshot = () => ({ partners: partners.map((p) => p.slice()), adj: adj.map((a) => a.slice()), hole: hole.slice() });
+  const restore = (sn) => { partners = sn.partners.map((p) => p.slice()); for (let i = 0; i < N; i++) adj[i] = sn.adj[i].slice(); hole.set(sn.hole); };
+  const edges = () => {
+    const e = new Int8Array(2 * N);
+    for (let v = 0; v < N; v++) {
+      if (hole[v]) continue;
+      for (const w of partners[v]) { if (w <= v) continue; e[w === v + 1 ? 2 * v : 2 * v + 1] = 1; }
+    }
+    return e;
+  };
+  /** Position of every loop cell along the (single) cycle, -1 for holes; and the cycle's length. */
+  const positions = () => {
+    const pos = new Int32Array(N).fill(-1);
+    let s0 = 0; while (s0 < N && hole[s0]) s0++;
+    let prev = -1, cur = s0, t = 0;
+    do { pos[cur] = t++; const nxt = partners[cur][0] !== prev ? partners[cur][0] : partners[cur][1]; prev = cur; cur = nxt; } while (cur !== s0);
+    return { pos, length: t };
+  };
+  return { N, rows, cols, hole, color, init, okCell, tryHoles, snapshot, restore, edges, positions, grid, adj };
+}
+
+/** A random loop: { holes: Uint8Array (1 = a cell the loop does not visit), edges: Int8Array (numEdges, 1 = loop segment) }, or null. */
+export function randomLoop(rows, cols, rng, { density = 0.3, clump = 0.7, attemptsPerHole = 150, mergeRounds = 40, info = null } = {}) {
+  const b = makeLoopBuilder(rows, cols, rng, { mergeRounds });
+  const N = rows * cols;
+  if (!b.init()) { if (info) info.fail = 'merge0'; return null; }
+  const target = Math.round((N * density) / 2) * 2;
+  let holes = 0;
+  const near = (a, c, dist) => Math.abs(((a / cols) | 0) - ((c / cols) | 0)) + Math.abs((a % cols) - (c % cols)) <= dist;
+  for (let attempt = 0; attempt < target * attemptsPerHole && holes < target; attempt++) {
+    const c1 = (rng() * N) | 0;
+    if (!b.okCell(c1, clump)) continue;
+    const c2 = (rng() * N) | 0;
+    if (b.color(c2) === b.color(c1) || c2 === c1 || !near(c1, c2, 6) || !b.okCell(c2, clump)) continue;
+    if (b.tryHoles(c1, c2)) holes += 2;
   }
   if (info) info.holes = holes / N;
   if (holes < target * 0.7) { if (info) info.fail = 'holes'; return null; }
-  const edges = new Int8Array(2 * N);
-  for (let v = 0; v < N; v++) {
-    if (hole[v]) continue;
-    for (const w of partners[v]) {
-      if (w <= v) continue;
-      edges[w === v + 1 ? 2 * v : 2 * v + 1] = 1;
+  return { holes: b.hole, edges: b.edges() };
+}
+
+/**
+ * Alternative loops through the same cells, found locally. A 2x2 block of loop cells whose cycle contains two parallel opposite
+ * edges is a "chord" joining those two edges along the cycle. Swapping the parallel edges for the other pair splits the cycle in
+ * two (on a plane curve the two edges always run in opposite directions), and a second swap in a different block merges the
+ * halves into ONE cycle again, a different loop through exactly the same cells, whenever the two chords interleave around the
+ * cycle. So a loop with two crossing chords can never be unique. (The converse does not hold: longer alternating cycles exist.)
+ * Returns { chords, crossings, pairs } where pairs lists the crossing chord pairs.
+ */
+export function crossingChords(rows, cols, hole, pos, length) {
+  const chords = [];
+  const edgeIndex = (a, b) => {
+    if (pos[a] < 0 || pos[b] < 0) return -1;
+    if (pos[b] === (pos[a] + 1) % length) return pos[a];
+    if (pos[a] === (pos[b] + 1) % length) return pos[b];
+    return -1;
+  };
+  for (let r = 0; r + 1 < rows; r++) {
+    for (let c = 0; c + 1 < cols; c++) {
+      const a = r * cols + c, b = a + 1, d = a + cols + 1, e = a + cols; // a b / e d
+      if (hole[a] || hole[b] || hole[d] || hole[e]) continue;
+      let i = edgeIndex(a, b), j = edgeIndex(e, d);          // top and bottom edges
+      if (i >= 0 && j >= 0) chords.push([Math.min(i, j), Math.max(i, j), a]);
+      i = edgeIndex(a, e); j = edgeIndex(b, d);              // left and right edges
+      if (i >= 0 && j >= 0) chords.push([Math.min(i, j), Math.max(i, j), a]);
     }
   }
-  return { holes: hole, edges };
+  const pairs = [];
+  for (let x = 0; x < chords.length; x++) {
+    const [p, q] = chords[x];
+    for (let y = x + 1; y < chords.length; y++) {
+      const [u, v] = chords[y];
+      if ((p < u && u < q && q < v) || (u < p && p < v && v < q)) pairs.push([x, y]);
+    }
+  }
+  return { chords, crossings: pairs.length, pairs };
+}
+
+/**
+ * A loop whose cells admit no other loop (it is unique), built by repair instead of by luck: start from a random loop with
+ * few holes and, while two chords cross (see crossingChords), try to make a pair of cells beside one crossing into holes; keep
+ * the move only if the number of crossings goes down (or stays level, now and then, to cross plateaus). Returns
+ * { holes, edges, stats } or null. Random loops almost never pass at 14x14 and above; this is what scales.
+ */
+export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, clump = 0.5, check = true } = {}) {
+  const t0 = Date.now();
+  const N = rows * cols;
+  const b = makeLoopBuilder(rows, cols, rng);
+  if (!b.init()) return null;
+  const near = (a, c, dist) => Math.abs(((a / cols) | 0) - ((c / cols) | 0)) + Math.abs((a % cols) - (c % cols)) <= dist;
+  const target = Math.round((N * startDensity) / 2) * 2;
+  let holes = 0;
+  for (let attempt = 0; attempt < target * 150 && holes < target; attempt++) {
+    const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0;
+    if (b.okCell(c1, clump) && b.okCell(c2, clump) && near(c1, c2, 6) && b.tryHoles(c1, c2)) holes += 2;
+  }
+  if (holes < target * 0.7) return null;
+  const evaluate = () => { const { pos, length } = b.positions(); return crossingChords(rows, cols, b.hole, pos, length); };
+  let cur = evaluate(), moves = 0, accepted = 0, plateau = 0;
+  const maxHoles = Math.round(N * maxDensity);
+  while (Date.now() - t0 < budgetMs && holes < maxHoles) {
+    if (cur.crossings === 0) {
+      if (!check || loopIsUnique(rows, cols, b.hole)) {
+        return { holes: b.hole, edges: b.edges(), stats: { holePct: (100 * holes / N).toFixed(1), moves, accepted, ms: Date.now() - t0 } };
+      }
+      // no local alternative but still not unique (a longer alternating cycle): add a random pair and look again
+      for (let k = 0; k < 400; k++) { const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0; if (b.okCell(c1, clump) && b.okCell(c2, clump) && near(c1, c2, 3) && b.tryHoles(c1, c2)) { holes += 2; break; } }
+      cur = evaluate(); continue;
+    }
+    // pick one crossing pair and a hole pair beside it
+    const [x, y] = cur.pairs[(rng() * cur.pairs.length) | 0];
+    const blk = [cur.chords[x][2], cur.chords[y][2]];
+    const cells = [];
+    for (const a of blk) for (const dr of [-1, 0, 1, 2]) for (const dc of [-1, 0, 1, 2]) { const r = ((a / cols) | 0) + dr, c = (a % cols) + dc; if (r >= 0 && c >= 0 && r < rows && c < cols && !b.hole[r * cols + c]) cells.push(r * cols + c); }
+    if (!cells.length) continue;
+    const c1 = cells[(rng() * cells.length) | 0];
+    const opp = cells.filter((i) => b.color(i) !== b.color(c1) && near(i, c1, 3));
+    if (!opp.length || !b.okCell(c1)) continue;
+    const c2 = opp[(rng() * opp.length) | 0];
+    if (!b.okCell(c2)) continue;
+    moves++;
+    const snap = b.snapshot();
+    if (!b.tryHoles(c1, c2)) continue;
+    const next = evaluate();
+    if (next.crossings < cur.crossings || (next.crossings === cur.crossings && rng() < 0.25)) { cur = next; holes += 2; accepted++; plateau = next.crossings < cur.crossings ? 0 : plateau + 1; }
+    else b.restore(snap);
+  }
+  return null;
 }
 
 // ------------------------------------------------------------ clues
@@ -307,17 +415,26 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
   let loop = null;
   let looked = 0;
-  for (let tries = 0; tries < 20000 && !loop && Date.now() - t0 < budgetMs; tries++) {
-    const cand = randomLoop(rows, cols, rng, { density, clump });
-    if (!cand) continue;
-    looked++;
-    if (!loopGate || loopIsUnique(rows, cols, cand.holes)) loop = cand;   // only climb on a loop that can be unique at all
+  if (tight) {
+    // build a loop that is unique by repair (tightLoop); the climb then only has to fix which holes are boxes and which are clues
+    for (let tries = 0; tries < 50 && !loop && Date.now() - t0 < budgetMs; tries++) {
+      const cand = tightLoop(rows, cols, rng, { startDensity: Math.min(density, 0.24), clump, budgetMs: Math.min(30000, budgetMs - (Date.now() - t0)) });
+      looked++;
+      if (cand) loop = cand;
+    }
+  } else {
+    for (let tries = 0; tries < 20000 && !loop && Date.now() - t0 < budgetMs; tries++) {
+      const cand = randomLoop(rows, cols, rng, { density, clump });
+      if (!cand) continue;
+      looked++;
+      if (!loopGate || loopIsUnique(rows, cols, cand.holes)) loop = cand;   // only climb on a loop that can be unique at all
+    }
   }
   if (!loop) { say(`no loop with a unique routing among ${looked} candidates`); return null; }
   say(`loop with a unique routing found after ${looked} candidate(s), ${Date.now() - t0} ms`);

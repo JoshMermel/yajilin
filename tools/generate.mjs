@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import { compile, solve, decodeSolution, checkSolved, toCsvRow, CSV_HEADER, SHADED, E_ON } from '../js/logic.js';
 import { generatePuzzle, makeRng } from '../js/generator.js';
-import { ratePuzzle, RULES } from '../js/rating.js';
+import { ratePuzzle, RULES, solvedByRules } from '../js/rating.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
@@ -33,7 +33,7 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const t0 = Date.now();
   const name = `Y${cols}x${rows}_s${seed}_${made + 1}`;
   const upto = maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
-  const r = generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, cheapFirst, loopGate: arg('gate', '1') !== '0', budgetMs: budget * 1000 });
+  const r = generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, cheapFirst, loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
   if (!r) { console.log(`${name}: no puzzle within ${budget} s`); continue; }
   const P = r.puzzle;
   // check: the stored solution is valid and the exhaustive solver agrees it is the only one
@@ -41,7 +41,17 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const shaded = Uint8Array.from(sol.cell, (v) => (v === SHADED ? 1 : 0));
   const edges = Int8Array.from(sol.e, (v) => (v === E_ON ? 1 : 0));
   if (!checkSolved(P, shaded, edges)) throw new Error(`${name}: stored solution is not valid`);
-  const unique = solve(P, { limit: 2, maxNodes: 20000000 });
+  // Uniqueness. The rules are sound, so a puzzle they solve has exactly one solution; otherwise search exhaustively FROM the rules'
+  // position (from scratch is hopeless on big boards: plain propagation is far weaker than the rules). Small boards are also
+  // checked from scratch as an independent cross-check of the rules.
+  const byRules = solvedByRules(P);
+  let unique;
+  if (byRules.solved) unique = { count: 1, exceeded: false };
+  else unique = solve(P, { limit: 2, maxNodes: 5000000, state: byRules.state });
+  if (P.N <= 150) {
+    const scratch = solve(P, { limit: 2, maxNodes: 5000000 });
+    if (!scratch.exceeded && scratch.count !== 1) throw new Error(`${name}: the rules and the exhaustive search disagree (${scratch.count} solutions from scratch)`);
+  }
   if (unique.exceeded) { console.log(`${name}: exhaustive check did not finish, skipping`); continue; }
   if (unique.count !== 1) { console.log(`${name}: exhaustive solver found ${unique.count} solutions, skipping`); continue; }
   const t1 = Date.now();
