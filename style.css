@@ -43,7 +43,7 @@
   --clue-ink: #eee;
   --clue-ok-bg: #28452c;
   --clue-bad-bg: #5a2623;
-  --shaded: #000;
+  --shaded: #c9d1d9;   /* light on the dark board: black squares vanish against #222 */
   --shaded-bad: #ef5350;
   --loop: #64b5f6;
   --dot: #8a99ab;

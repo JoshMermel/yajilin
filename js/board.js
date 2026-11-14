@@ -61,8 +61,9 @@ export class Board {
       const r = (i / P.cols) | 0, c = i % P.cols;
       if (marks.cells[i] === 1) {
         g += `<rect class="shaded ${info.badShaded.has(i) ? 'bad' : ''}" x="${PAD + c * S + 3}" y="${PAD + r * S + 3}" width="${S - 6}" height="${S - 6}" rx="5"/>`;
-      } else if (marks.cells[i] === 2) {
-        g += `<circle class="dot" cx="${cx(c)}" cy="${cy(r)}" r="${S * 0.1}"/>`;
+      } else if (marks.cells[i] === 2 && !this.hasSegment(i, marks)) {
+        // a dot only says "on the loop, exits unknown": once a segment passes through, the line says it better
+        g += `<circle class="dot" cx="${cx(c)}" cy="${cy(r)}" r="${S * 0.055}"/>`;
       }
     }
     // loop segments, centre to centre
@@ -77,6 +78,11 @@ export class Board {
     }
     g += `<rect class="frame" x="${PAD}" y="${PAD}" width="${P.cols * S}" height="${P.rows * S}"/>`;
     this.el.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+  }
+
+  hasSegment(i, marks) {
+    for (let d = 0; d < 4; d++) { const x = this.P.ed[i * 4 + d]; if (x >= 0 && marks.edges[x]) return true; }
+    return false;
   }
 
   // ---- pointer decoding

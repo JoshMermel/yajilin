@@ -12,7 +12,7 @@ orthogonally. Every cell is a clue, shaded, or on the loop.
 | Part | State |
 | --- | --- |
 | Exact solver / uniqueness counter (`js/logic.js`) | done, cross-checked against a brute-force reference (`tests/`) |
-| Browser GUI (`index.html`, `js/board.js`, `js/main.js`) | playable: tap to cycle empty/shaded/dot, drag to draw the loop, undo/redo, saves, "Correct so far?" |
+| Browser GUI (`index.html`, `js/board.js`, `js/main.js`) | playable: tap to cycle empty/dot/shaded, drag to draw the loop, undo/redo, saves, "Correct so far?" |
 | Human-style scorer + Hint (`js/rating.js`) | not started: next, calibrated on the borrowed puzzles |
 | Generator | not started |
 | Corpus, books, print | not started |

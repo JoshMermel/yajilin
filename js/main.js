@@ -38,7 +38,7 @@ function cycleCell(i) {
   const P = state.P;
   if (P.clueAt[i] >= 0) return;
   const m = state.marks;
-  m.cells[i] = (m.cells[i] + 1) % 3;
+  m.cells[i] = [2, 0, 1][m.cells[i]]; // empty -> dot -> shaded -> empty
   if (m.cells[i] === 1) removeEdgesAt(i); // a shaded cell is not on the loop
   refresh();
 }
