@@ -91,6 +91,7 @@ The table lives in `js/rating.js` (`RULES`); re-binning a rule or changing a wei
 | `closingCell` | a cell has only two ways out and both lead to the two ends of one path: using them would close the loop early, so the cell is a box | Medium | 3 |
 | `noEarlyClose` | a segment joining the two ends of one path would close the loop while other loop cells are outside it | Medium | 3 |
 | `cluePlacements` | try every way to place the clue's boxes without two touching: a cell they all use is shaded, a cell none uses is loop | Medium | 4 |
+| `crossingParity` | the loop crosses the border of any rectangle an even number of times (every loop cell has exactly two segments): when all but one crossing is settled, the last is forced. Checked for small rectangles, corner-anchored ones and full-width or full-height bands | Medium | 6 |
 | `rangeSame` | two clues in a line point the same way: the cells between them hold (first number - second number) boxes; use that range like a clue | Medium | 6 |
 | `shadeForcesLines` | imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if a line end must do two incompatible things (a cell gets three lines, or is stranded), the cell is loop | Hard | 8 |
 | `parityForces` | a move (a cell shaded, a segment drawn or missing) would cut off a group of cells that can still be joined and holds an odd number of open ends (cells with one line that still need a second), which can never be completed: it is the other way | Hard | 9 |

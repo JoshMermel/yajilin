@@ -99,3 +99,22 @@ default without the option is the old length-weighted pick). Feasibility at 14x1
 0.9 0/2: strongly edge-ward arrows have short rays and carry little information, so they are harder to make solvable. The opposite
 direction (q near 0, long rays) should be easy: a candidate bonus book, "the long way round" (PuzzleMadness-style). A main book at
 q = 0.75 would match Nikoli but needs longer runs.
+
+## Rule candidates (researched 2026-11-14)
+
+Sources read: the puzzles.wiki Yajilin page, a Puzzle Magazine walkthrough, rollforfantasy's guide (the UKPL guide and a LIACS
+thesis were PDFs the fetcher could not read). Their techniques are all already rules here (tightCell, forcedExits, deadEnd,
+shadedNeighbor, deadEndNeighbor, cluePlacements for a 2N-1 run, rangeSame, rangeFacing, noEarlyClose) except one, now added:
+
+- **Done: `crossingParity`** (wiki: "the loop enters and exits any region an even number of times"). Nikoli's nk_99 drops from Hard
+  to Medium with it. Generalisation: every non-clue cell has even degree (0 or 2), so the loop is an element of the cycle space and
+  *every* region's border parity is a GF(2) sum of those cell equations; Gaussian elimination would find all of them for any shape.
+  Too powerful to call human-style, but the shapes people use (L-shapes, staircases, diagonal bands) are a possible next step.
+- Chessboard colour balance: loop cells alternate colours, so the non-clue cells of each colour minus the boxes of that colour are
+  equal: (boxes on black) - (boxes on white) = (non-clue black) - (non-clue white). Useful in endgames; global, so likely Hard.
+  Regionally, a strand inside a region with c crossings can differ by at most c/2.
+- Loop-aware clue placements: `cluePlacements` only forbids touching boxes. The wiki's "an empty 2x3 holds at most two boxes" is
+  really about the loop: three diagonal boxes in 2x3 strand the middle cell. Enumerating placements while rejecting any that leave a
+  cell with fewer than two ways out would find more. nk_102 (still needs `tryCell`) may be waiting on something like this.
+- Two-clue stacks: clues of 1 pointing the same way on adjacent lines (nk_102's diagonal lattice) give strong `rangeSame` chains;
+  worth checking whether a chain of three needs its own, cheaper, name.

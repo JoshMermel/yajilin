@@ -27,6 +27,8 @@
 //                    outside it: no segment there
 //   parityForces     a move (a cell shaded, a segment drawn or missing) would cut off a group of cells holding an odd
 //                    number of open ends, which can never be completed: it is the other way
+//   crossingParity   the loop crosses the border of any rectangle an even number of times: when all but one crossing is
+//                    settled, the last is forced
 //   rangeSame        two clues in a line point the same way: the cells between them hold (first - second) shaded cells
 //   rangeFacing      two clues point at each other: the room between them, and at each end, bounds how many shaded
 //                    cells each part holds
@@ -565,6 +567,57 @@ function closingCell(P, st) {
   return out;
 }
 
+/**
+ * The loop crosses the border of any rectangle of cells an even number of times: every loop cell uses exactly two segments,
+ * so the segments leaving the rectangle (counted once per crossing) pair up. When all but one crossing is settled, the last
+ * one is forced. Checked for every small rectangle (up to 4x4), every rectangle anchored in a corner of the board, and every
+ * full-width or full-height band; each is O(1) with prefix sums.
+ */
+function crossingParity(P, st) {
+  const { rows, cols } = P;
+  const live = (a, b) => P.clueAt[a] < 0 && P.clueAt[b] < 0 && st.cell[a] !== SHADED && st.cell[b] !== SHADED;
+  // prefix sums along each row of the down-edges, and along each column of the right-edges: [on, unknown]
+  const dOn = new Int16Array(rows * (cols + 1)), dUn = new Int16Array(rows * (cols + 1));
+  const rOn = new Int16Array(cols * (rows + 1)), rUn = new Int16Array(cols * (rows + 1));
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c;
+      let on = 0, un = 0;
+      if (r < rows - 1 && live(i, i + cols)) { const v = st.e[2 * i + 1]; if (v === E_ON) on = 1; else if (v === E_UNKNOWN) un = 1; }
+      dOn[r * (cols + 1) + c + 1] = dOn[r * (cols + 1) + c] + on; dUn[r * (cols + 1) + c + 1] = dUn[r * (cols + 1) + c] + un;
+      on = 0; un = 0;
+      if (c < cols - 1 && live(i, i + 1)) { const v = st.e[2 * i]; if (v === E_ON) on = 1; else if (v === E_UNKNOWN) un = 1; }
+      rOn[c * (rows + 1) + r + 1] = rOn[c * (rows + 1) + r] + on; rUn[c * (rows + 1) + r + 1] = rUn[c * (rows + 1) + r] + un;
+    }
+  }
+  const found = new Map();
+  const check = (r0, c0, r1, c1) => {
+    let on = 0, un = 0;
+    if (r0 > 0) { const b = (r0 - 1) * (cols + 1); on += dOn[b + c1 + 1] - dOn[b + c0]; un += dUn[b + c1 + 1] - dUn[b + c0]; }
+    if (r1 < rows - 1) { const b = r1 * (cols + 1); on += dOn[b + c1 + 1] - dOn[b + c0]; un += dUn[b + c1 + 1] - dUn[b + c0]; }
+    if (c0 > 0) { const b = (c0 - 1) * (rows + 1); on += rOn[b + r1 + 1] - rOn[b + r0]; un += rUn[b + r1 + 1] - rUn[b + r0]; }
+    if (c1 < cols - 1) { const b = c1 * (rows + 1); on += rOn[b + r1 + 1] - rOn[b + r0]; un += rUn[b + r1 + 1] - rUn[b + r0]; }
+    if (un !== 1) return;
+    // find the one unknown crossing
+    let x = -1;
+    if (r0 > 0) for (let c = c0; c <= c1 && x < 0; c++) { const i = (r0 - 1) * cols + c; if (live(i, i + cols) && st.e[2 * i + 1] === E_UNKNOWN) x = 2 * i + 1; }
+    if (x < 0 && r1 < rows - 1) for (let c = c0; c <= c1 && x < 0; c++) { const i = r1 * cols + c; if (live(i, i + cols) && st.e[2 * i + 1] === E_UNKNOWN) x = 2 * i + 1; }
+    if (x < 0 && c0 > 0) for (let r = r0; r <= r1 && x < 0; r++) { const i = r * cols + c0 - 1; if (live(i, i + 1) && st.e[2 * i] === E_UNKNOWN) x = 2 * i; }
+    if (x < 0 && c1 < cols - 1) for (let r = r0; r <= r1 && x < 0; r++) { const i = r * cols + c1; if (live(i, i + 1) && st.e[2 * i] === E_UNKNOWN) x = 2 * i; }
+    if (x < 0 || found.has(x)) return;
+    found.set(x, { edge: x, value: on % 2 ? E_ON : E_OFF, rect: [r0, c0, r1, c1], crossings: on });
+  };
+  for (let r0 = 0; r0 < rows; r0++) for (let c0 = 0; c0 < cols; c0++) {
+    for (let h = 1; h <= 4 && r0 + h <= rows; h++) for (let w = 1; w <= 4 && c0 + w <= cols; w++) check(r0, c0, r0 + h - 1, c0 + w - 1);
+  }
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { // rectangles anchored in each corner
+    check(0, 0, r, c); check(0, c, r, cols - 1); check(r, 0, rows - 1, c); check(r, c, rows - 1, cols - 1);
+  }
+  for (let a = 0; a < rows; a++) for (let b = a; b < rows; b++) check(a, 0, b, cols - 1); // bands
+  for (let a = 0; a < cols; a++) for (let b = a; b < cols; b++) check(0, a, rows - 1, b);
+  return [...found.values()].map((f) => firing([setEdge(f.edge, f.value)], f));
+}
+
 function noEarlyClose(P, st) {
   const { find } = components(P, st);
   const loopRoots = new Set();
@@ -658,6 +711,7 @@ export const RULES = [
   { id: 'noEarlyClose', tier: 'Medium', weight: 3, find: noEarlyClose, label: 'a segment would close the loop too early' },
   { id: 'cluePlacements', tier: 'Medium', weight: 4, find: cluePlacements, label: 'every way to place a clue\'s shaded cells includes (or leaves out) this cell' },
   { id: 'rangeSame', tier: 'Medium', weight: 6, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
+  { id: 'crossingParity', tier: 'Medium', weight: 6, find: crossingParity, label: 'the loop crosses the border of a rectangle an even number of times' },
   { id: 'shadeForcesLines', tier: 'Hard', weight: 8, find: shadeForcesLines, label: 'a box here would force a line end to do two incompatible things' },
   { id: 'parityForces', tier: 'Hard', weight: 9, find: parityForces, label: 'a move here would cut off a region with an odd number of open ends' },
   { id: 'rangeFacing', tier: 'Hard', weight: 10, find: rangeFacing, label: 'two clues point at each other: how many shaded cells fit between them decides how many each end needs' },

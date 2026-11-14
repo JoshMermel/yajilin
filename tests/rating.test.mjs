@@ -393,3 +393,22 @@ test('pattern: a cell whose only two ways out would close the loop early is a bo
   st2.e[3] = E_OFF; st2.e[9] = E_OFF;
   assert.deepEqual(ruleSets('closingCell', P, st2), []);
 });
+
+test('pattern: the loop crosses the border of any rectangle an even number of times (crossingParity)', () => {
+  // 2x3, no clues. The left column is a rectangle with two crossings (the segments from (0,0) and (1,0) to their right neighbours).
+  // One is drawn, so the other is too.
+  const P = compile({ name: 'cp', rows: 2, cols: 3, clues: [] });
+  const st = initialState(P);
+  st.e[0] = E_ON;
+  const sets = asMap(ruleSets('crossingParity', P, st));
+  assert.equal(sets.e6, E_ON);
+  // two drawn crossings: the rest are off
+  const st2 = initialState(P);
+  st2.e[0] = E_ON; st2.e[6] = E_ON; // both crossings of the left column drawn: even, nothing to force there
+  assert.equal(asMap(ruleSets('crossingParity', P, st2)).e6, undefined);
+  // a clue next to the rectangle removes a crossing: (1,0) is a clue, so the left column has only one live crossing
+  const Q = compile({ name: 'cq', rows: 2, cols: 3, clues: [{ r: 1, c: 0, d: 0, n: 0 }] });
+  const s3 = initialState(Q);
+  // the rectangle {(0,0)} has crossings (0,0)-(0,1) only (the cell below is a clue): the loop cannot cross it once, so it is off
+  assert.equal(asMap(ruleSets('crossingParity', Q, s3)).e0, E_OFF);
+});

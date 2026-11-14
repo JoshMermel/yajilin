@@ -127,6 +127,16 @@ export function explainStep(P, step, st = null) {
       }
       break;
     }
+    case 'crossingParity': {
+      const [r0, c0, r1, c1] = info.rect;
+      const cells = [];
+      if ((r1 - r0 + 1) * (c1 - c0 + 1) <= 400) for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) cells.push(r * P.cols + c);
+      role('range', cells);
+      const [a, b] = edgeCells(P, info.edge); role('path', a, b);
+      const what = `${colName(c0)}${r0 + 1} to ${colName(c1)}${r1 + 1}`;
+      text = `The loop crosses the border of the rectangle ${what} (highlighted) an even number of times, because every loop cell has exactly two segments. ${info.crossings} crossing${info.crossings === 1 ? ' is' : 's are'} already drawn and this is the only undecided one, so ${info.value === E_ON ? 'there is a segment here' : 'there is no segment here'}.`;
+      break;
+    }
     case 'tryCell':
       role('focus', info.cell);
       text = `Suppose this cell were ${info.assumed}. Following the easier rules from there ends in a contradiction, so it is ${info.assumed === 'shaded' ? 'on the loop' : 'shaded'}.`;

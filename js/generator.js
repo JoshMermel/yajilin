@@ -9,7 +9,7 @@
 //      they could not decide into clues, and ask again.
 //   4. Optionally prune: turn clues back into shaded cells while the rules still solve it.
 import { compile, initialState, encodeSolution, solve, SHADED, LOOP, E_ON, E_OFF, DR, DC, UNKNOWN } from './logic.js';
-import { solvedByRules } from './rating.js';
+import { solvedByRules, RULES } from './rating.js';
 
 /** Small deterministic PRNG (mulberry32) so a seed reproduces a puzzle. */
 export function makeRng(seed) {
@@ -291,7 +291,7 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
@@ -316,11 +316,21 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
   // a "shaded" cell is a hole that is not a clue; make sure those do not touch (clue cells that failed to point anywhere were kept shaded)
   for (const i of holes) if (!isClue[i] && gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j] && j < i)) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d < 0) return null; setClue(i, d); }
 
+  // Two-phase check, because the Hard rules are expensive (on a stuck 20x36 board: 112 ms with them, 4 ms without). The climb
+  // normally uses only the Beginner and Medium rules; when that leaves few cells undecided it asks the full rule set.
+  const cheapUpto = RULES.findIndex((r) => r.tier === 'Hard');
+  const useCheap = (cheapFirst === null ? N >= 150 : cheapFirst) && upto === undefined;
+  const fullLimit = fullBelow === null ? Math.max(20, N * 0.08) : fullBelow;
   const evaluate = () => {
     const P = buildPuzzle(rows, cols, loop, clueDir, name);
-    const r = solvedByRules(P, upto);
+    let r = solvedByRules(P, useCheap ? cheapUpto : upto);
+    let base = r.solved ? 0 : undecidedScore(P, r.state) + 0.001;
+    if (useCheap && !r.solved && base <= fullLimit) {
+      r = solvedByRules(P, upto);
+      base = r.solved ? 0 : undecidedScore(P, r.state) + 0.001;
+    }
     const gap = styleGap(P, numbers, minMean);
-    return { P, r, gap, u: (r.solved ? 0 : undecidedScore(P, r.state) + 0.001) + 3 * gap };
+    return { P, r, gap, u: base + 3 * gap };
   };
   let cur = evaluate(), checks = 1, iter = 0;
   const dist = (a, b) => Math.abs(((a / cols) | 0) - ((b / cols) | 0)) + Math.abs((a % cols) - (b % cols));
