@@ -117,8 +117,10 @@ export function explainStep(P, step, st = null) {
       break;
     case 'pairedEnds': {
       const [u, v] = info.pair, [fu, fv] = info.far;
-      role('range', info.cells); role('focus', u, v); role('path', fu, fv);
-      text = `${N(u)} and ${N(v)} are the only open ends in their sealed-off area, so they must join each other. That makes ${N(fu)} and ${N(fv)} the two ends of one path, and a segment between them would close the loop early. So there is none.`;
+      role('range', info.cells); role('focus', ...info.ends); role('path', fu, fv);
+      text = info.k === 2
+        ? `${N(u)} and ${N(v)} are the only open ends in their sealed-off area, so they must join each other. That makes ${N(fu)} and ${N(fv)} the two ends of one path, and a segment between them would close the loop early. So there is none.`
+        : `However the ${info.k} open ends of this sealed-off area pair up, ${N(fu)} and ${N(fv)} end up as the two ends of one line. A segment between them would close the loop early. So there is none.`;
       break;
     }
     case 'sameSegmentExits':
@@ -163,6 +165,12 @@ export function explainStep(P, step, st = null) {
       role('focus', info.cell); role('problem', info.stranded);
       text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info)}. So ${N(info.cell)} gets a dot.`;
       break;
+    case 'uniqueRoute': {
+      role('range', info.cells); role('focus', ...info.ends);
+      const [a, b] = edgeCells(P, info.edge);
+      text = `Some ways to join the open ends here could be drawn two ways over the same cells (two solutions). Without those, ${info.value === E_ON ? 'there is a segment' : 'there is no segment'} between ${N(a)} and ${N(b)}.`;
+      break;
+    }
     case 'segmentForcesLines': {
       const [a, b] = edgeCells(P, info.edge); role('focus', a, b); role('problem', info.stranded);
       text = info.assumed === 'off'

@@ -6,6 +6,7 @@
 //   * a press that moves into other cells  -> handlers.onStep(fromCell, toCell, isFirstStep) for each step
 // handlers.onStart() / handlers.onEnd() bracket every gesture, so a whole gesture is one undo step.
 import { colName } from './logic.js';
+import { makeColorKeeper, assignPathColors } from './pathcolors.js';
 
 const S = 44;     // cell size in SVG units
 const PAD = 4;    // room for the frame
@@ -30,7 +31,7 @@ export class Board {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  setPuzzle(P) { this.P = P; }
+  setPuzzle(P) { this.P = P; this.colors = null; }
 
   /** Display options: { colorLines: color each separate path differently, labels: number the rows and columns }. */
   setOptions(opts) { Object.assign(this.opts, opts); if (this.marks) this.render(this.marks, this.info, this.hint); }
@@ -51,9 +52,9 @@ export class Board {
       const ra = find(a), rb = find(b);
       if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb); // the root is the path's lowest cell
     }
-    // colors follow the order of the paths' first cells, so they stay put as a path grows away from its first cell
-    const colorOf = new Map();
-    for (let i = 0; i < P.N; i++) if (deg[i] > 0) { const r = find(i); if (!colorOf.has(r)) colorOf.set(r, colorOf.size % PATH_COLORS); }
+    // colors stay with their lines: see pathcolors.js (a new line never recolors the others; a joined line keeps the older color)
+    if (!this.colors || this.colors.birth.length !== P.numEdges) this.colors = makeColorKeeper(P.numEdges);
+    const colorOf = assignPathColors(this.colors, marks.edges, (x) => find(x >> 1), PATH_COLORS);
     return { deg, colorOf, find };
   }
 

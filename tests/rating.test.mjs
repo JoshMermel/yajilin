@@ -482,3 +482,37 @@ test('the newer rules reach the stored solution on real generated puzzles (sound
   }
   assert.ok(used > 5, 'the sample should actually use the newer rules');
 });
+
+const CLUES06 = [10, 10, '0:4:L:1;0:7:D:1;2:2:R:1;2:4:R:1;2:7:L:0;3:0:D:1;3:5:D:1;4:0:R:2;4:2:R:2;4:5:L:1;4:6:D:0;7:4:R:0;8:1:U:0;8:2:D:0;8:4:R:0;9:7:L:0'];
+
+test('pairedEnds with four open ends: the two lines leaving the sealed-off area end up as one line', () => {
+  // A1-D2 has four open ends (B1 and B2 are the ends of one little path, so they cannot join each other); A2 and D2 must
+  // end up joined through it, so the far ends D6 and E6 cannot be joined to each other, and later F7 and F8 cannot either.
+  const P = stuckPuzzle('d06', CLUES06[0], CLUES06[1], CLUES06[2]);
+  const r = rate(P);
+  const offs = r.steps.filter((s) => s.rule === 'pairedEnds').flatMap((s) => s.sets.filter(([k, i, v]) => k === 'e' && v === E_OFF).map(([, i]) => i));
+  const d6 = cellIdx(P, 'D6'), f7 = cellIdx(P, 'F7');
+  assert.ok(offs.includes(2 * d6), 'D6-E6 should be ruled out');
+  assert.ok(offs.includes(2 * f7 + 1), 'F7-F8 should be ruled out');
+});
+
+const CLUES03 = [16, 16, '0:7:R:1;0:10:L:0;0:14:L:0;1:2:D:1;1:3:D:0;1:4:D:2;2:2:R:1;2:13:D:3;3:4:L:1;3:12:L:3;4:2:L:1;4:7:D:4;4:8:L:1;4:13:D:2;4:15:L:1;5:6:R:3;6:4:D:2;6:10:D:1;7:3:R:4;7:8:L:2;7:9:L:2;7:12:D:0;7:14:D:0;8:1:U:1;8:8:U:0;8:11:L:0;10:2:R:1;10:5:U:2;10:13:U:3;11:11:L:2;11:12:U:0;12:2:R:0;12:9:L:0;12:15:U:3;13:4:U:1;13:6:R:0;13:11:L:0;14:9:L:1;15:2:U:1;15:13:U:3'];
+
+test('uniqueness: a pairing that can be drawn two ways is not the real one (uniqueRoute)', () => {
+  // A6, B6 above and A8, B8 below the dots A7, B7: joining A7 to B7 (up or down) could be swapped for the other, so A7 and B7 do not
+  // join each other and both go up and down instead
+  const P = stuckPuzzle('d03', CLUES03[0], CLUES03[1], CLUES03[2]);
+  const r = rate(P);
+  const step = r.steps.find((s) => s.rule === 'uniqueRoute');
+  assert.ok(step, 'uniqueRoute should fire');
+  const idx = (a, b) => { const i = cellIdx(P, a), j = cellIdx(P, b); return j === i + 1 ? 2 * i : 2 * i + 1; };
+  const sets = Object.fromEntries(step.sets.filter(([k]) => k === 'e').map(([, x, v]) => [x, v]));
+  assert.equal(sets[idx('A6', 'A7')], E_ON); assert.equal(sets[idx('A7', 'A8')], E_ON);
+  assert.equal(sets[idx('B6', 'B7')], E_ON); assert.equal(sets[idx('B7', 'B8')], E_ON);
+  assert.equal(sets[idx('A7', 'B7')], E_OFF);
+});
+
+test('rules that assume a unique solution are kept out of everything that treats "solved by the rules" as proof of uniqueness', () => {
+  const first = RULE_IDS.indexOf(RULES.find((r) => r.lookahead).id);
+  for (const r of RULES.filter((r) => r.assumesUnique)) assert.ok(RULE_IDS.indexOf(r.id) > first, r.id);
+});

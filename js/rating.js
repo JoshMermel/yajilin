@@ -29,9 +29,10 @@
 //                    number of open ends, which can never be completed: it is the other way
 //   segmentForcesLines  shadeForcesLines for a segment: imagine it missing (or drawn), add the forced lines, and a cell is left with
 //                    three lines or too few ways out
+//   uniqueRoute      (assumes ONE solution) a way of pairing the open ends of a group that can be drawn two ways is not the real one
 //   closingNeighbor  imagine a cell shaded: its neighbour would be a dot whose only two ways out are the ends of one path
-//   pairedEnds       a group of cells that can still be joined holds exactly two open ends: they join each other, so their
-//                    paths become one and its far ends cannot be joined
+//   pairedEnds       the open ends of a group of cells that can still be joined pair up inside it: whatever pairings do not close
+//                    the loop early, two far ends always end up as the ends of one line, so no segment joins them
 //   crossingParity   the loop crosses the border of any rectangle an even number of times: when all but one crossing is
 //                    settled, the last is forced
 //   rangeSame        two clues in a line point the same way: the cells between them hold (first - second) shaded cells
@@ -681,10 +682,24 @@ function farEnd(P, st, u) {
   return -1;
 }
 
+/** Every way to pair up the items of `list` (an even number of them). */
+function perfectMatchings(list) {
+  if (!list.length) return [[]];
+  const [first, ...rest] = list;
+  const out = [];
+  for (let k = 0; k < rest.length; k++) {
+    const others = rest.filter((_, q) => q !== k);
+    for (const m of perfectMatchings(others)) out.push([[first, rest[k]], ...m]);
+  }
+  return out;
+}
+
 /**
- * Group the cells that can still be joined (see oddOpenEnds). A group with exactly two open ends is sealed off: the only way for
- * each end to get its second segment is through the group, so the two ends must join each other. Their paths then become one
- * path, and its two far ends cannot be joined to each other while other loop cells lie outside (that would close the loop early).
+ * Group the cells that can still be joined (see oddOpenEnds). Every open end in a group has to be joined to another open end of
+ * the same group, through the group. List every way to pair them up and throw away those that close a loop too early (an end joined
+ * to the other end of its own path, say, while other loop cells lie outside). Then look at what the remaining pairings share: in every
+ * one, some two ends outside the group (the far ends of the paths that enter it) end up as the two ends of ONE line. A segment between
+ * those two would close the loop early, so it is not there. With two open ends there is one pairing: they join each other.
  */
 function pairedEnds(P, st) {
   const g = openEndGroups(P, st);
@@ -695,23 +710,137 @@ function pairedEnds(P, st) {
   const { find: path } = components(P, st);
   const out = [];
   for (const [root, es] of byRoot) {
-    if (es.length !== 2) continue;
-    const [u, v] = es;
-    if (path(u) === path(v)) continue; // the two ends of one path: joining them finishes (or wrongly closes) the loop
-    const fu = farEnd(P, st, u), fv = farEnd(P, st, v);
-    if (fu < 0 || fv < 0 || fu === v || fv === u) continue;
-    let outside = false;
+    if (es.length < 2 || es.length > 6) continue;
     const group = [];
-    for (let i = 0; i < P.N; i++) {
-      if (needy[i] && find(i) === root) group.push(i);
-      else if (st.cell[i] === LOOP && path(i) !== path(u) && path(i) !== path(v)) outside = true;
+    const inGroup = new Set();
+    for (let i = 0; i < P.N; i++) if (needy[i] && find(i) === root) { group.push(i); inGroup.add(i); }
+    const far = new Map(es.map((u) => [u, farEnd(P, st, u)]));
+    if ([...far.values()].some((w) => w < 0)) continue;
+    const outsideOf = (roots) => { for (let i = 0; i < P.N; i++) if (st.cell[i] === LOOP && !inGroup.has(i) && !roots.has(path(i))) return true; return false; };
+    let common = null;      // "a,b|outside": pairs of free ends that every valid pairing leaves as the two ends of one line
+    let valid = 0;
+    for (const m of perfectMatchings(es)) {
+      const partner = new Map();
+      for (const [u, v] of m) { partner.set(u, v); partner.set(v, u); }
+      // Follow the lines: from a free end (the far end of a path entering the group) go to the open end of that path, jump to its
+      // partner, follow the partner's path to its far end, and so on until a free end is reached again.
+      const free = [...new Set(es.map((u) => far.get(u)).filter((w) => !es.includes(w)))];
+      const chains = [], done = new Set();
+      for (const f0 of free) {
+        if (done.has(f0)) continue;
+        let u = es.find((q) => far.get(q) === f0), end = -1;
+        const roots = new Set([path(f0)]);
+        for (let guard = 0; guard < 32; guard++) {
+          const v = partner.get(u);
+          roots.add(path(v));
+          const w = far.get(v);
+          if (!es.includes(w)) { end = w; break; }
+          u = w;
+        }
+        if (end < 0) { chains.length = 0; break; }
+        done.add(f0); done.add(end);
+        chains.push({ a: f0, b: end, roots });
+      }
+      // paths the pairing closes into a loop without reaching a free end: only possible if that loop holds every loop cell
+      const reached = new Set(chains.flatMap((c) => [...c.roots]));
+      const cycle = new Set();
+      for (const u of es) if (!reached.has(path(u))) cycle.add(path(u));
+      if (cycle.size && outsideOf(cycle)) continue;
+      valid++;
+      const keys = new Set(chains.map((c) => `${Math.min(c.a, c.b)},${Math.max(c.a, c.b)}|${outsideOf(c.roots) ? 1 : 0}`));
+      common = common === null ? keys : new Set([...common].filter((k) => keys.has(k)));
     }
-    if (!outside) continue;
-    for (let d = 0; d < 4; d++) {
-      const x = P.ed[fu * 4 + d];
-      if (x < 0 || P.nb[fu * 4 + d] !== fv || st.e[x] !== E_UNKNOWN) continue;
-      out.push(firing([setEdge(x, E_OFF)], { edge: x, pair: [u, v], far: [fu, fv], cells: group }));
+    if (!valid || !common) continue;
+    for (const key of common) {
+      const [ab, outside] = key.split('|');
+      if (outside !== '1') continue;
+      const [a, b] = ab.split(',').map(Number);
+      if (inGroup.has(a) || inGroup.has(b)) continue;
+      for (let d = 0; d < 4; d++) {
+        const x = P.ed[a * 4 + d];
+        if (x < 0 || P.nb[a * 4 + d] !== b || st.e[x] !== E_UNKNOWN) continue;
+        out.push(firing([setEdge(x, E_OFF)], { edge: x, pair: es.slice(0, 2), ends: es, far: [a, b], cells: group, k: es.length }));
+      }
     }
+  }
+  return out;
+}
+
+/**
+ * UNIQUENESS. A group of cells that can still be joined, all of them known loop cells, holds some open ends that must be paired up
+ * through the group. A pairing that can be drawn in two different ways (same cells, different segments) cannot be the real one:
+ * swapping one drawing for the other would give a second solution (the clues count boxes, and the boxes did not change). Drop those
+ * pairings; if something is then settled (a segment in every drawing left, or in none), say so. This rule ASSUMES THE PUZZLE HAS ONE
+ * SOLUTION, so it is not used where rule-solved is taken to prove uniqueness (see ASSUMES_UNIQUE).
+ */
+function uniqueRoute(P, st) {
+  const g = openEndGroups(P, st);
+  if (!g) return [];
+  const { find, ends, needy } = g;
+  const roots = new Set(ends.map((i) => find(i)));
+  const out = [];
+  for (const root of roots) {
+    const cells = [];
+    for (let i = 0; i < P.N; i++) if (needy[i] && find(i) === root) cells.push(i);
+    if (cells.length > 12 || cells.some((i) => st.cell[i] !== LOOP)) continue;
+    const inGroup = new Set(cells);
+    const need = new Map(cells.map((i) => [i, 2 - onCount(P, st, i)]));
+    const xs = [];
+    for (let x = 0; x < P.numEdges; x++) {
+      if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
+      const [a, b] = edgeCells(P, x);
+      if (inGroup.has(a) && inGroup.has(b)) xs.push(x);
+    }
+    if (xs.length > 18) continue;
+    const endsHere = cells.filter((i) => need.get(i) === 1);
+    // every way to give each cell exactly its missing segments
+    const deg = new Map(cells.map((i) => [i, 0]));
+    const picked = [], solutions = [];
+    const dfs = (k) => {
+      if (k === xs.length) { if (cells.every((i) => deg.get(i) === need.get(i))) solutions.push(picked.slice()); return; }
+      const [a, b] = edgeCells(P, xs[k]);
+      if (deg.get(a) < need.get(a) && deg.get(b) < need.get(b)) {
+        deg.set(a, deg.get(a) + 1); deg.set(b, deg.get(b) + 1); picked.push(xs[k]);
+        dfs(k + 1);
+        picked.pop(); deg.set(a, deg.get(a) - 1); deg.set(b, deg.get(b) - 1);
+      }
+      dfs(k + 1);
+    };
+    dfs(0);
+    // the pairing each drawing makes of the open ends (a drawing with a closed loop of its own is no drawing at all)
+    const byPairing = new Map();
+    for (const sol of solutions) {
+      const adj = new Map(cells.map((i) => [i, []]));
+      for (const x of sol) { const [a, b] = edgeCells(P, x); adj.get(a).push(b); adj.get(b).push(a); }
+      const seen = new Set(), pairs = [];
+      for (const u of endsHere) {
+        if (seen.has(u)) continue;
+        let prev = -1, cur = u; seen.add(u);
+        for (let guard = 0; guard < 40; guard++) {
+          const nxt = adj.get(cur).find((j) => j !== prev);
+          if (nxt === undefined) break;
+          prev = cur; cur = nxt; seen.add(cur);
+          if (need.get(cur) === 1) break;
+        }
+        pairs.push([Math.min(u, cur), Math.max(u, cur)]);
+      }
+      if (cells.some((i) => !seen.has(i))) continue;
+      const key = pairs.sort((p, q) => p[0] - q[0]).map((p) => p.join('-')).join(',');
+      if (!byPairing.has(key)) byPairing.set(key, []);
+      byPairing.get(key).push(sol);
+    }
+    const kept = [];
+    let dropped = false;
+    for (const sols of byPairing.values()) { if (sols.length === 1) kept.push(sols[0]); else dropped = true; }
+    if (!dropped || !kept.length) continue;
+    const sets = [];
+    for (const x of xs) {
+      const n = kept.filter((sol) => sol.includes(x)).length;
+      if (n === kept.length) sets.push(setEdge(x, E_ON));
+      else if (n === 0) sets.push(setEdge(x, E_OFF));
+    }
+    sets.sort((p, q) => (q[2] === E_ON) - (p[2] === E_ON));   // segments that are there first: they make the better headline
+    if (sets.length) out.push(firing(sets, { cells, ends: endsHere, edge: sets[0][1], value: sets[0][2] }));
   }
   return out;
 }
@@ -864,7 +993,7 @@ export const RULES = [
   { id: 'cluePlacements', tier: 'Medium', weight: 4, find: cluePlacements, label: 'every way to place a clue\'s shaded cells includes (or leaves out) this cell' },
   { id: 'rangeSame', tier: 'Medium', weight: 6, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
   { id: 'crossingParity', tier: 'Hard', weight: 6, find: crossingParity, label: 'the loop crosses the border of a rectangle an even number of times' },
-  { id: 'pairedEnds', tier: 'Hard', weight: 7, find: pairedEnds, label: 'the only two open ends in a sealed-off area must join each other: their paths become one, whose ends cannot be joined' },
+  { id: 'pairedEnds', tier: 'Hard', weight: 7, find: pairedEnds, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
   { id: 'shadeForcesLines', tier: 'Hard', weight: 8, find: shadeForcesLines, label: 'a box here would force a line end to do two incompatible things' },
   { id: 'segmentForcesLines', tier: 'Hard', weight: 8, find: segmentForcesLines, label: 'a loop cell cannot skip (or take) this segment: the lines that forces leave a cell with three lines or too few ways out' },
   { id: 'parityForces', tier: 'Hard', weight: 9, find: parityForces, label: 'a move here would cut off a region with an odd number of open ends' },
@@ -872,8 +1001,12 @@ export const RULES = [
   { id: 'rangeFacing', tier: 'Hard', weight: 12, find: rangeFacing, label: 'two clues point at each other: how many shaded cells fit in each part of the line fixes how many it holds' },
   { id: 'tryCell', tier: 'Hard', weight: 12, lookahead: true, find: lookahead('cell'), label: 'trying a cell one way leads to a contradiction' },
   { id: 'tryEdge', tier: 'Hard', weight: 14, lookahead: true, find: lookahead('edge'), label: 'trying a segment one way leads to a contradiction' },
+  { id: 'uniqueRoute', tier: 'Hard', weight: 11, assumesUnique: true, find: uniqueRoute, label: 'a way of joining the open ends here could be drawn two ways, which would give two solutions: so it is not the way' },
 ];
 
+// Rules flagged assumesUnique are valid only if the puzzle has exactly one solution. They sit after the lookahead rules in the table
+// so that everything that takes "solved by the rules" as proof of uniqueness (solvedByRules, closure, the generator) never uses them;
+// nextSteps (rating and hints) tries them after the plain rules and before trial and error.
 const FIRST_LOOKAHEAD = RULES.findIndex((r) => r.lookahead);
 export const RULE_IDS = RULES.map((r) => r.id);
 export const tierOfRule = (id) => (id === 'unsolved' ? 'Expert' : RULES.find((r) => r.id === id).tier);
@@ -913,7 +1046,8 @@ export function nextSteps(P, st) {
     }
     if (!any) break;
   }
-  for (const rule of RULES) {
+  // easiest first; the rules that assume a unique solution come after the plain ones but before trial and error
+  for (const rule of [...RULES.slice(0, FIRST_LOOKAHEAD), ...RULES.filter((r) => r.assumesUnique), ...RULES.filter((r) => r.lookahead)]) {
     if (rule.free) continue;
     const firings = rule.find(P, st, { upto: FIRST_LOOKAHEAD });
     if (firings.length) return { rule: rule.id, tier: rule.tier, weight: rule.weight, firings };
@@ -959,7 +1093,8 @@ export function rate(P) {
   const solved = isComplete(P, st) && checkSolved(P, shaded, edges);
   let hardest = 'unsolved';
   if (solved) {
-    hardest = steps.length ? steps.reduce((best, s) => (RULE_IDS.indexOf(s.rule) > RULE_IDS.indexOf(best) ? s.rule : best), steps[0].rule) : 'clueDone';
+    const rank = (id) => RULES[RULE_IDS.indexOf(id)].weight * 1000 + RULE_IDS.indexOf(id);   // the heaviest rule used (ties: later in the table)
+    hardest = steps.length ? steps.reduce((best, s) => (rank(s.rule) > rank(best) ? s.rule : best), steps[0].rule) : 'clueDone';
   }
   let unknown = 0;
   for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) unknown++;

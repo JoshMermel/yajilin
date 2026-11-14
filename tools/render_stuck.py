@@ -30,6 +30,19 @@ EDGE_CELLS = lambda case, x: (x >> 1, (x >> 1) + (case['cols'] if x & 1 else 1))
 
 BLUE = (25, 118, 210); GREEN = (30, 150, 60); RED = (200, 40, 40); TINT = (255, 240, 170); GRID = (205, 205, 205)
 
+OK_BG = (215, 236, 217)   # a clue whose boxes are all found, as in the game (--clue-ok-bg)
+
+def satisfied(case, cl):
+    """The clue has exactly as many known boxes in its line as its number (the game's 'ok' state, which also holds for a 0 clue)."""
+    r, c, n = cl['r'], cl['c'], cl['n']
+    if n < 0: return False
+    s = 0
+    r += DR[cl['d']]; c += DC[cl['d']]
+    while 0 <= r < case['rows'] and 0 <= c < case['cols']:
+        if case['cell'][r * case['cols'] + c] == SHADED: s += 1
+        r += DR[cl['d']]; c += DC[cl['d']]
+    return s == n
+
 def arrow(d, draw, cx, cy, S, fill=(20, 20, 20)):
     L = S * 0.17; head = S * 0.11
     dx, dy = DC[d], DR[d]
@@ -65,7 +78,7 @@ def draw_board(case, S, window, layers, chain=None, caption=''):
             i = r * cols + c; x, y = pos(r, c)
             if (r, c) in clue_at:
                 cl = clue_at[(r, c)]
-                d.rectangle([x, y, x + S, y + S], fill=(226, 229, 233))
+                d.rectangle([x, y, x + S, y + S], fill=OK_BG if satisfied(case, cl) else (226, 229, 233))
                 cx, cy = x + S / 2, y + S / 2
                 if cl['d'] in (0, 2):
                     d.text((cx - S * 0.2, cy), str(cl['n']), fill=(20, 20, 20), font=f_n, anchor='mm'); arrow(cl['d'], d, cx + S * 0.2, cy, S)
