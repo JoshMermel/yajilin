@@ -218,11 +218,33 @@ export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen') {
   return P;
 }
 
-/** A direction for a clue at i, preferring long rays (a clue pointing at a wall says little). */
-function pickDirection(rows, cols, i, isClue, rng) {
+/**
+ * A direction for a clue at i. With `edgeBias` (0..1, say 0.75), each axis is equally likely and the arrow points toward the
+ * nearer board edge with that probability, the way Nikoli's do (66-84% of the arrows in three real puzzles, where a random
+ * arrow would be 50%). Without it, long rays are preferred (a clue pointing at a wall says little).
+ */
+function pickDirection(rows, cols, i, isClue, rng, edgeBias = null) {
   const lens = [0, 1, 2, 3].map((d) => rayOf(rows, cols, i, d, isClue).length);
-  const weights = lens.map((l) => (l === 0 ? 0 : l * l));
-  const total = weights.reduce((a, b) => a + b, 0);
+  if (edgeBias === null || edgeBias === undefined) {
+    const weights = lens.map((l) => (l === 0 ? 0 : l * l));
+    const total = weights.reduce((a, b) => a + b, 0);
+    if (!total) return -1;
+    let x = rng() * total;
+    for (let d = 0; d < 4; d++) { x -= weights[d]; if (x <= 0) return d; }
+    return 0;
+  }
+  const r = (i / cols) | 0, c = i % cols;
+  const toEdge = [r, cols - 1 - c, rows - 1 - r, c]; // cells between the clue and each edge: U R D L
+  const weights = [0, 0, 0, 0];
+  for (const [a, b] of [[0, 2], [1, 3]]) {          // the two axes: (up, down) and (right, left)
+    const ok = [lens[a] > 0, lens[b] > 0];
+    if (ok[0] && ok[1]) {
+      const near = toEdge[a] === toEdge[b] ? (rng() < 0.5 ? a : b) : toEdge[a] < toEdge[b] ? a : b;
+      weights[near] = edgeBias; weights[near === a ? b : a] = 1 - edgeBias;
+    } else if (ok[0]) weights[a] = 1;
+    else if (ok[1]) weights[b] = 1;
+  }
+  const total = weights.reduce((x, y) => x + y, 0);
   if (!total) return -1;
   let x = rng() * total;
   for (let d = 0; d < 4; d++) { x -= weights[d]; if (x <= 0) return d; }
@@ -253,7 +275,7 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare = 0.55, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   let loop = null;
@@ -273,9 +295,9 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
     if (kept >= holes.length * shadeShare) break;
     if (gridNeighbours(rows, cols, i).every((j) => !keep[j])) { keep[i] = 1; kept++; }
   }
-  for (const i of holes) if (!keep[i]) { const d = pickDirection(rows, cols, i, isClue, rng); if (d >= 0) setClue(i, d); else keep[i] = 1; }
+  for (const i of holes) if (!keep[i]) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias); if (d >= 0) setClue(i, d); else keep[i] = 1; }
   // a "shaded" cell is a hole that is not a clue; make sure those do not touch (clue cells that failed to point anywhere were kept shaded)
-  for (const i of holes) if (!isClue[i] && gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j] && j < i)) { const d = pickDirection(rows, cols, i, isClue, rng); if (d < 0) return null; setClue(i, d); }
+  for (const i of holes) if (!isClue[i] && gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j] && j < i)) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias); if (d < 0) return null; setClue(i, d); }
 
   const evaluate = () => {
     const P = buildPuzzle(rows, cols, loop, clueDir, name);
@@ -315,11 +337,15 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
     if (kind === 'aim') {
       const dirs = [0, 1, 2, 3].filter((d) => d !== oldDir && rayOf(rows, cols, i, d, isClue).length > 0);
       if (!dirs.length) continue;
-      clueDir.set(i, dirs[(rng() * dirs.length) | 0]);
+      let nd = dirs[(rng() * dirs.length) | 0];
+      if (edgeBias !== null && edgeBias !== undefined) { // keep the style: re-aim the way new clues are aimed
+        for (let tries = 0; tries < 6; tries++) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias); if (d >= 0 && d !== oldDir) { nd = d; break; } }
+      }
+      clueDir.set(i, nd);
     } else if (kind === 'unclue') {
       dropClue(i);
     } else {
-      const d = pickDirection(rows, cols, i, isClue, rng);
+      const d = pickDirection(rows, cols, i, isClue, rng, edgeBias);
       if (d < 0) continue;
       setClue(i, d);
     }

@@ -15,6 +15,7 @@ const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return
 const [cols, rows] = arg('size', '10x10').split('x').map(Number);
 const count = +arg('count', 3), seed = +arg('seed', 1), budget = +arg('budget', 300);
 const density = +arg('density', 0.3), shadeShare = +arg('shade', 0.55), acceptU = +arg('accept', 30), clump = +arg('clump', 0.5);
+const edgeBias = arg('edge-bias', '') === '' ? null : +arg('edge-bias');  // e.g. 0.75: arrows mostly point at the nearer edge, like Nikoli's
 const maxTier = arg('max-tier', '');   // 'medium': only the rules up to Medium (no shadeForcesLines etc.)
 const out = arg('out', `${root}tools/library/y_${cols}x${rows}_s${seed}.csv`);
 fs.mkdirSync(new URL('../tools/library/', import.meta.url).pathname, { recursive: true });
@@ -26,7 +27,7 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const t0 = Date.now();
   const name = `Y${cols}x${rows}_s${seed}_${made + 1}`;
   const upto = maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
-  const r = generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, budgetMs: budget * 1000 });
+  const r = generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, budgetMs: budget * 1000 });
   if (!r) { console.log(`${name}: no puzzle within ${budget} s`); continue; }
   const P = r.puzzle;
   // check: the stored solution is valid and the exhaustive solver agrees it is the only one

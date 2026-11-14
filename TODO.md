@@ -90,3 +90,12 @@ Done: dots for satisfied clues, and each auto-dot's reasons (shaded neighbour 's
 A line-level consequence: drawing one segment leaves a dot cell that cannot get its two lines. `tryEdge` (Hard) may already find it;
 check against that exact position (14x14, the screenshot is in the session) before adding a cheaper named rule, and if it is a
 pattern, give it a name, a tier and a weight like the others.
+
+## Arrow direction style (edgeBias)
+
+Nikoli's arrows point toward the nearer board edge 66-84% of the time (random: 50%); PuzzleMadness's and our old generator's mostly
+point the long way (4-47%). `generate.mjs --edge-bias q` points each clue at the nearer edge with probability q (0.5 = neutral; the
+default without the option is the old length-weighted pick). Feasibility at 14x14 (2 seeds each, 4 minutes): none 2/2, 0.5 2/2, 0.75 1/2,
+0.9 0/2: strongly edge-ward arrows have short rays and carry little information, so they are harder to make solvable. The opposite
+direction (q near 0, long rays) should be easy: a candidate bonus book, "the long way round" (PuzzleMadness-style). A main book at
+q = 0.75 would match Nikoli but needs longer runs.
