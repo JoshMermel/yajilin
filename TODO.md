@@ -118,3 +118,26 @@ shadedNeighbor, deadEndNeighbor, cluePlacements for a 2N-1 run, rangeSame, range
   cell with fewer than two ways out would find more. nk_102 (still needs `tryCell`) may be waiting on something like this.
 - Two-clue stacks: clues of 1 pointing the same way on adjacent lines (nk_102's diagonal lattice) give strong `rangeSame` chains;
   worth checking whether a chain of three needs its own, cheaper, name.
+
+## Why larger boards are hard to generate (diagnosed 2026-11-14)
+
+The bottleneck is neither the clue/box density nor human-viability: it is that **clues cannot change how the loop routes through the
+cells it visits.** The generator fixes the non-loop cells (holes) first; clues only decide which holes are boxes. So a hole pattern
+whose remaining cells admit two loops can never become a unique puzzle, whatever the clues.
+
+Evidence:
+- Best positions the climb reached on 12x12 up to 36x20 (12 runs, 150 s each): all had every cell decided by the rules (0 open cells)
+  yet 2+ solutions, at 19-22% clue density (Nikoli 12-13%).
+- A random hole pattern (30% holes) has a unique loop through its other cells in about 55% of cases at 8x8, 30% at 10x10, 15% at
+  12x12, 2.5% at 14x14, 5% at 16x16, 0 of 40 at 20x20 (`loopIsUnique` in js/generator.js).
+- Early (naive) experiments adding random hole pairs until the loop is unique needed 34-48% holes at 10x10-12x12 and were far too slow
+  beyond that: a smarter construction is needed.
+
+Done: `loopIsUnique` gate (cheap) before the clue climb. Next, in order of promise:
+1. Flip-aware construction. Two loops through the same cells differ by "flips" (two parallel loop edges in a 2x2 block swapped for
+   the other pair); a loop is unique only if no flip is possible (necessary, not sufficient). Build loops/holes so that no 2x2 block
+   of loop cells is flippable, instead of rejecting random ones.
+2. Compose big boards from small verified pieces: hole patterns for 6x6-8x8 blocks whose routing is forced given how the loop
+   enters and leaves them (ports), stitched with forced connections.
+3. Local search over holes with an incremental ambiguity measure (unknown segments after propagation), calling the exhaustive check
+   only at the end.

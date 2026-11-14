@@ -146,6 +146,7 @@ export function propagate(P, st) {
     // Clues.
     for (let k = 0; k < rays.length && ok; k++) {
       const n = P.clues[k].n;
+      if (n < 0) continue; // a blocked cell: no count to satisfy
       let s = 0, u = 0;
       for (const i of rays[k]) { if (cell[i] === SHADED) s++; else if (cell[i] === UNKNOWN) u++; }
       if (s > n || s + u < n) { ok = false; break; }
@@ -283,6 +284,7 @@ export function checkSolved(P, shaded, edges) {
     for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && shaded[j]) return false; }
   }
   for (let k = 0; k < P.clues.length; k++) {
+    if (P.clues[k].n < 0) continue;
     let s = 0;
     for (const i of P.rays[k]) if (shaded[i]) s++;
     if (s !== P.clues[k].n) return false;

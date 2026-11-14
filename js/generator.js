@@ -25,6 +25,22 @@ export function makeRng(seed) {
 
 const shuffle = (arr, rng) => { for (let i = arr.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
 
+/**
+ * Is the loop through exactly the non-hole cells unique? Clues cannot change this: they decide which cells are boxes, never how
+ * the loop routes through the others, so a hole pattern that admits two loops can never become a unique puzzle. Random patterns
+ * pass about 55% of the time at 8x8, 15% at 12x12, a few percent at 14x14-16x16 and almost never at 20x20, which is why the
+ * climb below is only worth starting on a loop that passes this cheap test (holes are blocked cells: clues with n = -1).
+ */
+export function loopIsUnique(rows, cols, holes, maxNodes = 150000) {
+  const clues = [];
+  for (let i = 0; i < rows * cols; i++) if (holes[i]) clues.push({ r: (i / cols) | 0, c: i % cols, d: 1, n: -1 });
+  const P = compile({ name: 'loop', rows, cols, clues });
+  const st = initialState(P);
+  for (let i = 0; i < rows * cols; i++) if (!holes[i]) st.cell[i] = LOOP;
+  const r = solve(P, { limit: 2, maxNodes, state: st });
+  return !r.exceeded && r.count === 1;
+}
+
 /** Grid neighbours of cell i. */
 function gridNeighbours(rows, cols, i) {
   const r = (i / cols) | 0, c = i % cols, out = [];
@@ -291,13 +307,20 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
   let loop = null;
-  for (let tries = 0; tries < 50 && !loop; tries++) loop = randomLoop(rows, cols, rng, { density, clump });
-  if (!loop) { say('no loop after 50 tries'); return null; }
+  let looked = 0;
+  for (let tries = 0; tries < 20000 && !loop && Date.now() - t0 < budgetMs; tries++) {
+    const cand = randomLoop(rows, cols, rng, { density, clump });
+    if (!cand) continue;
+    looked++;
+    if (!loopGate || loopIsUnique(rows, cols, cand.holes)) loop = cand;   // only climb on a loop that can be unique at all
+  }
+  if (!loop) { say(`no loop with a unique routing among ${looked} candidates`); return null; }
+  say(`loop with a unique routing found after ${looked} candidate(s), ${Date.now() - t0} ms`);
   const N = rows * cols;
   const clueDir = new Map();
   const isClue = new Uint8Array(N);
@@ -347,7 +370,9 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
     const r = solve(cur.P, { limit: 2, state: cur.r.state, maxNodes: 20000 });
     return r.count === 1 && !r.exceeded; // a cut-off search proves nothing about uniqueness
   };
+  let bestSeen = cur;
   for (; iter < maxIter && !acceptable() && Date.now() - t0 < budgetMs; iter++) {
+    if (cur.u < bestSeen.u) bestSeen = cur;
     const temp = 0.6 * (1 - iter / maxIter) + 0.05; // simulated annealing: sometimes accept a worse position
     const und = [];
     for (let i = 0; i < N; i++) if (cur.P.clueAt[i] < 0 && (cur.r.state.cell[i] === UNKNOWN || cur.r.state.cell[i] === LOOP)) und.push(i);
@@ -383,6 +408,7 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
     else if (kind === 'unclue') setClue(i, oldDir);
     else dropClue(i);
   }
+  if (diagnose && (!diagnose.best || bestSeen.u < diagnose.best.u)) diagnose.best = { u: bestSeen.u, P: bestSeen.P, state: bestSeen.r.state, clues: bestSeen.P.clues.length, iterations: iter };
   say(`${iter} iterations, ${checks} checks, undecided score ${cur.u.toFixed(1)}, ${clueDir.size} clues, ${Date.now() - t0} ms`);
   if (!acceptable()) return null;
   let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++) : cur.P;
