@@ -43,6 +43,9 @@ export function compile(p) {
     }
   }
   // rays[k]: the non-clue cells a clue counts shaded cells in.
+  // pre-placed boxes: shaded cells given from the start (not clues, not on the loop)
+  const boxIdx = (p.boxes || []).map((b) => b.r * cols + b.c);
+  for (const i of boxIdx) if (clueAt[i] >= 0) throw new Error(`a box and a clue share cell ${i}`);
   const rays = p.clues.map((cl) => {
     const cells = [];
     let r = cl.r + DR[cl.d], c = cl.c + DC[cl.d];
@@ -56,12 +59,13 @@ export function compile(p) {
   // The cells that count toward each cell's clues, for incremental use.
   const cluesOf = Array.from({ length: N }, () => []);
   rays.forEach((cells, k) => cells.forEach((i) => cluesOf[i].push(k)));
-  return Object.assign(p, { N, clueAt, nb, ed, rays, cluesOf, numEdges: 2 * N });
+  return Object.assign(p, { N, clueAt, nb, ed, rays, cluesOf, numEdges: 2 * N, boxIdx });
 }
 
 export function initialState(P) {
   const cell = new Int8Array(P.N);
   for (let i = 0; i < P.N; i++) if (P.clueAt[i] >= 0) cell[i] = CLUE;
+  for (const i of P.boxIdx) cell[i] = SHADED;
   return { cell, e: new Int8Array(P.numEdges), cycle: false };
 }
 
@@ -179,38 +183,54 @@ export function propagate(P, st) {
 }
 
 /** Count solutions (up to `limit`) by propagation + search. Returns { count, solutions: [state] }. */
-export function solve(P, { limit = 2, state = null, maxNodes = Infinity } = {}) {
+export function solve(P, { limit = 2, state = null, maxNodes = Infinity, rng = null, pShade = 0.3 } = {}) {
   const solutions = [];
-  let nodes = 0;
+  let nodes = 0, exceeded = false;
   const dfs = (st) => {
-    if (solutions.length >= limit || nodes++ > maxNodes) return;
+    if (solutions.length >= limit) return;
+    if (nodes++ > maxNodes) { exceeded = true; return; }
     if (!propagate(P, st)) return;
     // Branch on an edge of a loop cell that still needs one (shortest paths first), else on a cell.
+    // With `rng`, the choices and the order the values are tried in are random: the first solution found is a random one.
     let bi = -1, bu = 9, bon = -1;
+    const ties = [];
     for (let i = 0; i < P.N; i++) {
       if (st.cell[i] !== LOOP) continue;
       let on = 0, unk = 0;
       for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x < 0) continue; if (st.e[x] === E_ON) on++; else if (st.e[x] === E_UNKNOWN) unk++; }
-      if (unk > 0 && (on > bon || (on === bon && unk < bu))) { bi = i; bu = unk; bon = on; }
+      if (unk === 0) continue;
+      if (rng) {
+        if (on > bon) { bon = on; ties.length = 0; }
+        if (on === bon) ties.push(i);
+      } else if (on > bon || (on === bon && unk < bu)) { bi = i; bu = unk; bon = on; }
     }
+    if (rng && ties.length) bi = ties[(rng() * ties.length) | 0];
     if (bi >= 0) {
-      let x = -1;
-      for (let d = 0; d < 4; d++) { const y = P.ed[bi * 4 + d]; if (y >= 0 && st.e[y] === E_UNKNOWN) { x = y; break; } }
-      const a = cloneState(st); a.e[x] = E_ON; dfs(a);
-      const b = cloneState(st); b.e[x] = E_OFF; dfs(b);
+      const open = [];
+      for (let d = 0; d < 4; d++) { const y = P.ed[bi * 4 + d]; if (y >= 0 && st.e[y] === E_UNKNOWN) open.push(y); }
+      const x = rng ? open[(rng() * open.length) | 0] : open[0];
+      const onFirst = rng ? rng() < 0.5 : true;
+      for (const v of onFirst ? [E_ON, E_OFF] : [E_OFF, E_ON]) { const a = cloneState(st); a.e[x] = v; dfs(a); }
       return;
     }
     let ci = -1;
-    for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) { ci = i; break; }
+    if (rng) {
+      const unknown = [];
+      for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) unknown.push(i);
+      if (unknown.length) ci = unknown[(rng() * unknown.length) | 0];
+    } else {
+      for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) { ci = i; break; }
+    }
     if (ci >= 0) {
-      const a = cloneState(st); a.cell[ci] = SHADED; dfs(a);
-      const b = cloneState(st); b.cell[ci] = LOOP; dfs(b);
+      const shadedFirst = rng ? rng() < pShade : true;
+      for (const v of shadedFirst ? [SHADED, LOOP] : [LOOP, SHADED]) { const a = cloneState(st); a.cell[ci] = v; dfs(a); }
       return;
     }
     if (st.cycle) solutions.push(st);
   };
   dfs(state ? cloneState(state) : initialState(P));
-  return { count: solutions.length, solutions };
+  // `exceeded`: the search was cut off by maxNodes, so `count` is only a lower bound (never claim uniqueness from it)
+  return { count: solutions.length, solutions, exceeded };
 }
 
 /** Solution string: '#' clue, 'x' shaded, otherwise a hex digit of the loop cell's exits (U=1 R=2 D=4 L=8). */
@@ -249,6 +269,7 @@ export function decodeSolution(P, str) {
  */
 export function checkSolved(P, shaded, edges) {
   const { N, cols } = P;
+  for (const i of P.boxIdx) if (!shaded[i]) return false;
   for (let i = 0; i < N; i++) {
     if (shaded[i] && P.clueAt[i] >= 0) return false;
     if (!shaded[i]) continue;
@@ -290,7 +311,7 @@ export function checkSolved(P, shaded, edges) {
 
 // ---------------------------------------------------------------- CSV
 
-export const CSV_HEADER = 'name,rows,cols,clues,solution,rules,tier,score';
+export const CSV_HEADER = 'name,rows,cols,clues,solution,rules,tier,score,boxes';
 
 export function cluesToString(clues) {
   return clues.map((c) => `${c.r}:${c.c}:${DIR_LETTERS[c.d]}:${c.n}`).join(';');
@@ -304,8 +325,11 @@ export function cluesFromString(s) {
   });
 }
 
+export const boxesToString = (boxes) => (boxes || []).map((b) => `${b.r}:${b.c}`).join(';');
+export const boxesFromString = (s) => (s ? s.split(';').map((t) => { const [r, c] = t.split(':'); return { r: +r, c: +c }; }) : []);
+
 export function toCsvRow(p) {
-  return [p.name, p.rows, p.cols, cluesToString(p.clues), p.solution || '', p.rules || '', p.tier || '', p.score ?? ''].join(',');
+  return [p.name, p.rows, p.cols, cluesToString(p.clues), p.solution || '', p.rules || '', p.tier || '', p.score ?? '', boxesToString(p.boxes)].join(',');
 }
 
 export function toCsv(puzzles) {
@@ -317,9 +341,9 @@ export function parseCsv(text) {
   for (const line of text.split(/\r?\n/)) {
     const t = line.trim();
     if (!t || t.startsWith('#') || t.startsWith('name,')) continue;
-    const [name, rows, cols, clues, solution, rules, tier, score] = t.split(',');
+    const [name, rows, cols, clues, solution, rules, tier, score, boxes] = t.split(',');
     out.push({
-      name, rows: +rows, cols: +cols, clues: cluesFromString(clues),
+      name, rows: +rows, cols: +cols, clues: cluesFromString(clues), boxes: boxesFromString(boxes),
       solution: solution || '', rules: rules || '', tier: tier || '', score: score === undefined || score === '' ? null : +score,
     });
   }
@@ -328,7 +352,7 @@ export function parseCsv(text) {
 
 /** A short stable hash of a puzzle's identity (size + clues), for save keys that survive renumbering. */
 export function puzzleHash(p) {
-  const s = `${p.rows}x${p.cols}|${cluesToString(p.clues)}`;
+  const s = `${p.rows}x${p.cols}|${cluesToString(p.clues)}` + (p.boxes && p.boxes.length ? `|${boxesToString(p.boxes)}` : '');
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
   return h.toString(36);

@@ -1,1 +1,10 @@
-{ "books": [], "default": "" }
+{
+  "books": [
+    {
+      "id": "large",
+      "name": "Large (draft)",
+      "file": "data/large.csv"
+    }
+  ],
+  "default": "large"
+}

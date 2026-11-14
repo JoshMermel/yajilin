@@ -23,6 +23,12 @@
   --shaded: #111;
   --shaded-bad: #c62828;
   --loop: #1976d2;
+  /* one colour per separate path (Okabe-Ito, colour-blind safe), when "Colour separate lines" is on */
+  --path-0: #0072b2; --path-1: #d55e00; --path-2: #009e73; --path-3: #cc79a7;
+  --path-4: #e69f00; --path-5: #56b4e9; --path-6: #7a5195; --path-7: #8c564b;
+  --hint-focus: rgba(244, 236, 156, 0.8); --hint-clue: rgba(25, 118, 210, 0.28); --hint-range: rgba(25, 118, 210, 0.13);
+  --hint-path: rgba(122, 81, 149, 0.28); --hint-problem: #d55e00; --hint-exit: #1b8a3a; --hint-ink: #8a6d00;
+  --axis: #888;
   --dot: #6b7a8c;
   --frame: #111;
   --cell-hover: rgba(0, 0, 0, 0.08);
@@ -52,6 +58,11 @@
   --shaded: #c9d1d9;   /* light on the dark board: black squares vanish against #222 */
   --shaded-bad: #ef5350;
   --loop: #64b5f6;
+  --path-0: #56b4e9; --path-1: #ff8a50; --path-2: #4dd0a5; --path-3: #f48fb1;
+  --path-4: #ffca28; --path-5: #90caf9; --path-6: #b39ddb; --path-7: #bcaaa4;
+  --hint-focus: rgba(255, 213, 79, 0.35); --hint-clue: rgba(100, 181, 246, 0.35); --hint-range: rgba(100, 181, 246, 0.16);
+  --hint-path: rgba(179, 157, 219, 0.35); --hint-problem: #ff8a50; --hint-exit: #66bb6a; --hint-ink: #ffd54f;
+  --axis: #999;
   --dot: #8a99ab;
   --frame: #ccc;
   --cell-hover: rgba(255, 255, 255, 0.1);
@@ -107,6 +118,30 @@ button.ghost { background: transparent; }
 .seg { stroke: var(--loop); stroke-linecap: round; fill: none; }
 .dot { fill: var(--dot); }
 .hover { fill: var(--cell-hover); pointer-events: none; }
+
+/* ---- hint overlay: each role its own colour or texture ---- */
+.hint-undecided { fill: rgba(244, 236, 156, 0.4); pointer-events: none; }
+.hint-range { fill: var(--hint-range); pointer-events: none; }
+.hint-clue { fill: var(--hint-clue); pointer-events: none; }
+.hint-path { fill: var(--hint-path); pointer-events: none; }
+.hint-focus { fill: var(--hint-focus); pointer-events: none; }
+.hint-problem { fill: url(#hatch); pointer-events: none; }
+.hatch-bg { fill: transparent; }
+.hatch-line { stroke: var(--hint-problem); opacity: 0.55; }
+.hint-focus-ring { fill: none; stroke: var(--hint-ink); stroke-width: 3; pointer-events: none; }
+.hint-exit { fill: none; stroke: var(--hint-exit); stroke-width: 2.5; stroke-dasharray: 5 3; pointer-events: none; }
+.ghost-shade { fill: var(--hint-focus); stroke: var(--hint-ink); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
+.ghost-dot { fill: none; stroke: var(--hint-ink); stroke-width: 2.5; pointer-events: none; }
+.ghost-seg { stroke: var(--hint-ink); stroke-linecap: round; stroke-dasharray: 5 4; pointer-events: none; }
+.ghost-x { stroke: var(--color-error); stroke-width: 4; stroke-linecap: round; fill: none; pointer-events: none; }
+.ghost-x-halo { stroke: var(--bg-white); stroke-width: 8; stroke-linecap: round; fill: none; pointer-events: none; }
+.over { fill: none; stroke: var(--color-error); stroke-width: 3; pointer-events: none; }
+.axis-label { fill: var(--axis); font-size: 11px; text-anchor: middle; dominant-baseline: auto; pointer-events: none; }
+.axis-label.side { text-anchor: end; dominant-baseline: central; }
+.given-ring { fill: none; stroke: var(--cell-bg); stroke-width: 2.5; pointer-events: none; }
+.hint-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 0.75rem; opacity: 0.9; }
+.hint-legend .chip { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(255, 255, 255, 0.6); }
+.wrong-seg { stroke: var(--color-error); stroke-linecap: round; opacity: 0.45; pointer-events: none; }
 .wrong { fill: none; stroke: var(--color-error); stroke-width: 3; stroke-dasharray: 5 3; }
 
 .toast {
@@ -114,6 +149,11 @@ button.ghost { background: transparent; }
   background: var(--text-primary); color: var(--bg-white); padding: 8px 14px; border-radius: 8px; cursor: pointer;
 }
 .toast[hidden] { display: none; }
+.toast.top { bottom: auto; top: 12px; }
+.toast.hint { text-align: left; width: min(560px, 94vw); line-height: 1.4; }
+.toast.hint .hint-meta { font-size: 0.75rem; opacity: 0.75; margin-bottom: 2px; font-family: ui-monospace, Menlo, monospace; }
+.toast.hint .hint-marks { margin-top: 4px; font-weight: 600; }
+.toast.hint .hint-more { margin-top: 4px; font-size: 0.78rem; opacity: 0.75; }
 
 /* --- Modals (same look as polyomino-panel / multiverse-star-battle) ------------------------ */
 .modal-overlay {

@@ -95,3 +95,32 @@ test('CSV round trip and puzzle hash', () => {
   assert.equal(puzzleHash(q), puzzleHash(P));
   assert.notEqual(puzzleHash(q), puzzleHash({ ...q, clues: [] }));
 });
+
+test('pre-placed boxes: shaded from the start, kept by the solver, required by the checker, saved in the CSV', () => {
+  // a 3x3 board with a box in the middle: the loop is the ring around it
+  const P = compile({ name: 'ring', rows: 3, cols: 3, clues: [], boxes: [{ r: 1, c: 1 }] });
+  assert.deepEqual(P.boxIdx, [4]);
+  const r = solve(P, { limit: 5 });
+  assert.equal(r.count, 1);
+  const sol = encodeSolution(P, r.solutions[0]);
+  assert.equal(sol[4], 'x');
+  // the checker needs the box shaded
+  const shaded = new Uint8Array(9); shaded[4] = 1;
+  const edges = Int8Array.from(r.solutions[0].e, (v) => (v === E_ON ? 1 : 0));
+  assert.ok(checkSolved(P, shaded, edges));
+  assert.ok(!checkSolved(P, new Uint8Array(9), edges));
+  // CSV round trip keeps them, and the hash tells puzzles with and without them apart
+  const [q] = parseCsv(toCsv([{ ...P, solution: sol }]));
+  assert.deepEqual(q.boxes, [{ r: 1, c: 1 }]);
+  assert.notEqual(puzzleHash(q), puzzleHash({ ...q, boxes: [] }));
+  assert.throws(() => compile({ name: 'x', rows: 2, cols: 2, clues: [{ r: 0, c: 0, d: 1, n: 0 }], boxes: [{ r: 0, c: 0 }] }));
+});
+
+test('solve reports when it was cut off, so a truncated search never proves uniqueness', () => {
+  const P = compile({ name: 'open', rows: 6, cols: 6, clues: [] });
+  const cut = solve(P, { limit: 1000, maxNodes: 50 });
+  assert.ok(cut.exceeded);
+  const full = solve(compile({ name: 'ring', rows: 3, cols: 3, clues: [], boxes: [{ r: 1, c: 1 }] }), { limit: 2 });
+  assert.equal(full.count, 1);
+  assert.equal(full.exceeded, false);
+});

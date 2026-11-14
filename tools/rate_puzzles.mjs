@@ -20,12 +20,12 @@ for (const P of puzzles) {
   rows.push({ name: P.name, site: P.tier, size: `${P.cols}x${P.rows}`, solved: r.solved, tier: r.tier, rules: r.rules, score: r.score, steps: r.steps.length, ms: Date.now() - t0, counts: r.counts, r });
 }
 const pad = (s, n) => String(s).padEnd(n);
-console.log(pad('name', 16) + pad('site', 8) + pad('size', 6) + pad('solved', 8) + pad('tier', 10) + pad('hardest rule', 16) + pad('score', 7) + pad('steps', 7) + 'ms');
-for (const r of rows) console.log(pad(r.name, 16) + pad(r.site || '', 8) + pad(r.size, 6) + pad(r.solved, 8) + pad(r.tier, 10) + pad(r.rules, 16) + pad(r.score, 7) + pad(r.steps, 7) + r.ms);
+console.log(pad('name', 16) + pad('site', 8) + pad('size', 6) + pad('solved', 8) + pad('tier', 10) + pad('hardest rule', 18) + pad('score', 7) + pad('steps', 7) + 'ms');
+for (const r of rows) console.log(pad(r.name, 16) + pad(r.site || '', 8) + pad(r.size, 6) + pad(r.solved, 8) + pad(r.tier, 10) + pad(r.rules, 18) + pad(r.score, 7) + pad(r.steps, 7) + r.ms);
 console.log('\nrule usage (puzzles using the rule / total uses):');
 for (const id of RULE_IDS) {
   const using = rows.filter((r) => r.counts[id]);
-  if (using.length) console.log('  ' + pad(id, 16) + `${using.length} / ${using.reduce((a, r) => a + r.counts[id], 0)}`);
+  if (using.length) console.log('  ' + pad(id, 18) + `${using.length} / ${using.reduce((a, r) => a + r.counts[id], 0)}`);
 }
 if (showSteps) {
   for (const row of rows) {

@@ -1,5 +1,7 @@
 // App controller: books and puzzle selection, marks, undo/redo, persistence, checks, settings.
-import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, E_ON, SHADED, LOOP } from './logic.js';
+import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, initialState, E_ON, SHADED, LOOP, UNKNOWN } from './logic.js';
+import { nextSteps, RULES } from './rating.js';
+import { explainStep, describeMarks, ROLES } from './explain.js';
 import { Board } from './board.js';
 
 const $ = (id) => document.getElementById(id);
@@ -19,6 +21,14 @@ const state = {
   pending: null,    // snapshot at the start of the current gesture
   drawMode: 1,
   solved: false,
+  hint: null,       // { sig, kind: 'wrong'|'stuck'|'step', visible, ... } for the Hint button
+};
+
+// Settings (all remembered in localStorage)
+const settings = {
+  colorLines: store.get('yj_colorLines') === '1', // colour each separate path differently
+  labels: store.get('yj_labels') === '1',         // number the rows and columns
+  autoDots: store.get('yj_autoDots') === '1',     // shading a cell dots its neighbours
 };
 
 const board = new Board($('board'), {
@@ -26,20 +36,45 @@ const board = new Board($('board'), {
   onTap: (cell) => cycleCell(cell),
   onStep: (a, b, first) => dragStep(a, b, first),
   onEnd: (cancelled) => endGesture(cancelled),
+  onRight: (cell) => toggleBox(cell),
 });
+board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
 
 // ------------------------------------------------------------ marks
 
 const snapshot = () => ({ cells: state.marks.cells.slice(), edges: state.marks.edges.slice() });
 const sameMarks = (a, b) => a.cells.every((v, i) => v === b.cells[i]) && a.edges.every((v, i) => v === b.edges[i]);
-const emptyMarks = (P) => ({ cells: new Uint8Array(P.N), edges: new Uint8Array(P.numEdges) });
+const emptyMarks = (P) => {
+  const m = { cells: new Uint8Array(P.N), edges: new Uint8Array(P.numEdges) };
+  for (const i of P.boxIdx) m.cells[i] = 1; // pre-placed boxes are always there
+  return m;
+};
+const isBox = (i) => state.P.boxIdx.includes(i);
+
+/** Shade cell i: a shaded cell is not on the loop, so its segments go; with "auto dots", its neighbours become dots. */
+function shade(i) {
+  const P = state.P, m = state.marks;
+  m.cells[i] = 1;
+  removeEdgesAt(i);
+  if (!settings.autoDots) return;
+  for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && m.cells[j] === 0) m.cells[j] = 2; }
+}
 
 function cycleCell(i) {
   const P = state.P;
-  if (P.clueAt[i] >= 0) return;
+  if (P.clueAt[i] >= 0 || isBox(i)) return;
   const m = state.marks;
-  m.cells[i] = [2, 0, 1][m.cells[i]]; // empty -> dot -> shaded -> empty
-  if (m.cells[i] === 1) removeEdgesAt(i); // a shaded cell is not on the loop
+  const next = [2, 0, 1][m.cells[i]]; // empty -> dot -> shaded -> empty
+  if (next === 1) shade(i); else m.cells[i] = next;
+  refresh();
+}
+
+/** Right-click: put a box on the cell, or take it off again. */
+function toggleBox(i) {
+  const P = state.P;
+  if (P.clueAt[i] >= 0 || isBox(i)) return;
+  const m = state.marks;
+  if (m.cells[i] === 1) m.cells[i] = 0; else shade(i);
   refresh();
 }
 
@@ -113,7 +148,21 @@ function isSolved() {
   return checkSolved(state.P, shaded, m.edges);
 }
 
+/** Size the board so a cell is comfortable on big puzzles too: up to 46px, down to 26px, widening the page if needed. */
+function fitBoard() {
+  const P = state.P;
+  if (!P) return;
+  const off = settings.labels ? 16 : 0;
+  const avail = Math.min(window.innerWidth - 24, 1500);
+  const px = Math.max(26, Math.min(46, Math.floor(avail / (P.cols + 0.5))));
+  const width = Math.round(((P.cols * 44 + 8 + off) * px) / 44);
+  $('board').style.width = `${width}px`;
+  $('game-container').style.maxWidth = `${Math.max(640, width + 24)}px`;
+}
+window.addEventListener('resize', fitBoard);
+
 function refresh() {
+  state.hint = null; hideHintToast(); // any change to the board clears the hint
   board.render(state.marks, analyse());
   const solved = isSolved();
   if (solved && !state.solved) markSolved();
@@ -150,6 +199,7 @@ function load(P) {
       for (let i = 0; i < P.numEdges; i++) m.edges[i] = +s.e[i];
     }
   } catch { /* corrupt save: start fresh */ }
+  for (const i of P.boxIdx) m.cells[i] = 1;
   return m;
 }
 
@@ -164,11 +214,20 @@ function markSolved() {
 let toastTimer = null;
 function toast(msg) {
   const t = $('toast');
+  t.classList.remove('hint', 'top');
   t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
 }
-$('toast').addEventListener('click', () => { $('toast').hidden = true; });
+function hideHintToast() { const t = $('toast'); if (t.classList.contains('hint')) { t.hidden = true; t.classList.remove('hint', 'top'); } }
+function dismissToast() {
+  const t = $('toast');
+  if (t.hidden) return;
+  t.hidden = true;
+  if (state.hint && state.hint.visible) { state.hint.visible = false; board.render(state.marks, analyse()); } // dismissed: keep our place in the cycle
+}
+// a click anywhere dismisses a message (the Hint button itself is exempt: pressing it again shows the next step)
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#hint-btn')) dismissToast(); }, true);
 
 function solutionOf(P) {
   if (!P._sol) {
@@ -188,6 +247,110 @@ function checkSoFar() {
   }
   for (let x = 0; x < P.numEdges; x++) if (m.edges[x]) { marked++; if (sol.e[x] !== E_ON) wrong++; }
   toast(wrong ? `${wrong} mark${wrong === 1 ? ' is' : 's are'} incorrect.` : marked ? 'So far so good!' : 'Nothing marked yet.');
+}
+
+
+// ------------------------------------------------------------ hint: show how the draft solver thinks
+
+const signature = () => `${Array.from(state.marks.cells).join('')}|${Array.from(state.marks.edges).join('')}`;
+
+/** The player's marks as a position for the solver: shaded = shaded, dot = loop, segment = on. */
+function solverState() {
+  const P = state.P, m = state.marks, st = initialState(P);
+  for (let i = 0; i < P.N; i++) {
+    if (P.clueAt[i] >= 0) continue;
+    if (m.cells[i] === 1) st.cell[i] = SHADED; else if (m.cells[i] === 2) st.cell[i] = LOOP;
+  }
+  for (let x = 0; x < P.numEdges; x++) if (m.edges[x]) st.e[x] = E_ON;
+  return st;
+}
+
+function hint() {
+  const P = state.P, m = state.marks;
+  if (state.solved) { toast('Already solved!'); return; }
+  const sig = signature();
+  const h = state.hint;
+  if (h && h.sig === sig) {
+    if (h.visible && h.kind === 'step') h.idx = (h.idx + 1) % h.res.firings.length; // pressing again: the next step of the same rule
+    h.visible = true;
+  } else {
+    const sol = solutionOf(P);
+    const wrongCells = [], wrongEdges = [];
+    if (sol) {
+      for (let i = 0; i < P.N; i++) {
+        if ((m.cells[i] === 1 && sol.cell[i] !== SHADED) || (m.cells[i] === 2 && sol.cell[i] !== LOOP)) wrongCells.push(i);
+      }
+      for (let x = 0; x < P.numEdges; x++) if (m.edges[x] && sol.e[x] !== E_ON) wrongEdges.push(x);
+    }
+    if (wrongCells.length || wrongEdges.length) {
+      state.hint = { sig, kind: 'wrong', visible: true, wrongCells, wrongEdges };
+    } else {
+      const st = solverState();
+      const t0 = performance.now();
+      const res = nextSteps(P, st);
+      const ms = Math.round(performance.now() - t0);
+      if (!res) {
+        const undecided = [];
+        for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) undecided.push(i);
+        state.hint = { sig, kind: 'stuck', visible: true, undecided, ms };
+      } else {
+        state.hint = { sig, kind: 'step', visible: true, res, idx: 0, ms, st };
+      }
+    }
+  }
+  showHint();
+}
+
+function showHint() {
+  const h = state.hint, P = state.P;
+  const t = $('toast');
+  clearTimeout(toastTimer);
+  t.classList.add('hint');
+  t.replaceChildren();
+  const line = (cls, text) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; t.appendChild(d); };
+  const legend = (roles) => {
+    const used = Object.keys(ROLES).filter((r) => (roles[r] || []).length);
+    if (!used.length) return;
+    const d = document.createElement('div');
+    d.className = 'hint-legend';
+    for (const r of used) {
+      const span = document.createElement('span');
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.style.background = r === 'problem' ? 'repeating-linear-gradient(45deg, var(--hint-problem) 0 2px, transparent 2px 4px)' : r === 'exit' ? 'transparent' : `var(--hint-${r === 'focus' ? 'focus' : r})`;
+      if (r === 'exit') chip.style.border = '2px dashed var(--hint-exit)';
+      span.append(chip, ROLES[r]);
+      d.appendChild(span);
+    }
+    t.appendChild(d);
+  };
+  let overlay = null;
+  if (h.kind === 'wrong') {
+    overlay = { wrongCells: h.wrongCells, wrongEdges: h.wrongEdges };
+    const n = h.wrongCells.length + h.wrongEdges.length;
+    line('hint-meta', 'mistake');
+    line('', `${n} mark${n === 1 ? ' is' : 's are'} incorrect (shown in red). Fix them before asking for a step.`);
+  } else if (h.kind === 'stuck') {
+    overlay = { undecided: h.undecided };
+    line('hint-meta', `stuck · ${RULES.filter((r) => !r.free).length} rules tried · ${h.ms} ms`);
+    line('', `The draft solver is stuck: none of its rules finds a next step from here. The tinted cells are the ${h.undecided.length} it still cannot decide.`);
+    line('hint-more', 'This is a place to look for an inference the solver is missing.');
+  } else {
+    const f = h.res.firings[h.idx];
+    const e = explainStep(P, { rule: h.res.rule, tier: h.res.tier, weight: h.res.weight, sets: f.sets, info: f.info }, h.st);
+    overlay = { roles: e.roles, shaded: e.targets.shaded, loop: e.targets.loop, segOn: e.targets.segOn, segOff: e.targets.segOff };
+    line('hint-meta', `${e.rule} · ${e.tier} · weight ${e.weight} · ${h.ms} ms`);
+    line('', e.text);
+    line('hint-marks', describeMarks(e.targets));
+    legend(e.roles);
+    if (h.res.firings.length > 1) line('hint-more', `${h.idx + 1} of ${h.res.firings.length} steps of this rule; press Hint for the next.`);
+  }
+  t.hidden = false;
+  // like polyomino-panel: sit at the bottom unless that would cover the board, then move to the top
+  t.classList.remove('top');
+  const b = $('board').getBoundingClientRect(), tr = t.getBoundingClientRect();
+  if (tr.top < b.bottom && tr.bottom > b.top) t.classList.add('top');
+  board.render(state.marks, analyse(), overlay);
 }
 
 // ------------------------------------------------------------ books and puzzles
@@ -219,6 +382,7 @@ function openPuzzle(idx) {
   state.undo = []; state.redo = [];
   state.solved = false;
   board.setPuzzle(P);
+  fitBoard();
   $('puz-num').value = idx + 1;
   const tier = P.tier ? ` · ${P.tier}` : '';
   $('puz-info').textContent = `${P.name} · ${P.cols}×${P.rows}${tier}`;
@@ -263,6 +427,7 @@ $('undo-btn').addEventListener('click', undo);
 $('redo-btn').addEventListener('click', redo);
 $('reset-btn').addEventListener('click', reset);
 $('check-btn').addEventListener('click', checkSoFar);
+$('hint-btn').addEventListener('click', hint);
 // --- Modals (settings, help): same overlay pattern as polyomino-panel
 const modals = [];
 function setupModal(modalId, openBtnId, onOpen) {
@@ -289,6 +454,16 @@ $('setting-dark-mode').addEventListener('change', (e) => {
   document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
   store.set('yj_dark', e.target.checked ? '1' : '0');
 });
+for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_colorLines'], ['setting-labels', 'labels', 'yj_labels'], ['setting-auto-dots', 'autoDots', 'yj_autoDots']]) {
+  const el = $(id);
+  el.checked = settings[key];
+  el.addEventListener('change', () => {
+    settings[key] = el.checked;
+    store.set(store_key, el.checked ? '1' : '0');
+    board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
+    fitBoard();
+  });
+}
 clearBtn.addEventListener('click', () => {
   if (!clearBtn.classList.contains('danger-btn--confirm')) { clearBtn.classList.add('danger-btn--confirm'); clearBtn.textContent = 'Are you sure?'; return; }
   try { Object.keys(localStorage).filter((k) => k.startsWith('yj_save_') || k === 'yj_solved').forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
