@@ -32,12 +32,12 @@ export class Board {
 
   setPuzzle(P) { this.P = P; }
 
-  /** Display options: { colorLines: colour each separate path differently, labels: number the rows and columns }. */
+  /** Display options: { colorLines: color each separate path differently, labels: number the rows and columns }. */
   setOptions(opts) { Object.assign(this.opts, opts); if (this.marks) this.render(this.marks, this.info, this.hint); }
 
   get offset() { return this.opts.labels ? LABEL : 0; }
 
-  /** Number of loop segments at each cell, and the colour index of the path each segment belongs to. */
+  /** Number of loop segments at each cell, and the color index of the path each segment belongs to. */
   analyseLines(marks) {
     const P = this.P;
     const deg = new Uint8Array(P.N);
@@ -51,7 +51,7 @@ export class Board {
       const ra = find(a), rb = find(b);
       if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb); // the root is the path's lowest cell
     }
-    // colours follow the order of the paths' first cells, so they stay put as a path grows away from its first cell
+    // colors follow the order of the paths' first cells, so they stay put as a path grows away from its first cell
     const colorOf = new Map();
     for (let i = 0; i < P.N; i++) if (deg[i] > 0) { const r = find(i); if (!colorOf.has(r)) colorOf.set(r, colorOf.size % PATH_COLORS); }
     return { deg, colorOf, find };
@@ -114,7 +114,7 @@ export class Board {
         g += `<circle class="dot${marks.auto && marks.auto[i] ? ' auto' : ''}" cx="${cx(c)}" cy="${cy(r)}" r="${S * 0.055}"/>`;
       }
     }
-    // loop segments, centre to centre (each separate path its own colour, if asked)
+    // loop segments, centre to centre (each separate path its own color, if asked)
     for (let x = 0; x < P.numEdges; x++) {
       if (!marks.edges[x]) continue;
       const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;

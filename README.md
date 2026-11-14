@@ -140,7 +140,7 @@ Hint runs the same `nextSteps` the rater uses on the player's marks (shaded = sh
 
 ### Settings
 
-Dark mode; **Colour separate lines** (each separate piece of the loop gets its own colour); **Number rows and columns** (columns get letters, rows numbers: cell E3 is column E, row 3, the same names the hints use); **Automatic dots** (a dot in every cell next to a box and in every other cell of a clue that has all its boxes, including 0-clues from the start; drawn fainter, each remembers why it exists and goes away when its last reason does, so taking a box off removes the dots it caused; dots you place are never touched). Right-click puts a box on a cell. A cell with three lines is outlined in red (drawing it is allowed, so you can see the mistake).
+Dark mode; **Color separate lines** (each separate piece of the loop gets its own color); **Number rows and columns** (columns get letters, rows numbers: cell E3 is column E, row 3, the same names the hints use); **Automatic dots** (a dot in every cell next to a box and in every other cell of a clue that has all its boxes, including 0-clues from the start; drawn fainter, each remembers why it exists and goes away when its last reason does, so taking a box off removes the dots it caused; dots you place are never touched). Right-click puts a box on a cell. A cell with three lines is outlined in red (drawing it is allowed, so you can see the mistake).
 
 ## Calibration puzzles
 

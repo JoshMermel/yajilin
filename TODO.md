@@ -12,7 +12,7 @@ Order follows the pattern in the sibling projects (see README).
 3. **Generator**: random loop, shade cells off it, add clues, strip clues while the solution stays unique. Verify with
    the exact solver. Then pools in `tools/library/`, `tools/build_books.mjs`, recipes, `rescore`/`rerate`.
 4. **Books**: manifest, book picker, Browse grid by tier, print booklet, offline play (as in polyomino-panel).
-5. GUI polish: edge crosses ("no line here"), clue-satisfied colouring options, touch testing.
+5. GUI polish: edge crosses ("no line here"), clue-satisfied coloring options, touch testing.
 6. Solver speed for bigger boards (the generator will call it a lot): consider a WASM or tighter implementation only if
    measured to matter.
 
@@ -110,7 +110,7 @@ shadedNeighbor, deadEndNeighbor, cluePlacements for a 2N-1 run, rangeSame, range
   to Medium with it. Generalisation: every non-clue cell has even degree (0 or 2), so the loop is an element of the cycle space and
   *every* region's border parity is a GF(2) sum of those cell equations; Gaussian elimination would find all of them for any shape.
   Too powerful to call human-style, but the shapes people use (L-shapes, staircases, diagonal bands) are a possible next step.
-- Chessboard colour balance: loop cells alternate colours, so the non-clue cells of each colour minus the boxes of that colour are
+- Chessboard color balance: loop cells alternate colors, so the non-clue cells of each color minus the boxes of that color are
   equal: (boxes on black) - (boxes on white) = (non-clue black) - (non-clue white). Useful in endgames; global, so likely Hard.
   Regionally, a strand inside a region with c crossings can differ by at most c/2.
 - Loop-aware clue placements: `cluePlacements` only forbids touching boxes. The wiki's "an empty 2x3 holds at most two boxes" is

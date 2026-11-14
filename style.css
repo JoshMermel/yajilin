@@ -1,4 +1,4 @@
-/* Colour tokens follow polyomino-panel / multiverse-star-battle. */
+/* Color tokens follow polyomino-panel / multiverse-star-battle. */
 :root {
   color-scheme: light;
   --primary-blue: #1976d2;
@@ -23,7 +23,7 @@
   --shaded: #111;
   --shaded-bad: #c62828;
   --loop: #1976d2;
-  /* one colour per separate path (Okabe-Ito, colour-blind safe), when "Colour separate lines" is on */
+  /* one color per separate path (Okabe-Ito, color-blind safe), when "Color separate lines" is on */
   --path-0: #0072b2; --path-1: #d55e00; --path-2: #009e73; --path-3: #cc79a7;
   --path-4: #e69f00; --path-5: #56b4e9; --path-6: #7a5195; --path-7: #8c564b;
   --hint-focus: rgba(244, 236, 156, 0.8); --hint-clue: rgba(25, 118, 210, 0.28); --hint-range: rgba(25, 118, 210, 0.13);
@@ -120,7 +120,7 @@ button.ghost { background: transparent; }
 .dot.auto { opacity: 0.5; } /* placed automatically: goes away with its reason */
 .hover { fill: var(--cell-hover); pointer-events: none; }
 
-/* ---- hint overlay: each role its own colour or texture ---- */
+/* ---- hint overlay: each role its own color or texture ---- */
 .hint-undecided { fill: rgba(244, 236, 156, 0.4); pointer-events: none; }
 .hint-range { fill: var(--hint-range); pointer-events: none; }
 .hint-clue { fill: var(--hint-clue); pointer-events: none; }

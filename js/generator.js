@@ -55,7 +55,7 @@ function gridNeighbours(rows, cols, i) {
  * A loop builder: a single cycle through every cell that is not a hole, kept valid while holes are added.
  *
  * Start from a random 2-factor of the whole grid (every cell has two loop neighbours: a set of cycles) and merge it into one
- * cycle with local flips. `tryHoles(c1, c2)` then makes two cells of opposite chessboard colour holes: it repairs the 2-factor
+ * cycle with local flips. `tryHoles(c1, c2)` then makes two cells of opposite chessboard color holes: it repairs the 2-factor
  * with augmenting paths, merges it back into one cycle, and rolls everything back (returning false) if either is impossible.
  */
 export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40 } = {}) {
@@ -159,7 +159,7 @@ export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40 } = {}) {
   const init = () => { for (const v of shuffle([...Array(N).keys()], rng)) if (!fill(v)) return false; return mergeCycles(); };
   // may this cell become a hole? (every neighbour keeps two neighbours; `clump` is the chance of refusing a hole next to a hole)
   const okCell = (c, clump = 0) => !hole[c] && adj[c].every((w) => adj[w].length - 1 >= 2) && !(clump > 0 && grid[c].some((w) => hole[w]) && rng() < clump);
-  /** Make c1 and c2 (opposite colours) holes, keeping one cycle through the rest. Returns false, changing nothing, if impossible. */
+  /** Make c1 and c2 (opposite colors) holes, keeping one cycle through the rest. Returns false, changing nothing, if impossible. */
   const tryHoles = (c1, c2) => {
     if (color(c1) === color(c2) || c1 === c2 || hole[c1] || hole[c2]) return false;
     const touched = [...new Set([c1, c2, ...adj[c1], ...adj[c2]])];

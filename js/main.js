@@ -26,7 +26,7 @@ const state = {
 
 // Settings (all remembered in localStorage)
 const settings = {
-  colorLines: store.get('yj_colorLines') === '1', // colour each separate path differently
+  colorLines: store.get('yj_colorLines') === '1', // color each separate path differently
   labels: store.get('yj_labels') === '1',         // number the rows and columns
   autoDots: store.get('yj_autoDots') === '1',     // automatic dots: next to a box, and along a satisfied clue
 };
