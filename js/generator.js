@@ -458,7 +458,7 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
 
   // Two-phase check, because the Hard rules are expensive (on a stuck 20x36 board: 112 ms with them, 4 ms without). The climb
   // normally uses only the Beginner and Medium rules; when that leaves few cells undecided it asks the full rule set.
-  const cheapUpto = RULES.findIndex((r) => r.tier === 'Hard');
+  const cheapUpto = RULES.findIndex((r) => r.id === 'shadeForcesLines');   // everything before it is cheap (crossingParity is Hard-tier but cheap)
   const useCheap = (cheapFirst === null ? N >= 150 : cheapFirst) && upto === undefined;
   const fullLimit = fullBelow === null ? Math.max(20, N * 0.08) : fullBelow;
   const evaluate = () => {

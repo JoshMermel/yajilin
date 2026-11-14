@@ -1,7 +1,7 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can colour them differently) and the marks the step makes.
-import { SHADED, LOOP, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName } from './logic.js';
-import { ruleLabel } from './rating.js';
+import { SHADED, LOOP, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
+import { ruleLabel, followLines } from './rating.js';
 
 const ARROWS = ['↑', '→', '↓', '←'];
 /** A cell's name like a spreadsheet's: column letter, then row number (E3). */
@@ -21,16 +21,44 @@ export const ROLES = {
 };
 
 /** The cells a loop cell could still connect to, ignoring `ignore` (treated as shaded). Needs the solver position `st`. */
-function waysOut(P, st, i, ignore = -1) {
+function waysOut(P, st, i, ignore = -1, skipOn = false) {
   const out = [];
   for (let d = 0; d < 4; d++) {
     const x = P.ed[i * 4 + d];
     if (x < 0) continue;
     const j = P.nb[i * 4 + d];
-    if (j === ignore || st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
+    if (j === ignore || st.e[x] === E_OFF || st.cell[j] === SHADED || (skipOn && st.e[x] === E_ON)) continue;
     out.push(j);
   }
   return out;
+}
+
+/** What went wrong at `bad` once the forced lines of position `s2` are in: "give E8 three lines" / "leave E8 with just one way out". */
+function failureAt(P, s2, bad) {
+  if (s2.closedEarly) return 'close the loop early';
+  let lines = 0, ways = 0;
+  for (let d = 0; d < 4; d++) {
+    const x = P.ed[bad * 4 + d]; if (x < 0) continue;
+    if (s2.e[x] === E_ON) lines++;
+    const j = P.nb[bad * 4 + d];
+    if (s2.e[x] !== E_OFF && s2.cell[j] !== SHADED) ways++;
+  }
+  if (lines > 2) return `give ${cellName(P, bad)} three lines`;
+  return `leave ${cellName(P, bad)} with ${ways === 0 ? 'no way out' : 'just one way out'}`;
+}
+
+/** How a box at info.cell ends in a contradiction: "that give E8 three lines" / "that leave E8 with just one way out" (needs `st`). */
+function strandedResult(P, st, info) {
+  if (!st) return `that give ${cellName(P, info.stranded)} three lines or too few ways out, or close the loop early`;
+  const s2 = cloneState(st); s2.cell[info.cell] = SHADED;
+  return `that ${failureAt(P, s2, followLines(P, s2))}`;
+}
+
+/** The same for a segment assumed off or on. */
+function segmentResult(P, st, info) {
+  if (!st) return `give ${cellName(P, info.stranded)} three lines or too few ways out`;
+  const s2 = cloneState(st); s2.e[info.edge] = info.assumed === 'off' ? E_OFF : E_ON;
+  return failureAt(P, s2, followLines(P, s2));
 }
 
 /**
@@ -43,87 +71,117 @@ export function explainStep(P, step, st = null) {
   const role = (r, ...cells) => { roles[r] = [...new Set([...(roles[r] || []), ...cells.flat().filter((c) => c !== undefined && c >= 0)])]; };
   let text = '';
 
+  const N = (i) => cellName(P, i);
+  const edgeName = (edge) => { const [a, b] = edgeCells(P, edge); return `${N(a)} and ${N(b)}`; };
   switch (rule) {
     case 'clueDone': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', P.rays[k]);
-      text = `The ${clueName(P, k)} already has all ${P.clues[k].n} of its shaded cells, so every other open cell in its line is on the loop.`;
+      text = P.clues[k].n === 0 ? `The ${clueName(P, k)} needs no boxes: its whole line gets dots.` : `The ${clueName(P, k)} has all ${plural(P.clues[k].n, 'box', 'boxes')}: the rest of its line gets dots.`;
       break;
     }
     case 'clueFull': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', P.rays[k]);
-      text = `The ${clueName(P, k)} still needs ${plural(info.cells.length, 'shaded cell')} and has exactly that many open cells left in its line, so all of them are shaded.`;
+      text = `The ${clueName(P, k)} needs ${plural(info.cells.length, 'more box', 'more boxes')} and has ${info.cells.length === 1 ? 'one open cell' : `${info.cells.length} open cells`} left: ${info.cells.length === 1 ? 'it is a box' : 'all are boxes'}.`;
       break;
     }
     case 'shadedNeighbor':
       role('focus', info.cell);
-      text = 'Shaded cells never touch, so the cells next to this shaded cell are on the loop.';
+      text = `Boxes never touch: the cells around the box at ${N(info.cell)} get dots.`;
       break;
     case 'deadEnd':
       role('focus', info.cell);
-      text = 'This cell has fewer than two ways out (the rest are clue cells, shaded cells, the border or ruled-out segments). A loop cell needs two, so it must be shaded.';
+      text = `${N(info.cell)} has fewer than two ways out, so it can't be on the loop: it's a box.`;
       break;
     case 'forcedExits': {
       role('focus', info.cell);
-      if (st) role('exit', waysOut(P, st, info.cell));
+      if (st) role('exit', waysOut(P, st, info.cell, -1, info.on >= 1));   // with a line already, outline only where it goes next, not where it came from
       text = info.on >= 1
-        ? 'This loop cell already has a line and only one other way out left, so the line continues there.'
-        : 'This loop cell has exactly two ways out left, so the loop uses both.';
+        ? `${N(info.cell)} has a line and one way left to go: the line continues there.`
+        : `${N(info.cell)} has only two ways out: it uses both.`;
       break;
     }
     case 'tightCell':
       role('focus', info.cell); role('problem', info.neighbor);
       if (st) role('exit', waysOut(P, st, info.neighbor).filter((j) => j !== info.cell));
-      text = `The cell at ${cellName(P, info.neighbor)} (hatched) only has two neighbours it could ever connect to; the board's edge and clue cells block the rest. It is either on the loop, using both of them, or shaded, which makes both of them loop. Either way this cell is on the loop.`;
+      text = `A box at ${N(info.cell)} would turn ${N(info.neighbor)} into a dot with just one way out. So ${N(info.cell)} gets a dot.`;
       break;
     case 'deadEndNeighbor':
       role('focus', info.cell); role('problem', info.neighbor);
       if (st) role('exit', waysOut(P, st, info.neighbor, info.cell));
-      text = `If this cell were shaded, the neighbouring cell at ${cellName(P, info.neighbor)} (hatched) would be left with fewer than two ways out (green outline: what it would have left), and it cannot be shaded instead because it would touch this one. So this cell is on the loop.`;
+      const left = st ? waysOut(P, st, info.neighbor, info.cell).length : -1;
+      text = `A box at ${N(info.cell)} would turn ${N(info.neighbor)} into a dot with ${left === 0 ? 'no way out' : left === 1 ? 'just one way out' : 'fewer than two ways out'}. So ${N(info.cell)} gets a dot.`;
       break;
+    case 'closingNeighbor':
+      role('focus', info.cell); role('problem', info.neighbor); role('path', info.a, info.b);
+      text = `A box at ${N(info.cell)} would turn ${N(info.neighbor)} into a dot whose only two ways out, ${N(info.a)} and ${N(info.b)}, are the ends of one path: using both would close the loop early. So ${N(info.cell)} gets a dot.`;
+      break;
+    case 'pairedEnds': {
+      const [u, v] = info.pair, [fu, fv] = info.far;
+      role('range', info.cells); role('focus', u, v); role('path', fu, fv);
+      text = `${N(u)} and ${N(v)} are the only open ends in their sealed-off area, so they must join each other. That makes ${N(fu)} and ${N(fv)} the two ends of one path, and a segment between them would close the loop early. So there is none.`;
+      break;
+    }
     case 'sameSegmentExits':
       role('focus', info.cell); role('path', info.a, info.b); role('exit', info.third);
-      text = `This loop cell has three ways out, and two of them (${cellName(P, info.a)} and ${cellName(P, info.b)}, purple) lead to the two ends of the same path. Using both would close the loop too early, so it uses the third.`;
+      text = `${N(info.cell)} has three ways out; ${N(info.a)} and ${N(info.b)} lead to the two ends of one path. Using both would close the loop early, so it uses ${N(info.third)}.`;
       break;
     case 'closingCell':
       role('focus', info.cell); role('path', info.a, info.b);
-      text = `This cell has only two ways out (${cellName(P, info.a)} and ${cellName(P, info.b)}, purple), and both lead to the two ends of the same path. Using both would close the loop too early, so this cell cannot be on the loop: it is a box.`;
+      text = `${N(info.cell)} has only two ways out, ${N(info.a)} and ${N(info.b)}, and both lead to the two ends of one path. Using both would close the loop early, so ${N(info.cell)} is a box.`;
       break;
     case 'noEarlyClose': {
       const [a, b] = edgeCells(P, info.edge); role('path', a, b);
-      text = 'These two cells (purple) are the ends of the same path. Joining them would close the loop while other loop cells are still outside it, so there is no segment between them (the cross).';
+      text = `${N(a)} and ${N(b)} are the two ends of one path. A segment between them would close the loop early, so there is none.`;
       break;
     }
     case 'cluePlacements': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', info.cells);
-      text = `Try every way to place the shaded cells of the ${clueName(P, k)} without two touching: the marked cells are shaded in all of them, or in none of them.`;
+      text = `Place the boxes of the ${clueName(P, k)} without touching: each marked cell is a box in every placement, or in none.`;
       break;
     }
     case 'rangeSame': {
       role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
-      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point the same way, so the cells between them (highlighted) hold ${P.clues[info.clue].n} - ${P.clues[info.other].n} = ${plural(info.count, 'shaded cell')}. Trying every way to place those, the marked cells are shaded in all of them or in none.`;
+      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point the same way, so the cells between them hold ${P.clues[info.clue].n} − ${P.clues[info.other].n} = ${plural(info.count, 'box', 'boxes')}${info.count === 0 ? ': they get dots.' : '. Each marked cell is a box in every way of placing those, or in none.'}`;
+      break;
+    }
+    case 'rangeFacingKnown': {
+      role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
+      const A = P.clues[info.clue], B = P.clues[info.other];
+      const part = { M: 'the cells between them', R: `the cells past ${N(clueCell(P, info.other))}`, L: `the cells past ${N(clueCell(P, info.clue))}` };
+      const boxes = (n) => (n === 0 ? 'no boxes' : plural(n, 'box', 'boxes'));
+      const rest = ['M', 'R', 'L'].filter((k) => k !== info.known);
+      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} face each other. ${part[info.known][0].toUpperCase()}${part[info.known].slice(1)} hold ${boxes(info.counts[info.known])}, so ${part[rest[0]]} hold ${boxes(info.counts[rest[0]])} and ${part[rest[1]]} hold ${boxes(info.counts[rest[1]])}. Placing those settles the marked cells.`;
       break;
     }
     case 'rangeFacing': {
       role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
       const [lo, hi] = info.between;
-      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point at each other. What the cells between them and the cells past each end can hold means the cells between them contain ${lo === hi ? lo : `${lo} to ${hi}`} shaded; that fixes how many each end needs, and the marked cells follow.`;
+      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point at each other. What fits around them means the cells between hold ${lo === hi ? plural(lo, 'box', 'boxes') : `${lo} to ${hi} boxes`}, which settles the marked cells.`;
       break;
     }
     case 'shadeForcesLines':
       role('focus', info.cell); role('problem', info.stranded);
-      text = `If this cell were shaded, the lines that forces would make the cell at ${cellName(P, info.stranded)} (hatched) need three lines or have fewer than two ways out: a line end would have to do two incompatible things. So this cell is on the loop.`;
+      text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info)}. So ${N(info.cell)} gets a dot.`;
       break;
+    case 'segmentForcesLines': {
+      const [a, b] = edgeCells(P, info.edge); role('focus', a, b); role('problem', info.stranded);
+      text = info.assumed === 'off'
+        ? `Without a segment between ${N(a)} and ${N(b)}, the forced lines would ${segmentResult(P, st, info)}. So there is one.`
+        : `A segment between ${N(a)} and ${N(b)} would force lines that ${segmentResult(P, st, info)}. So there is none.`;
+      break;
+    }
     case 'parityForces': {
       const k = info.ends.length;
       role('path', info.ends);
+      const odd = `${plural(k, 'open end')} (purple), which can't be paired up`;
       if (info.cell !== undefined) {
         role('focus', info.cell);
-        text = `If this cell were shaded, it would cut off an area with ${plural(k, 'open end')} (purple: cells with one line that still need a second). Inside a cut-off area every strand of the loop joins two open ends, so the number has to be even. So this cell is on the loop.`;
+        text = `A box at ${N(info.cell)} would cut off an area with ${odd}. So ${N(info.cell)} gets a dot.`;
       } else {
         const [a, b] = edgeCells(P, info.edge); role('focus', a, b);
         text = info.assumed === 'off'
-          ? `If there were no segment between these two cells, an area would be left with ${plural(k, 'open end')} (purple: cells with one line that still need a second). Inside a cut-off area every strand joins two open ends, so the number has to be even. So there is a segment here.`
-          : `If there were a segment between these two cells, an area would be left with ${plural(k, 'open end')} (purple: cells with one line that still need a second). Inside a cut-off area every strand joins two open ends, so the number has to be even. So there is no segment here.`;
+          ? `No segment between ${N(a)} and ${N(b)} would cut off an area with ${odd}. So there is one.`
+          : `A segment between ${N(a)} and ${N(b)} would cut off an area with ${odd}. So there is none.`;
       }
       break;
     }
@@ -134,16 +192,16 @@ export function explainStep(P, step, st = null) {
       role('range', cells);
       const [a, b] = edgeCells(P, info.edge); role('path', a, b);
       const what = `${colName(c0)}${r0 + 1} to ${colName(c1)}${r1 + 1}`;
-      text = `The loop crosses the border of the rectangle ${what} (highlighted) an even number of times, because every loop cell has exactly two segments. ${info.crossings} crossing${info.crossings === 1 ? ' is' : 's are'} already drawn and this is the only undecided one, so ${info.value === E_ON ? 'there is a segment here' : 'there is no segment here'}.`;
+      text = `The loop crosses the border of ${what} an even number of times. ${plural(info.crossings, 'crossing')} already drawn, and the segment between ${N(a)} and ${N(b)} is the last undecided one: ${info.value === E_ON ? 'there is a segment' : 'there is none'}.`;
       break;
     }
     case 'tryCell':
       role('focus', info.cell);
-      text = `Suppose this cell were ${info.assumed}. Following the easier rules from there ends in a contradiction, so it is ${info.assumed === 'shaded' ? 'on the loop' : 'shaded'}.`;
+      text = `Trying ${info.assumed === 'shaded' ? 'a box' : 'a dot'} at ${N(info.cell)} leads to a contradiction, so it's ${info.assumed === 'shaded' ? 'a dot' : 'a box'}.`;
       break;
     case 'tryEdge': {
       const [a, b] = edgeCells(P, info.edge); role('path', a, b);
-      text = `Suppose the segment between these two cells were ${info.assumed}. Following the easier rules from there ends in a contradiction, so it is ${info.assumed === 'on' ? 'off' : 'on'}.`;
+      text = `Trying ${info.assumed === 'on' ? 'a segment' : 'no segment'} between ${N(a)} and ${N(b)} leads to a contradiction, so there is ${info.assumed === 'on' ? 'none' : 'one'}.`;
       break;
     }
     default:

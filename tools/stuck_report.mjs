@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { compile, parseCsv, solve, decodeSolution, encodeSolution, cloneState, UNKNOWN, SHADED, LOOP, E_ON, E_OFF } from '../js/logic.js';
+import { compile, parseCsv, solve, decodeSolution, encodeSolution, cloneState, checkSolved, UNKNOWN, SHADED, LOOP, E_ON, E_OFF } from '../js/logic.js';
 import { solvedByRules, RULES, FIRST_LOOKAHEAD, contradiction, oddOpenEnds } from '../js/rating.js';
 import { makeRng } from '../js/generator.js';
 
@@ -21,7 +21,7 @@ const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return
 const outDir = path.resolve(root, arg('out', 'tools/calibration/stuck'));
 const derive = +arg('derive', 30), maxUnd = +arg('max-undecided', 14), seed = +arg('seed', 1), minutes = +arg('minutes', 8);
 const t0 = Date.now();
-const sources = arg('from', 'data/large.csv,data/bonus-longway.csv,data/bonus-onedir.csv,data/bonus-bignum.csv').split(',');
+const sources = arg('from', 'data/large.csv,data/large-nk.csv,data/bonus-longway.csv,data/bonus-onedir.csv,data/bonus-bignum.csv,data/experiment-tall.csv,data/range-samples.csv').split(',');
 fs.mkdirSync(path.join(outDir, 'json'), { recursive: true });
 const rng = makeRng(seed);
 
@@ -109,6 +109,7 @@ console.log(`${cases.length} puzzle(s) already stuck`);
 
 // 2. derive near-stuck positions by removing clues while the puzzle stays unique
 const pool = [];
+const seenStuck = new Set();
 for (const s of sources) { const f = path.join(root, s); if (fs.existsSync(f)) pool.push(...parseCsv(fs.readFileSync(f, 'utf8')).filter((p) => p.rows * p.cols >= 100)); }
 let attempts = 0;
 while (cases.filter((c) => c.source === 'derived').length < derive && attempts < derive * 40 && pool.length && Date.now() - t0 < minutes * 60000) {
@@ -131,6 +132,9 @@ while (cases.filter((c) => c.source === 'derived').length < derive && attempts <
     const next = { ...cur, clues: cur.clues.filter((_, q) => q !== idx) };
     const chars = [...cur.solution]; chars[i] = 'x'; next.solution = chars.join('');
     const Q = compile({ ...next, clues: next.clues.map((c) => ({ ...c })) });
+    // the new box also counts for any clue whose line it lies in, so the stored solution may no longer be a solution: skip those
+    const solQ = decodeSolution(Q, next.solution);
+    if (!checkSolved(Q, Uint8Array.from(solQ.cell, (v) => (v === SHADED ? 1 : 0)), Int8Array.from(solQ.e, (v) => (v === E_ON ? 1 : 0)))) continue;
     const rr = solvedByRules(Q);
     if (rr.solved) { cur = next; removed++; continue; }          // still solved by the rules: unique by soundness; keep removing
     const und = undecidedOf(Q, rr.state).length;
@@ -138,6 +142,10 @@ while (cases.filter((c) => c.source === 'derived').length < derive && attempts <
     const u = solve(Q, { limit: 2, state: rr.state, maxNodes: 200000 });   // from the rules' position this is nearly instant
     if (u.exceeded || u.count !== 1) continue;                     // not unique: not a valid puzzle
     cur = next; removed++;
+    // the stronger the rules, the more often several removals end at the same stuck position of the same puzzle: report it once
+    const key = `${base.name}:${undecidedOf(Q, rr.state).join(',')}`;
+    if (seenStuck.has(key)) break;
+    seenStuck.add(key);
     const rep = reportOf(`derived-${String(cases.length + 1).padStart(2, '0')}`, 'derived', cur);
     if (rep) { rep.derivedFrom = base.name; rep.cluesRemoved = removed; cases.push(rep); fs.writeFileSync(path.join(outDir, 'json', `${rep.name}.json`), JSON.stringify(rep)); console.log(`  found ${rep.name}: ${rep.undecided.length} open cells, from ${base.name} (${removed} clue(s) removed), ${Math.round((Date.now() - t0) / 1000)} s`); }
     break;

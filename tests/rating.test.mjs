@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compile, solve, initialState, SHADED, LOOP, E_ON, E_OFF, UNKNOWN } from '../js/logic.js';
-import { rate, RULES, RULE_IDS, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds } from '../js/rating.js';
+import { compile, solve, initialState, cluesFromString, SHADED, LOOP, E_ON, E_OFF, UNKNOWN } from '../js/logic.js';
+import { rate, RULES, RULE_IDS, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules } from '../js/rating.js';
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -182,6 +182,23 @@ test('pattern: clues pointing at each other give two ranges of known box count (
   assert.equal(m.c7, SHADED);
 });
 
+test('pattern: facing clues with a part of known size fix the other parts (rangeFacingKnown)', () => {
+  // A (col 1, right, 2) and B (col 5, left, 1) on 9 cells. The part right of B (cols 6-8) already holds a box at col 8 and
+  // col 7 is its neighbour, so it holds exactly 1 (col 6 could hold one too, but then col 8 makes 2 and A's 2 needs the rest:
+  // here we simply pre-place boxes so the right part is exact).
+  const P = row(9, [[1, R, 2], [5, L, 1]]);
+  const st = initialState(P);
+  st.cell[7] = SHADED; st.cell[6] = LOOP; st.cell[8] = LOOP;      // right part holds exactly 1
+  const m = asMap(ruleSets('rangeFacingKnown', P, st));
+  // A needs 2 = between + 1, so between holds 1; B needs 1 = between + left, so nothing is left of A (col 0 is loop)
+  assert.equal(m.c0, LOOP);
+  assert.deepEqual(ruleSets('rangeFacing', P, st), [], 'the bounds version leaves exact cases to rangeFacingKnown');
+  // and with nothing known, the bounds rule (not the known one) does the work
+  const Q = row(8, [[1, R, 3], [4, L, 2]]);
+  assert.deepEqual(ruleSets('rangeFacingKnown', Q), []);
+  assert.ok(ruleSets('rangeFacing', Q).length > 0);
+});
+
 test('every rule is sound on random partial positions of true solutions', () => {
   const rand = rng(2024);
   const upto = RULE_IDS.indexOf('tryCell');
@@ -221,7 +238,7 @@ test('every rule is sound on random partial positions of true solutions', () => 
     }
   }
   console.log(`    ${positions} positions; firings: ${JSON.stringify(fired)}`);
-  for (const id of ['cluePlacements', 'rangeSame', 'rangeFacing', 'deadEndNeighbor', 'shadeForcesLines']) {
+  for (const id of ['cluePlacements', 'rangeSame', 'rangeFacingKnown', 'deadEndNeighbor', 'shadeForcesLines']) {
     assert.ok(fired[id] > 0, `${id} never fired in the sample`);
   }
 });
@@ -411,4 +428,57 @@ test('pattern: the loop crosses the border of any rectangle an even number of ti
   const s3 = initialState(Q);
   // the rectangle {(0,0)} has crossings (0,0)-(0,1) only (the cell below is a clue): the loop cannot cross it once, so it is off
   assert.equal(asMap(ruleSets('crossingParity', Q, s3)).e0, E_OFF);
+});
+
+// Two positions where the first version of the solver was stuck (from tools/stuck_report.mjs: a generated puzzle minus one clue).
+const stuckPuzzle = (name, rows, cols, clues) => compile({ name, rows, cols, clues: cluesFromString(clues) });
+const upto = (id) => RULE_IDS.indexOf(id);
+const cellIdx = (P, name) => (+name.slice(1) - 1) * P.cols + (name.charCodeAt(0) - 65);
+
+const CLUES09 = [12, 12, '0:9:D:3;2:3:U:0;2:5:D:1;2:6:R:1;2:9:D:2;3:6:L:1;4:0:D:0;4:7:L:1;4:10:D:2;5:2:D:1;5:4:R:1;6:1:R:0;6:6:U:0;7:1:U:0;7:6:U:0;8:5:L:1;8:10:L:1;9:5:U:2;9:9:U:2;10:1:R:2;10:2:U:2'];
+const CLUES23 = [10, 10, '0:2:R:1;0:7:L:1;2:4:R:1;2:5:D:3;3:2:D:2;3:8:L:2;4:5:L:2;4:7:L:2;5:4:R:2;5:9:D:2;7:6:U:0;8:2:U:3'];
+
+test('pattern: a box would turn a neighbour into a dot whose two ways out close the loop early (closingNeighbor)', () => {
+  const P = stuckPuzzle('d09', CLUES09[0], CLUES09[1], CLUES09[2]);
+  // G10 and I10 are the two ends of one path; a box at H11 would make H10 a dot with just those two ways out
+  const r = rate(P);
+  assert.ok(r.solved && r.tier !== 'Expert');
+  const step = r.steps.find((s) => s.rule === 'closingNeighbor' && s.sets.some(([k, i, v]) => k === 'c' && i === cellIdx(P, 'H11') && v === LOOP));
+  assert.ok(step, 'the solver should find H11 with closingNeighbor');
+  assert.equal(step.tier, 'Medium');
+});
+
+test('pattern: the only two open ends in a sealed-off area join each other (pairedEnds)', () => {
+  const P = stuckPuzzle('d23', CLUES23[0], CLUES23[1], CLUES23[2]);
+  // E4 and D5 are alone in their area, so they join: D7 and D6 become the ends of one path and cannot be joined
+  const r = rate(P);
+  assert.ok(r.solved && r.tier !== 'Expert');
+  const d6 = cellIdx(P, 'D6');
+  const step = r.steps.find((s) => s.rule === 'pairedEnds' && s.sets.some(([k, i, v]) => k === 'e' && i === 2 * d6 + 1 && v === E_OFF));
+  assert.ok(step, 'the solver should rule out the segment D6-D7 with pairedEnds');
+});
+
+import { parseCsv, decodeSolution } from '../js/logic.js';
+import { readFileSync } from 'node:fs';
+import { FIRST_LOOKAHEAD } from '../js/rating.js';
+
+test('the newer rules reach the stored solution on real generated puzzles (soundness on whole puzzles)', () => {
+  const want = { 'data/experiment-tall.csv': ['TALL-12 (6x50)', 'TALL-11 (5x60)'], 'data/bonus-longway.csv': ['BONUS-LONGWAY-15', 'BONUS-LONGWAY-11'], 'data/bonus-bignum.csv': ['BONUS-BIGNUM-10'], 'data/bonus-onedir.csv': ['BONUS-ONEDIR-12'] };
+  let used = 0;
+  for (const [file, names] of Object.entries(want)) {
+    const all = parseCsv(readFileSync(new URL('../' + file, import.meta.url), 'utf8'));
+    for (const name of names) {
+      const raw = all.find((p) => p.name === name);
+      assert.ok(raw, name);
+      const P = compile(raw);
+      const r = solvedByRules(P, FIRST_LOOKAHEAD);
+      assert.ok(r.solved, `${name} not solved`);
+      const sol = decodeSolution(P, raw.solution);
+      for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0) assert.equal(r.state.cell[i] === SHADED, sol.cell[i] === SHADED, `${name} cell ${i}`);
+      for (let x = 0; x < P.numEdges; x++) assert.equal(r.state.e[x] === E_ON, sol.e[x] === E_ON, `${name} edge ${x}`);
+      const c = rate(P).counts;
+      used += (c.pairedEnds || 0) + (c.closingNeighbor || 0) + (c.segmentForcesLines || 0);
+    }
+  }
+  assert.ok(used > 5, 'the sample should actually use the newer rules');
 });

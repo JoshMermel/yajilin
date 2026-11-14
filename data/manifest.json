@@ -11,6 +11,11 @@
       "file": "data/large-nk.csv"
     },
     {
+      "id": "range-samples",
+      "name": "Difficulty samples (16x16, 20x32)",
+      "file": "data/range-samples.csv"
+    },
+    {
       "id": "large",
       "name": "Large (draft)",
       "file": "data/large.csv"
@@ -29,6 +34,11 @@
       "id": "bonus-bignum",
       "name": "Bonus: big numbers",
       "file": "data/bonus-bignum.csv"
+    },
+    {
+      "id": "experiment-tall",
+      "name": "Experiment: tall and skinny",
+      "file": "data/experiment-tall.csv"
     }
   ],
   "default": "large"

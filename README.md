@@ -76,26 +76,32 @@ Progress is saved in `localStorage` keyed by a hash of the puzzle (size and clue
 A rule-based solver solves each puzzle the way a person would: it always applies the easiest applicable rule and never
 looks at the stored solution. A puzzle's **tier** is the tier of the hardest rule it needed, its **score** the weighted
 sum of the steps taken (+10 per undecided cell if the rules get stuck, which makes it Expert, "beyond the hints").
-The table lives in `js/rating.js` (`RULES`); re-binning a rule or changing a weight is a one-line edit.
+The table lives in `js/rating.js` (`RULES`); re-binning a rule or changing a weight is a one-line edit. Beginner weights are a quarter of the first
+draft's (2026-11-14): those steps are about half of the old score but almost identical for every puzzle of a size, so they blurred easy vs hard
+(see `experiments/range/`). After changing weights, run `node tools/rescore.mjs` to refresh the stored scores in the books.
 
 | Rule | What it does | Tier | Weight |
 | --- | --- | --- | --- |
-| `clueDone` | a clue already has all its shaded cells: the rest of its line is loop | Beginner | 1 |
-| `clueFull` | a clue needs as many shaded cells as it has open cells left: shade them all | Beginner | 1 |
-| `shadedNeighbor` | cells next to a shaded cell are loop | Beginner | 1 |
-| `deadEnd` | a cell with fewer than two exits cannot be on the loop: shaded | Beginner | 2 |
-| `forcedExits` | a loop cell with exactly two exits left uses both | Beginner | 0.3 |
-| `tightCell` | a neighbour has only two cells it can ever connect to (board edge and clue cells around it: a corner, clues touching diagonally, a gap between two clues): the cell is loop. Seen at a glance | Beginner | 0.5 |
-| `deadEndNeighbor` | shading a cell would strand a neighbour (given the marks so far): the cell is loop | Beginner | 2 |
+| `clueDone` | a clue already has all its shaded cells: the rest of its line is loop | Beginner | 0.25 |
+| `clueFull` | a clue needs as many shaded cells as it has open cells left: shade them all | Beginner | 0.25 |
+| `shadedNeighbor` | cells next to a shaded cell are loop | Beginner | 0.25 |
+| `deadEnd` | a cell with fewer than two exits cannot be on the loop: shaded | Beginner | 0.5 |
+| `forcedExits` | a loop cell with exactly two exits left uses both | Beginner | 0.075 |
+| `tightCell` | a neighbour has only two cells it can ever connect to (board edge and clue cells around it: a corner, clues touching diagonally, a gap between two clues): a box here would leave it one way out and it cannot be a box itself, so this cell gets a dot. Seen at a glance | Beginner | 0.125 |
+| `deadEndNeighbor` | shading a cell would strand a neighbour (given the marks so far): the cell is loop | Beginner | 0.5 |
 | `sameSegmentExits` | a loop cell has three ways out and two of them lead to the two ends of one path: using both would close the loop early, so it uses the third | Medium | 3 |
 | `closingCell` | a cell has only two ways out and both lead to the two ends of one path: using them would close the loop early, so the cell is a box | Medium | 3 |
 | `noEarlyClose` | a segment joining the two ends of one path would close the loop while other loop cells are outside it | Medium | 3 |
+| `closingNeighbor` | imagine a cell shaded: its undecided neighbour would be a dot whose only two ways out lead to the two ends of one path, so using both would close the loop early. The cell is a dot (`closingCell` one step removed) | Medium | 4 |
 | `cluePlacements` | try every way to place the clue's boxes without two touching: a cell they all use is shaded, a cell none uses is loop | Medium | 4 |
-| `crossingParity` | the loop crosses the border of any rectangle an even number of times (every loop cell has exactly two segments): when all but one crossing is settled, the last is forced. Checked for small rectangles, corner-anchored ones and full-width or full-height bands | Medium | 6 |
+| `crossingParity` | the loop crosses the border of any rectangle an even number of times (every loop cell has exactly two segments): when all but one crossing is settled, the last is forced. Checked for small rectangles, corner-anchored ones and full-width or full-height bands | Hard | 6 |
 | `rangeSame` | two clues in a line point the same way: the cells between them hold (first number - second number) boxes; use that range like a clue | Medium | 6 |
+| `pairedEnds` | cells that can still be joined form groups; a group holding exactly two open ends is sealed off, so those ends must join each other. Their two paths become one, and its far ends cannot be joined (that would close the loop early) | Hard | 7 |
 | `shadeForcesLines` | imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if a line end must do two incompatible things (a cell gets three lines, or is stranded), the cell is loop | Hard | 8 |
+| `segmentForcesLines` | `shadeForcesLines` for a segment: imagine it missing (or drawn) next to a loop cell, add the lines that forces; if a cell is left with three lines or too few ways out, the segment is there (or is not). E.g. a dot with three ways out that cannot skip the left one without a contradiction uses it | Hard | 8 |
 | `parityForces` | a move (a cell shaded, a segment drawn or missing) would cut off a group of cells that can still be joined and holds an odd number of open ends (cells with one line that still need a second), which can never be completed: it is the other way | Hard | 9 |
-| `rangeFacing` | two clues point at each other: how many boxes fit between them (given what each end can hold) pins how many each end needs; use the three ranges like clues | Hard | 10 |
+| `rangeFacingKnown` | two clues point at each other and so split the line into three parts: between them (seen by both) and beyond each (seen by one). When one part holds a known number of boxes (filled in, or no room for more), the other two follow (first = between + beyond second, second = between + beyond first); place them like clues | Hard | 10 |
+| `rangeFacing` | the same when no part is exact: how many boxes fit in each part (bounds from the room each has) still pins how many each part holds | Hard | 12 |
 | `tryCell` | assume a cell is shaded (loop), follow the rules above to a contradiction: it is the other | Hard | 12 |
 | `tryEdge` | the same for a segment (on / off) | Hard | 14 |
 
