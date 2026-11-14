@@ -1,0 +1,11 @@
+node_modules/
+.DS_Store
+
+# Puzzles borrowed from other sites for private calibration only: never published.
+tools/calibration/
+# Local scratch book shown on localhost only (see README).
+data/tmp.csv
+
+# Big scratch pools and staging (built by tools/, not published).
+tools/library/
+tools/books_staging/

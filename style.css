@@ -1,0 +1,112 @@
+/* Colour tokens follow polyomino-panel / multiverse-star-battle. */
+:root {
+  color-scheme: light;
+  --primary-blue: #1976d2;
+  --color-solved: #2e7d32;
+  --color-error: #c62828;
+  --bg-white: #fff;
+  --bg-light: #f8f9fa;
+  --border-light: #e0e0e0;
+  --border-input: #ddd;
+  --text-primary: #111;
+  --text-secondary: #666;
+
+  --cell-bg: #fff;
+  --cell-border: #ccc;
+  --clue-bg: #e9ecef;
+  --clue-ink: #111;
+  --clue-ok-bg: #d7ecd9;
+  --clue-bad-bg: #f6c9c6;
+  --shaded: #111;
+  --shaded-bad: #c62828;
+  --loop: #1976d2;
+  --dot: #6b7a8c;
+  --frame: #111;
+  --cell-hover: rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --primary-blue: #64b5f6;
+  --color-solved: #66bb6a;
+  --color-error: #ef5350;
+  --bg-white: #1a1a1a;
+  --bg-light: #1e1e1e;
+  --border-light: #3a3a3a;
+  --border-input: #444;
+  --text-primary: #eee;
+  --text-secondary: #aaa;
+
+  --cell-bg: #222;
+  --cell-border: #444;
+  --clue-bg: #343a40;
+  --clue-ink: #eee;
+  --clue-ok-bg: #28452c;
+  --clue-bad-bg: #5a2623;
+  --shaded: #000;
+  --shaded-bad: #ef5350;
+  --loop: #64b5f6;
+  --dot: #8a99ab;
+  --frame: #ccc;
+  --cell-hover: rgba(255, 255, 255, 0.1);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg-white); color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+#game-container { max-width: 640px; margin: 0 auto; padding: 8px 12px 40px; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; }
+.topbar h1 { font-size: 1.3rem; margin: 6px 0; }
+.icon-btn { font-size: 1.1rem; width: 2.2rem; height: 2.2rem; padding: 0; }
+button, select, input[type=number] {
+  font: inherit; color: inherit; background: var(--bg-light);
+  border: 1px solid var(--border-input); border-radius: 6px; padding: 5px 10px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--primary-blue); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.ghost { background: transparent; }
+
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 4px 0; }
+.pager { display: flex; align-items: center; gap: 4px; }
+.pager input { width: 4.2rem; text-align: center; cursor: text; }
+.pager-total { color: var(--text-secondary); margin-right: 4px; }
+.step-btn { width: 2rem; padding: 4px 0; }
+
+.infobar { display: flex; justify-content: space-between; align-items: baseline; min-height: 1.8rem; color: var(--text-secondary); }
+.status { font-weight: 600; }
+.status.solved { color: var(--color-solved); }
+.controls { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 6px 0 10px; }
+.btn-group { display: flex; gap: 6px; }
+
+#board { touch-action: none; user-select: none; -webkit-user-select: none; }
+#board svg { width: 100%; height: auto; display: block; }
+#board.solved svg { filter: drop-shadow(0 0 6px var(--color-solved)); }
+.cell-bg { fill: var(--cell-bg); }
+.grid-line { stroke: var(--cell-border); stroke-width: 1; }
+.frame { fill: none; stroke: var(--frame); stroke-width: 3; }
+.clue-bg { fill: var(--clue-bg); }
+.clue-bg.ok { fill: var(--clue-ok-bg); }
+.clue-bg.bad { fill: var(--clue-bad-bg); }
+.clue-text { fill: var(--clue-ink); font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.shaded { fill: var(--shaded); }
+.shaded.bad { fill: var(--shaded-bad); }
+.seg { stroke: var(--loop); stroke-linecap: round; fill: none; }
+.dot { fill: var(--dot); }
+.hover { fill: var(--cell-hover); pointer-events: none; }
+.wrong { fill: none; stroke: var(--color-error); stroke-width: 3; stroke-dasharray: 5 3; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: 90vw;
+  background: var(--text-primary); color: var(--bg-white); padding: 8px 14px; border-radius: 8px; cursor: pointer;
+}
+.toast[hidden] { display: none; }
+
+dialog { max-width: 460px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--bg-white); color: var(--text-primary); }
+dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+dialog h2 { margin-top: 0; }
+dialog .row { margin: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+.ok-text { color: var(--color-solved); font-weight: 600; }
+.bad-text { color: var(--color-error); font-weight: 600; }
