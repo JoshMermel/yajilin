@@ -83,6 +83,10 @@ export function explainStep(P, step, st = null) {
       role('focus', info.cell); role('path', info.a, info.b); role('exit', info.third);
       text = `This loop cell has three ways out, and two of them (${cellName(P, info.a)} and ${cellName(P, info.b)}, purple) lead to the two ends of the same path. Using both would close the loop too early, so it uses the third.`;
       break;
+    case 'closingCell':
+      role('focus', info.cell); role('path', info.a, info.b);
+      text = `This cell has only two ways out (${cellName(P, info.a)} and ${cellName(P, info.b)}, purple), and both lead to the two ends of the same path. Using both would close the loop too early, so this cell cannot be on the loop: it is a box.`;
+      break;
     case 'noEarlyClose': {
       const [a, b] = edgeCells(P, info.edge); role('path', a, b);
       text = 'These two cells (purple) are the ends of the same path. Joining them would close the loop while other loop cells are still outside it, so there is no segment between them (the cross).';
@@ -108,6 +112,20 @@ export function explainStep(P, step, st = null) {
       role('focus', info.cell); role('problem', info.stranded);
       text = `If this cell were shaded, the lines that forces would make the cell at ${cellName(P, info.stranded)} (hatched) need three lines or have fewer than two ways out: a line end would have to do two incompatible things. So this cell is on the loop.`;
       break;
+    case 'parityForces': {
+      const k = info.ends.length;
+      role('path', info.ends);
+      if (info.cell !== undefined) {
+        role('focus', info.cell);
+        text = `If this cell were shaded, it would cut off an area with ${plural(k, 'open end')} (purple: cells with one line that still need a second). Inside a cut-off area every strand of the loop joins two open ends, so the number has to be even. So this cell is on the loop.`;
+      } else {
+        const [a, b] = edgeCells(P, info.edge); role('focus', a, b);
+        text = info.assumed === 'off'
+          ? `If there were no segment between these two cells, an area would be left with ${plural(k, 'open end')} (purple: cells with one line that still need a second). Inside a cut-off area every strand joins two open ends, so the number has to be even. So there is a segment here.`
+          : `If there were a segment between these two cells, an area would be left with ${plural(k, 'open end')} (purple: cells with one line that still need a second). Inside a cut-off area every strand joins two open ends, so the number has to be even. So there is no segment here.`;
+      }
+      break;
+    }
     case 'tryCell':
       role('focus', info.cell);
       text = `Suppose this cell were ${info.assumed}. Following the easier rules from there ends in a contradiction, so it is ${info.assumed === 'shaded' ? 'on the loop' : 'shaded'}.`;

@@ -21,8 +21,12 @@
 //                    two exits), the cell is loop
 //   sameSegmentExits a loop cell has three ways out and two of them lead to the two ends of one path: using both would
 //                    close the loop early, so it uses the third
+//   closingCell      a cell has only two ways out and both lead to the two ends of one path: using them would close the
+//                    loop early, so it is shaded
 //   noEarlyClose     a segment joining the two ends of one path would close the loop while other loop cells are
 //                    outside it: no segment there
+//   parityForces     a move (a cell shaded, a segment drawn or missing) would cut off a group of cells holding an odd
+//                    number of open ends, which can never be completed: it is the other way
 //   rangeSame        two clues in a line point the same way: the cells between them hold (first - second) shaded cells
 //   rangeFacing      two clues point at each other: the room between them, and at each end, bounds how many shaded
 //                    cells each part holds
@@ -59,6 +63,7 @@ function exits(P, st, i, ignore = -1) {
     if (x < 0) continue;
     const j = P.nb[i * 4 + d];
     if (j === ignore || st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
+    if (st.e[x] !== E_ON && onCount(P, st, j) >= 2) continue; // a full cell takes no more segments
     n++;
   }
   return n;
@@ -96,6 +101,37 @@ function applySets(st, sets) {
   return true;
 }
 
+/**
+ * Parity of open ends. A cell "needs" segments if it is not a clue or shaded and has fewer than two. Join two needy cells
+ * that an undecided segment could connect; every segment still to be drawn adds one end to each of two cells in the same
+ * group, so each group must hold an even number of open ends (cells with one segment that still need their second).
+ * Returns the open ends of the first group with an odd number, or null if every group is even.
+ */
+export function oddOpenEnds(P, st) {
+  const { N } = P;
+  const needy = new Uint8Array(N);
+  const ends = [];
+  for (let i = 0; i < N; i++) {
+    if (st.cell[i] === CLUE || st.cell[i] === SHADED) continue;
+    const on = onCount(P, st, i);
+    if (on < 2) needy[i] = 1;
+    if (on === 1) ends.push(i);
+  }
+  if (!ends.length) return null;
+  const parent = new Int32Array(N);
+  for (let i = 0; i < N; i++) parent[i] = i;
+  const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  for (let x = 0; x < P.numEdges; x++) {
+    if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
+    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
+    if (needy[a] && needy[b]) { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; }
+  }
+  const count = new Map();
+  for (const i of ends) { const r = find(i); count.set(r, (count.get(r) || 0) + 1); }
+  for (const [r, c] of count) if (c % 2) return ends.filter((i) => find(i) === r);
+  return null;
+}
+
 /** Is the position impossible? (Used by the lookahead rules.) */
 export function contradiction(P, st) {
   const { N, nb } = P;
@@ -125,7 +161,7 @@ export function contradiction(P, st) {
     // a closed loop is only allowed if nothing else is on the loop
     for (let i = 0; i < N; i++) if (st.cell[i] === LOOP && find(i) !== cycleRoot) return true;
   }
-  return false;
+  return oddOpenEnds(P, st) !== null;
 }
 
 /** Does edge index x join two real, non-clue cells? (Edge indexes also cover off-board "edges" past the last column/row.) */
@@ -219,6 +255,7 @@ function forcedExits(P, st) {
     for (let d = 0; d < 4; d++) {
       const x = P.ed[i * 4 + d];
       if (x < 0 || st.e[x] !== E_UNKNOWN || st.cell[P.nb[i * 4 + d]] === SHADED) continue;
+      if (onCount(P, st, P.nb[i * 4 + d]) >= 2) continue; // a full neighbour is not one of the two ways out
       sets.push(setEdge(x, E_ON));
     }
     if (sets.length) out.push(firing(sets, { cell: i, on: onCount(P, st, i) }));
@@ -413,7 +450,7 @@ function rangeFacing(P, st) {
  * exits uses both, a cell with two lines has no more. No clue reasoning. Returns the first cell that ends up with
  * three lines or with too few exits, or -1. Mutates `st`.
  */
-function followLines(P, st) {
+export function followLines(P, st) {
   for (let guard = 0; guard < 500; guard++) {
     let changed = false;
     const put = (arr, idx, v) => { if (arr[idx] === 0) { arr[idx] = v; changed = true; } };
@@ -438,7 +475,7 @@ function followLines(P, st) {
           const x = P.ed[i * 4 + d];
           if (x < 0 || st.e[x] !== E_UNKNOWN || st.cell[P.nb[i * 4 + d]] === SHADED) continue;
           if (on === 2) put(st.e, x, E_OFF);
-          else if (ex === 2) put(st.e, x, E_ON);
+          else if (ex === 2 && onCount(P, st, P.nb[i * 4 + d]) < 2) put(st.e, x, E_ON); // a full neighbour is not one of the two ways out
         }
       }
     }
@@ -479,8 +516,10 @@ function sameSegmentExits(P, st) {
     const ex = [];
     for (let d = 0; d < 4; d++) {
       const x = P.ed[i * 4 + d];
-      if (x < 0 || st.e[x] === E_OFF || st.cell[P.nb[i * 4 + d]] === SHADED) continue;
-      ex.push({ x, j: P.nb[i * 4 + d] });
+      const j = x < 0 ? -1 : P.nb[i * 4 + d];
+      if (x < 0 || st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
+      if (st.e[x] !== E_ON && onCount(P, st, j) >= 2) continue; // a full cell takes no more segments
+      ex.push({ x, j });
     }
     if (ex.length !== 3) continue;
     for (let a = 0; a < 3; a++) {
@@ -491,6 +530,35 @@ function sameSegmentExits(P, st) {
         out.push(firing([setEdge(third.x, E_ON)], { cell: i, a: ex[a].j, b: ex[b].j, third: third.j }));
       }
     }
+  }
+  return out;
+}
+
+/**
+ * A cell with only two ways out, both leading to the two ends of one path: taking both would close the loop too early
+ * (other loop cells lie outside), so the cell cannot be on the loop and is shaded.
+ */
+function closingCell(P, st) {
+  const { find } = components(P, st);
+  const perRoot = new Map();
+  let loopTotal = 0;
+  for (let i = 0; i < P.N; i++) if (st.cell[i] === LOOP) { loopTotal++; const r = find(i); perRoot.set(r, (perRoot.get(r) || 0) + 1); }
+  const out = [];
+  for (let i = 0; i < P.N; i++) {
+    if (st.cell[i] !== UNKNOWN || onCount(P, st, i) > 0) continue; // a cell with a segment is already on the loop
+    const ex = [];
+    for (let d = 0; d < 4; d++) {
+      const x = P.ed[i * 4 + d];
+      const j = P.nb[i * 4 + d];
+      if (x < 0 || st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
+      if (st.e[x] !== E_ON && onCount(P, st, j) >= 2) continue; // a full cell takes no more segments
+      ex.push(j);
+    }
+    if (ex.length !== 2) continue;
+    const ra = find(ex[0]);
+    if (ra !== find(ex[1])) continue;                  // the two neighbours are not on one path
+    if (loopTotal <= (perRoot.get(ra) || 0)) continue; // closing would finish the loop: fine
+    out.push(firing([setCell(i, SHADED)], { cell: i, a: ex[0], b: ex[1] }));
   }
   return out;
 }
@@ -507,6 +575,34 @@ function noEarlyClose(P, st) {
     const [a, b] = edgeCells(P, x);
     if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
     if (find(a) === find(b)) out.push(firing([setEdge(x, E_OFF)], { edge: x }));
+  }
+  return out;
+}
+
+/**
+ * A move that cuts off a region with an odd number of open ends is impossible: imagine the cell shaded (or the segment
+ * missing, or drawn) and look at the groups of cells that can still be joined; an odd group cannot be completed.
+ */
+function parityForces(P, st) {
+  const out = [];
+  for (let i = 0; i < P.N; i++) {
+    if (st.cell[i] !== UNKNOWN) continue;
+    const st2 = cloneState(st);
+    st2.cell[i] = SHADED;
+    for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && st2.e[x] === E_UNKNOWN) st2.e[x] = E_OFF; }
+    const ends = oddOpenEnds(P, st2);
+    if (ends) out.push(firing([setCell(i, LOOP)], { cell: i, assumed: 'shaded', ends }));
+  }
+  for (let x = 0; x < P.numEdges; x++) {
+    if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
+    const [a, b] = edgeCells(P, x);
+    if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
+    const off = cloneState(st); off.e[x] = E_OFF;
+    const endsOff = oddOpenEnds(P, off);
+    if (endsOff) { out.push(firing([setEdge(x, E_ON)], { edge: x, assumed: 'off', ends: endsOff })); continue; }
+    const on = cloneState(st); on.e[x] = E_ON; on.cell[a] = LOOP; on.cell[b] = LOOP;
+    const endsOn = oddOpenEnds(P, on);
+    if (endsOn) out.push(firing([setEdge(x, E_OFF)], { edge: x, assumed: 'on', ends: endsOn }));
   }
   return out;
 }
@@ -556,10 +652,12 @@ export const RULES = [
   { id: 'tightCell', tier: 'Beginner', weight: 0.5, find: tightCell, label: 'a corner-like cell with only two neighbours: both are loop' },
   { id: 'deadEndNeighbor', tier: 'Beginner', weight: 2, find: deadEndNeighbor, label: 'shading this cell would strand a neighbour: it is loop' },
   { id: 'sameSegmentExits', tier: 'Medium', weight: 3, find: sameSegmentExits, label: 'two of a cell\'s three ways out lead to the same path: it uses the third' },
+  { id: 'closingCell', tier: 'Medium', weight: 3, find: closingCell, label: 'a cell whose only two ways out lead to the ends of one path would close the loop early: it is a box' },
   { id: 'noEarlyClose', tier: 'Medium', weight: 3, find: noEarlyClose, label: 'a segment would close the loop too early' },
   { id: 'cluePlacements', tier: 'Medium', weight: 4, find: cluePlacements, label: 'every way to place a clue\'s shaded cells includes (or leaves out) this cell' },
   { id: 'rangeSame', tier: 'Medium', weight: 6, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
   { id: 'shadeForcesLines', tier: 'Hard', weight: 8, find: shadeForcesLines, label: 'a box here would force a line end to do two incompatible things' },
+  { id: 'parityForces', tier: 'Hard', weight: 9, find: parityForces, label: 'a move here would cut off a region with an odd number of open ends' },
   { id: 'rangeFacing', tier: 'Hard', weight: 10, find: rangeFacing, label: 'two clues point at each other: how many shaded cells fit between them decides how many each end needs' },
   { id: 'tryCell', tier: 'Hard', weight: 12, lookahead: true, find: lookahead('cell'), label: 'trying a cell one way leads to a contradiction' },
   { id: 'tryEdge', tier: 'Hard', weight: 14, lookahead: true, find: lookahead('edge'), label: 'trying a segment one way leads to a contradiction' },

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, solve, initialState, SHADED, LOOP, E_ON, E_OFF, UNKNOWN } from '../js/logic.js';
-import { rate, RULES, RULE_IDS, nextStep, closure, contradiction, TIERS, rangeDeduce } from '../js/rating.js';
+import { rate, RULES, RULE_IDS, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds } from '../js/rating.js';
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -354,4 +354,42 @@ test('forcedExits records whether the cell already has a line', () => {
   st.e[0] = E_ON; st.cell[1] = LOOP; // one line already: the other way out is the only one left
   f = RULES.find((r) => r.id === 'forcedExits').find(P, st, {});
   assert.equal(f.find((x) => x.info.cell === 0).info.on, 1);
+});
+
+test('pattern: groups of cells that can still be joined need an even number of open ends (parity)', () => {
+  // A row of 5: a segment between cells 0 and 1 leaves cell 0 an open end with nothing to join: one open end, odd.
+  const row5 = compile({ name: 'r', rows: 1, cols: 5, clues: [] });
+  const bad = initialState(row5);
+  bad.cell[0] = LOOP; bad.cell[1] = LOOP; bad.e[0] = E_ON;
+  assert.ok(oddOpenEnds(row5, bad), 'an odd group should be reported');
+  assert.ok(contradiction(row5, bad));
+  // 2x3, a segment between (0,0) and (1,0): open ends 0 and 3 can still join through the rest: even, fine
+  const P = compile({ name: 'p', rows: 2, cols: 3, clues: [] });
+  const st = initialState(P);
+  st.cell[0] = LOOP; st.cell[3] = LOOP; st.e[1] = E_ON;
+  assert.equal(oddOpenEnds(P, st), null);
+  assert.ok(!contradiction(P, st));
+  // shading (0,1) would leave open end 0 alone: odd, so (0,1) must be loop
+  const sets = asMap(ruleSets('parityForces', P, st));
+  assert.equal(sets.c1, LOOP);
+  // and ruling out the segment (1,0)-(1,1) would leave open end 3 alone: that segment is on
+  assert.equal(sets.e6, E_ON);
+});
+
+test('pattern: a cell whose only two ways out would close the loop early is a box (closingCell)', () => {
+  // 3x3, a U-shaped path (1,0)-(0,0)-(0,1)-(0,2)-(1,2). The middle cell has exits left and right only (up is full, down ruled out):
+  // both are ends of that path, so using them would close the loop while (2,1) is still outside.
+  const P = compile({ name: 'cc', rows: 3, cols: 3, clues: [] });
+  const st = initialState(P);
+  for (const i of [0, 1, 2, 3, 5, 7]) st.cell[i] = LOOP;
+  for (const x of [1, 0, 2, 5]) st.e[x] = E_ON;
+  st.e[3] = E_OFF; st.e[9] = E_OFF; // no segment from (0,1) down to the middle, none from the middle down to (2,1)
+  const sets = asMap(ruleSets('closingCell', P, st));
+  assert.equal(sets.c4, SHADED);
+  // with nothing else on the loop, closing it would finish it: no deduction
+  const st2 = initialState(P);
+  for (const i of [0, 1, 2, 3, 5]) st2.cell[i] = LOOP;
+  for (const x of [1, 0, 2, 5]) st2.e[x] = E_ON;
+  st2.e[3] = E_OFF; st2.e[9] = E_OFF;
+  assert.deepEqual(ruleSets('closingCell', P, st2), []);
 });

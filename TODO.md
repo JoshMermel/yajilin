@@ -45,9 +45,7 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
 
 ## GUI ideas not done yet
 
-- Parity hint: an enclosed region needs an even number of line ends entering it, so a candidate move that leaves an enclosed
-  section with an odd number of open ends is wrong. Needs a precise statement first (which regions count, what is an "open end")
-  before it can be a rule with a weight; worth a few examples from play.
+- Parity of open ends: done (`parityForces` rule and part of `contradiction()`; Josh's definition: an open end is a cell that has one segment but still needs its second). It is sound but rarely the easiest rule on the puzzles we have.
 - Two-press (step-by-step) hints like polyomino-panel; a "peek" when the solver is stuck.
 - Edge crosses ("no segment here") as player marks.
 - Three lines into a cell: currently allowed and outlined in red. Alternative: drawing a third line removes the oldest.
@@ -62,3 +60,17 @@ topology. Differences that matter: on a hex grid the loop uses two of six exits 
 the cell graph is not bipartite, so the 2-factor generator needs another method (cycles in the triangular lattice, or a grow-and-merge
 approach); `rangeFacing`/`rangeSame` generalise to the three line directions; "deadEnd" and "tight cell" change meaning since cells
 have more neighbours. A day or two of work, best done as its own project phase after the square-grid rules settle.
+
+## Learned from a real Nikoli puzzle (nk_99, 20x36, transcribed from a photo of the answer key)
+
+Compared with our generated puzzles (14x14): clue cells 12% (ours 14%), boxes 16% (ours 10%), **zero-clues only 9% of clues (ours 36%)**,
+mean clue number 2.4 (ours 1.1), mean ray length 9 (ours 7), **44 pairs of touching clue cells** in vertical stacks of the same
+direction (the `rangeSame` structure), arrows very skewed (24 up, 41 right, 5 down, 19 left). It needs `parityForces` (the open-end
+parity rule) and nothing harder, rating in about 0.1 s. Generator ideas from this: bigger numbers and fewer zeros (prefer clues whose
+ray holds several boxes), clue stacks (allow clue cells next to each other, same direction), the direction skew, higher box density.
+Transcribe more (97, 98, 100-103 were in the same photos; 97 is blurry) to confirm these are the style and not one puzzle's quirk.
+
+## Auto-dots (queued)
+
+- Also dot every cell of a satisfied clue (a clue whose shaded count equals its number).
+- Remember WHY each auto-dot exists (a shaded neighbour, a satisfied clue) so it disappears when its reasons go away (star battle does this).

@@ -88,16 +88,18 @@ The table lives in `js/rating.js` (`RULES`); re-binning a rule or changing a wei
 | `tightCell` | a neighbour has only two cells it can ever connect to (board edge and clue cells around it: a corner, clues touching diagonally, a gap between two clues): the cell is loop. Seen at a glance | Beginner | 0.5 |
 | `deadEndNeighbor` | shading a cell would strand a neighbour (given the marks so far): the cell is loop | Beginner | 2 |
 | `sameSegmentExits` | a loop cell has three ways out and two of them lead to the two ends of one path: using both would close the loop early, so it uses the third | Medium | 3 |
+| `closingCell` | a cell has only two ways out and both lead to the two ends of one path: using them would close the loop early, so the cell is a box | Medium | 3 |
 | `noEarlyClose` | a segment joining the two ends of one path would close the loop while other loop cells are outside it | Medium | 3 |
 | `cluePlacements` | try every way to place the clue's boxes without two touching: a cell they all use is shaded, a cell none uses is loop | Medium | 4 |
 | `rangeSame` | two clues in a line point the same way: the cells between them hold (first number - second number) boxes; use that range like a clue | Medium | 6 |
 | `shadeForcesLines` | imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if a line end must do two incompatible things (a cell gets three lines, or is stranded), the cell is loop | Hard | 8 |
+| `parityForces` | a move (a cell shaded, a segment drawn or missing) would cut off a group of cells that can still be joined and holds an odd number of open ends (cells with one line that still need a second), which can never be completed: it is the other way | Hard | 9 |
 | `rangeFacing` | two clues point at each other: how many boxes fit between them (given what each end can hold) pins how many each end needs; use the three ranges like clues | Hard | 10 |
 | `tryCell` | assume a cell is shaded (loop), follow the rules above to a contradiction: it is the other | Hard | 12 |
 | `tryEdge` | the same for a segment (on / off) | Hard | 14 |
 
 Segments touching a shaded cell are off, a segment makes both its cells loop cells, and a loop cell with two segments has
-no others: these are bookkeeping (weight 0), not counted as steps. A *contradiction* is two touching shaded cells, a clue
+no others: these are bookkeeping (weight 0), not counted as steps. A *contradiction* is two touching shaded cells, a group of cells that can still be joined holding an odd number of open ends (every segment still to be drawn adds one end to each of two cells in the same group, so each group must hold an even number), a clue
 with too many or too few possible shaded cells, a loop cell with fewer than two exits or more than two segments, or a loop
 closed while other loop cells lie outside it.
 
