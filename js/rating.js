@@ -105,7 +105,7 @@ function applySets(st, sets) {
  * Parity of open ends. A cell "needs" segments if it is not a clue or shaded and has fewer than two. Join two needy cells
  * that an undecided segment could connect; every segment still to be drawn adds one end to each of two cells in the same
  * group, so each group must hold an even number of open ends (cells with one segment that still need their second).
- * Returns the open ends of the first group with an odd number, or null if every group is even.
+ * Returns the open ends of the smallest group with an odd number, or null if every group is even.
  */
 export function oddOpenEnds(P, st) {
   const { N } = P;
@@ -128,8 +128,10 @@ export function oddOpenEnds(P, st) {
   }
   const count = new Map();
   for (const i of ends) { const r = find(i); count.set(r, (count.get(r) || 0) + 1); }
-  for (const [r, c] of count) if (c % 2) return ends.filter((i) => find(i) === r);
-  return null;
+  // Odd groups come in pairs (the total number of open ends is always even). Report the smallest: the enclosed region.
+  let best = null;
+  for (const [r, c] of count) if (c % 2 && (!best || c < best[1])) best = [r, c];
+  return best ? ends.filter((i) => find(i) === best[0]) : null;
 }
 
 /** Is the position impossible? (Used by the lookahead rules.) */
