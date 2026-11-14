@@ -1122,4 +1122,27 @@ export function solvedByRules(P, upto = FIRST_LOOKAHEAD) {
   return { solved: !r.contradiction && isComplete(P, st), state: st, steps: r.steps };
 }
 
+/**
+ * Like solvedByRules, but also with the rules that assume a unique solution: what a person solving a (unique) puzzle may use short of
+ * trial and error. NOT a proof of uniqueness. Used to decide where a person is stuck. Returns { solved, state, steps }.
+ */
+export function solvedByHumanRules(P) {
+  const st = initialState(P);
+  const order = [...RULES.slice(0, FIRST_LOOKAHEAD), ...RULES.filter((r) => r.assumesUnique)];
+  let steps = 0;
+  for (let guard = 0; guard < 5000; guard++) {
+    if (contradiction(P, st)) return { solved: false, state: st, steps };
+    let fired = false;
+    for (const rule of order) {
+      const fs = rule.find(P, st, { upto: FIRST_LOOKAHEAD });
+      if (!fs.length) continue;
+      for (const f of fs) if (!applySets(st, f.sets)) return { solved: false, state: st, steps };
+      steps++; fired = true;
+      break;
+    }
+    if (!fired) break;
+  }
+  return { solved: isComplete(P, st), state: st, steps };
+}
+
 export { FIRST_LOOKAHEAD };

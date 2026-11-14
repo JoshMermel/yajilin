@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { compile, parseCsv, solve, decodeSolution, encodeSolution, cloneState, checkSolved, UNKNOWN, SHADED, LOOP, E_ON, E_OFF } from '../js/logic.js';
-import { solvedByRules, RULES, FIRST_LOOKAHEAD, contradiction, oddOpenEnds } from '../js/rating.js';
+import { solvedByRules, solvedByHumanRules, RULES, FIRST_LOOKAHEAD, contradiction, oddOpenEnds } from '../js/rating.js';
 import { makeRng } from '../js/generator.js';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -76,7 +76,7 @@ function chainOf(P, st, assumption) {
 
 function reportOf(name, source, p) {
   const P = compile({ ...p, clues: p.clues.map((c) => ({ ...c })) });
-  const r = solvedByRules(P);
+  const r = solvedByHumanRules(P);   // stuck for a person: the plain rules plus the ones that assume a unique solution
   if (r.solved) return null;
   const st = r.state;
   const sol = decodeSolution(P, p.solution);
@@ -136,14 +136,16 @@ while (cases.filter((c) => c.source === 'derived').length < derive && attempts <
     const solQ = decodeSolution(Q, next.solution);
     if (!checkSolved(Q, Uint8Array.from(solQ.cell, (v) => (v === SHADED ? 1 : 0)), Int8Array.from(solQ.e, (v) => (v === E_ON ? 1 : 0)))) continue;
     const rr = solvedByRules(Q);
-    if (rr.solved) { cur = next; removed++; continue; }          // still solved by the rules: unique by soundness; keep removing
-    const und = undecidedOf(Q, rr.state).length;
-    if (und > maxUnd) continue;                                    // too stuck to be an instructive case: try another clue
-    const u = solve(Q, { limit: 2, state: rr.state, maxNodes: 200000 });   // from the rules' position this is nearly instant
+    if (rr.solved) { cur = next; removed++; continue; }          // still solved by the plain rules: unique by soundness; keep removing
+    const rh = solvedByHumanRules(Q);                              // what a person can do, using the one-solution rules too
+    const und = undecidedOf(Q, rh.state).length;
+    if (!rh.solved && und > maxUnd) continue;                      // too stuck to be an instructive case: try another clue (cheap test first)
+    const u = solve(Q, { limit: 2, state: rr.state, maxNodes: 200000 });   // from the plain rules' position this is nearly instant
     if (u.exceeded || u.count !== 1) continue;                     // not unique: not a valid puzzle
+    if (rh.solved) { cur = next; removed++; continue; }            // the one-solution rules finish it: not stuck yet, keep removing
     cur = next; removed++;
     // the stronger the rules, the more often several removals end at the same stuck position of the same puzzle: report it once
-    const key = `${base.name}:${undecidedOf(Q, rr.state).join(',')}`;
+    const key = `${base.name}:${undecidedOf(Q, rh.state).join(',')}`;
     if (seenStuck.has(key)) break;
     seenStuck.add(key);
     const rep = reportOf(`derived-${String(cases.length + 1).padStart(2, '0')}`, 'derived', cur);
