@@ -219,30 +219,36 @@ export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen') {
 }
 
 /**
- * A direction for a clue at i. With `edgeBias` (0..1, say 0.75), each axis is equally likely and the arrow points toward the
- * nearer board edge with that probability, the way Nikoli's do (66-84% of the arrows in three real puzzles, where a random
- * arrow would be 50%). Without it, long rays are preferred (a clue pointing at a wall says little).
+ * A direction for a clue at i, or -1 if none is possible. Style options:
+ *   edgeBias  (0..1) each axis is equally likely and the arrow points toward the nearer board edge with this probability (Nikoli's
+ *             do, 66-84% of the time); without it, long rays are preferred (a clue pointing at a wall says little)
+ *   dirs      allowed directions (indexes 0=U 1=R 2=D 3=L), e.g. [1] for "every arrow points right"
+ *   numbers   'big' prefers directions whose line holds many boxes, 'small' prefers lines holding 0 or 1 (estimated from the
+ *             solution's non-loop cells in the line that are not clues)
  */
-function pickDirection(rows, cols, i, isClue, rng, edgeBias = null) {
+function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null, numbers = null, holes = null) {
   const lens = [0, 1, 2, 3].map((d) => rayOf(rows, cols, i, d, isClue).length);
-  if (edgeBias === null || edgeBias === undefined) {
-    const weights = lens.map((l) => (l === 0 ? 0 : l * l));
-    const total = weights.reduce((a, b) => a + b, 0);
-    if (!total) return -1;
-    let x = rng() * total;
-    for (let d = 0; d < 4; d++) { x -= weights[d]; if (x <= 0) return d; }
-    return 0;
-  }
-  const r = (i / cols) | 0, c = i % cols;
-  const toEdge = [r, cols - 1 - c, rows - 1 - r, c]; // cells between the clue and each edge: U R D L
   const weights = [0, 0, 0, 0];
-  for (const [a, b] of [[0, 2], [1, 3]]) {          // the two axes: (up, down) and (right, left)
-    const ok = [lens[a] > 0, lens[b] > 0];
-    if (ok[0] && ok[1]) {
-      const near = toEdge[a] === toEdge[b] ? (rng() < 0.5 ? a : b) : toEdge[a] < toEdge[b] ? a : b;
-      weights[near] = edgeBias; weights[near === a ? b : a] = 1 - edgeBias;
-    } else if (ok[0]) weights[a] = 1;
-    else if (ok[1]) weights[b] = 1;
+  if (edgeBias === null || edgeBias === undefined) {
+    for (let d = 0; d < 4; d++) weights[d] = lens[d] === 0 ? 0 : lens[d] * lens[d];
+  } else {
+    const r = (i / cols) | 0, c = i % cols;
+    const toEdge = [r, cols - 1 - c, rows - 1 - r, c]; // cells between the clue and each edge: U R D L
+    for (const [a, b] of [[0, 2], [1, 3]]) {          // the two axes: (up, down) and (right, left)
+      const ok = [lens[a] > 0, lens[b] > 0];
+      if (ok[0] && ok[1]) {
+        const near = toEdge[a] === toEdge[b] ? (rng() < 0.5 ? a : b) : toEdge[a] < toEdge[b] ? a : b;
+        weights[near] = edgeBias; weights[near === a ? b : a] = 1 - edgeBias;
+      } else if (ok[0]) weights[a] = 1;
+      else if (ok[1]) weights[b] = 1;
+    }
+  }
+  for (let d = 0; d < 4; d++) {
+    if (dirs && !dirs.includes(d)) { weights[d] = 0; continue; }
+    if (numbers && holes && weights[d] > 0) {
+      const est = rayOf(rows, cols, i, d, isClue).filter((j) => holes[j] && !isClue[j]).length;
+      weights[d] *= numbers === 'big' ? (1 + est) ** 2 : est <= 1 ? 1 : Math.exp(-1.2 * (est - 1));
+    }
   }
   const total = weights.reduce((x, y) => x + y, 0);
   if (!total) return -1;
@@ -250,6 +256,16 @@ function pickDirection(rows, cols, i, isClue, rng, edgeBias = null) {
   for (let d = 0; d < 4; d++) { x -= weights[d]; if (x <= 0) return d; }
   return 0;
 }
+
+/** How far a puzzle is from the requested number style (0 = it has it). Part of the climb's objective. */
+export function styleGap(P, numbers, minMean = 2.0) {
+  if (!numbers || !P.clues.length) return 0;
+  const n = P.clues.map((c) => c.n);
+  const mean = n.reduce((a, b) => a + b, 0) / n.length;
+  if (numbers === 'big') return Math.max(0, minMean - mean) + Math.max(0, n.filter((v) => v === 0).length / n.length - 0.1) * 3;
+  return Math.max(0, 0.85 - n.filter((v) => v <= 1).length / n.length) * 5; // 'small': mostly 0s and 1s
+}
+export const numbersOk = (P, numbers, minMean = 2.0) => styleGap(P, numbers, minMean) === 0;
 
 /** How much the rules could not decide: undecided cells, plus loop cells that still miss a segment (half weight). */
 function undecidedScore(P, st) {
@@ -275,9 +291,10 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
+  const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
   let loop = null;
   for (let tries = 0; tries < 50 && !loop; tries++) loop = randomLoop(rows, cols, rng, { density, clump });
   if (!loop) { say('no loop after 50 tries'); return null; }
@@ -295,14 +312,15 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
     if (kept >= holes.length * shadeShare) break;
     if (gridNeighbours(rows, cols, i).every((j) => !keep[j])) { keep[i] = 1; kept++; }
   }
-  for (const i of holes) if (!keep[i]) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias); if (d >= 0) setClue(i, d); else keep[i] = 1; }
+  for (const i of holes) if (!keep[i]) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d >= 0) setClue(i, d); else keep[i] = 1; }
   // a "shaded" cell is a hole that is not a clue; make sure those do not touch (clue cells that failed to point anywhere were kept shaded)
-  for (const i of holes) if (!isClue[i] && gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j] && j < i)) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias); if (d < 0) return null; setClue(i, d); }
+  for (const i of holes) if (!isClue[i] && gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j] && j < i)) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d < 0) return null; setClue(i, d); }
 
   const evaluate = () => {
     const P = buildPuzzle(rows, cols, loop, clueDir, name);
     const r = solvedByRules(P, upto);
-    return { P, r, u: r.solved ? 0 : undecidedScore(P, r.state) + 0.001 };
+    const gap = styleGap(P, numbers, minMean);
+    return { P, r, gap, u: (r.solved ? 0 : undecidedScore(P, r.state) + 0.001) + 3 * gap };
   };
   let cur = evaluate(), checks = 1, iter = 0;
   const dist = (a, b) => Math.abs(((a / cols) | 0) - ((b / cols) | 0)) + Math.abs((a % cols) - (b % cols));
@@ -312,7 +330,7 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
   let triedUnique = new Set();
   const acceptable = () => {
     if (cur.u === 0) return true;
-    if (cur.u > acceptU) return false;
+    if (cur.gap > 0 || cur.u > acceptU) return false;
     const key = [...clueDir.entries()].join(';');
     if (triedUnique.has(key)) return false;
     triedUnique.add(key);
@@ -335,17 +353,17 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
     const [i, kind] = moves[(rng() * moves.length) | 0];
     const oldDir = clueDir.get(i);
     if (kind === 'aim') {
-      const dirs = [0, 1, 2, 3].filter((d) => d !== oldDir && rayOf(rows, cols, i, d, isClue).length > 0);
-      if (!dirs.length) continue;
-      let nd = dirs[(rng() * dirs.length) | 0];
-      if (edgeBias !== null && edgeBias !== undefined) { // keep the style: re-aim the way new clues are aimed
-        for (let tries = 0; tries < 6; tries++) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias); if (d >= 0 && d !== oldDir) { nd = d; break; } }
+      const cand = [0, 1, 2, 3].filter((d) => d !== oldDir && (!dirs || dirs.includes(d)) && rayOf(rows, cols, i, d, isClue).length > 0);
+      if (!cand.length) continue;
+      let nd = cand[(rng() * cand.length) | 0];
+      if (edgeBias !== null || numbers) { // keep the style: re-aim the way new clues are aimed
+        for (let tries = 0; tries < 6; tries++) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d >= 0 && d !== oldDir) { nd = d; break; } }
       }
       clueDir.set(i, nd);
     } else if (kind === 'unclue') {
       dropClue(i);
     } else {
-      const d = pickDirection(rows, cols, i, isClue, rng, edgeBias);
+      const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes);
       if (d < 0) continue;
       setClue(i, d);
     }
@@ -357,7 +375,8 @@ function attemptPuzzle(rows, cols, rng, { density = 0.3, clump = 0.5, shadeShare
   }
   say(`${iter} iterations, ${checks} checks, undecided score ${cur.u.toFixed(1)}, ${clueDir.size} clues, ${Date.now() - t0} ms`);
   if (!acceptable()) return null;
-  const puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++) : cur.P;
+  let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++) : cur.P;
+  if (!numbersOk(puzzle, numbers, minMean)) { say('rejected: the numbers are not in the requested style'); return null; }
   return { puzzle, stats: { iterations: iter, checks, ms: Date.now() - t0 } };
 }
 
