@@ -61,14 +61,24 @@ the cell graph is not bipartite, so the 2-factor generator needs another method 
 approach); `rangeFacing`/`rangeSame` generalise to the three line directions; "deadEnd" and "tight cell" change meaning since cells
 have more neighbours. A day or two of work, best done as its own project phase after the square-grid rules settle.
 
-## Learned from a real Nikoli puzzle (nk_99, 20x36, transcribed from a photo of the answer key)
+## Learned from three real Nikoli puzzles (20x36, from photos of the answer key; all verified by the solver)
 
-Compared with our generated puzzles (14x14): clue cells 12% (ours 14%), boxes 16% (ours 10%), **zero-clues only 9% of clues (ours 36%)**,
-mean clue number 2.4 (ours 1.1), mean ray length 9 (ours 7), **44 pairs of touching clue cells** in vertical stacks of the same
-direction (the `rangeSame` structure), arrows very skewed (24 up, 41 right, 5 down, 19 left). It needs `parityForces` (the open-end
-parity rule) and nothing harder, rating in about 0.1 s. Generator ideas from this: bigger numbers and fewer zeros (prefer clues whose
-ray holds several boxes), clue stacks (allow clue cells next to each other, same direction), the direction skew, higher box density.
-Transcribe more (97, 98, 100-103 were in the same photos; 97 is blurry) to confirm these are the style and not one puzzle's quirk.
+| | nk_99 | nk_105 | nk_102 | our generated 14x14 |
+| --- | --- | --- | --- | --- |
+| clue cells | 12.4% | 12.8% | 12.9% | 14-15% |
+| boxes | 15.7% | 13.9% | 13.5% | 10-12% |
+| zero clues (of clues) | 9% | 23% | 12% | 36% |
+| mean clue number | 2.4 | 1.6 | 1.9 | 1.1 |
+| mean ray length | 9.0 | 6.6 | 8.4 | 6.9 |
+| touching clue pairs | 44 | 20 | 0 | few |
+| arrows U / R / D / L | 24/41/5/19 | 18/24/14/36 | 22/41/9/21 | about equal |
+| hardest rule | parityForces (Hard) | rangeSame (Medium) | tryCell (Hard) | parityForces / shadeForcesLines |
+
+What holds across all three: about 12-13% clue cells (ours a little high), more boxes (14-16%, ours 10-12%), far fewer zero clues
+(9-23%, ours 36%), bigger numbers (1.6-2.4, ours 1.1). What does not: clue stacks (nk_102 has none touching, but is built from regular
+diagonal lattices of "1 right" clues, so Nikoli designs patterned layouts too) and the arrow mix: each puzzle leans on one horizontal
+direction (right in 99 and 102, left in 105) and uses down least. A "dominant direction" per puzzle is a cheap generator parameter.
+Rating each takes about 0.1 s, so large puzzles are fine for the human-style solver; generation is what is slow.
 
 ## Auto-dots
 
