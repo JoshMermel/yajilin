@@ -71,3 +71,33 @@ test('solvedByRules only claims puzzles the rules really solve', () => {
   const P = compile({ name: 'empty', rows: 4, cols: 4, clues: [] });
   assert.equal(solvedByRules(P).solved, false);
 });
+
+import { makeLoopBuilder, crossingChords, tightLoop, loopIsUnique } from '../js/generator.js';
+
+test('crossing chords: a loop with a crossing pair is never unique; tightLoop builds loops that are', () => {
+  const rng = makeRng(9);
+  let sawCrossing = 0, sawClean = 0;
+  for (let t = 0; t < 40; t++) {
+    const rows = 6 + 2 * (t % 3), cols = 6 + 2 * ((t >> 1) % 3);
+    const b = makeLoopBuilder(rows, cols, rng);
+    if (!b.init()) continue;
+    const N = rows * cols;
+    let holes = 0;
+    for (let k = 0; k < 400 && holes < Math.round(N * 0.3 / 2) * 2; k++) { const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0; if (b.okCell(c1, 0.5) && b.okCell(c2, 0.5) && b.tryHoles(c1, c2)) holes += 2; }
+    const { pos, length } = b.positions();
+    const { crossings } = crossingChords(rows, cols, b.hole, pos, length);
+    const unique = loopIsUnique(rows, cols, b.hole);
+    if (crossings > 0) { sawCrossing++; assert.equal(unique, false, `a loop with ${crossings} crossing pair(s) cannot be unique`); } else sawClean++;
+  }
+  assert.ok(sawCrossing > 3 && sawClean > 3, `sample too one-sided: ${sawCrossing} / ${sawClean}`);
+  // tightLoop: unique by construction, at sizes where random loops essentially never are
+  for (const [rows, cols] of [[10, 10], [14, 14], [16, 12]]) {
+    const r = tightLoop(rows, cols, makeRng(rows * cols), { budgetMs: 20000 });
+    assert.ok(r, `no tight loop at ${cols}x${rows}`);
+    assert.ok(loopIsUnique(rows, cols, r.holes));
+    // every non-hole cell has exactly two segments
+    const deg = new Array(rows * cols).fill(0);
+    for (let x = 0; x < 2 * rows * cols; x++) if (r.edges[x]) { const a = x >> 1, b2 = (x & 1) ? a + cols : a + 1; deg[a]++; deg[b2]++; }
+    for (let i = 0; i < rows * cols; i++) assert.equal(deg[i], r.holes[i] ? 0 : 2);
+  }
+});
