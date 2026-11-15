@@ -173,3 +173,24 @@ with the clue rays in mind (more boxes along near-edge rays); and the biggest ga
 need less than the generator's clues because they lean on harder reasoning (nk_99 needs parity, nk_102 a trial), while the climb only
 accepts puzzles the non-lookahead rules solve. Letting it accept a small lookahead (the `acceptU` path) or adding the rules the stuck
 images suggest should lower the clue count.
+
+## Queued for when Josh is away (2026-11-15; start when he asks, any order)
+
+1. **Landscape fit for 20x36 boards.** They do not fit his landscape monitor. Either rotate the 20x36 book to 36x20 (swap rows/cols and arrow
+   directions; saves are keyed by puzzle content, so rotated puzzles would lose saved progress unless the hash is made rotation-aware), or a GUI
+   option that rotates the board automatically (board taller than the viewport) or manually (a button/setting). Rotating the view is the more
+   general fix and keeps the data and saves intact.
+2. **More puzzles in the intro and each bonus book.** Rename "Tall and skinny" to **"Skinny"** (it may render horizontally) and cap its larger
+   dimension at **36** (the old pools in `experiments/tall/pools/` go up to 8x100).
+3. **New book ideas to explore:** (a) every arrow is a 0; (b) every arrow is 2 or more; (c) very few boxes in the solution (close to (a)?);
+   (d) tons of boxes in the solution (close to (b)?). Needs a hard floor/ceiling on clue numbers in `pickDirection` / `numbersOk`; `shadeShare`
+   controls the box share.
+4. **New inference, an advanced `cluePlacements`:** drop box placements that create a dead end. A 2-arrow in the rightmost column pointing down with
+   candidate cells in rows 12, 14 and 20: boxes at 12 and 14 leave the cell in row 13 wedged between them with the wall on its right (one way
+   out), so one box must be in row 20. Easiest to see along edges, but it can happen mid-board. A new rule (probably Medium, costed above
+   `cluePlacements`): when enumerating placements also discard any that leave a loop cell with fewer than two exits, then use what the survivors share.
+5. **Bug: merging two line segments recolors an unrelated line** ("Color separate lines"). Reproduce with `node tools/colorfuzz.mjs`. Cause: in
+   `js/pathcolors.js` a component whose stored color collides with an older one's is re-picked on every render, and with more than 8 lines (shared
+   colors) a merge frees a color that the colliding younger line grabs. Fix: a per-path id with an immutable color chosen at creation (lowest color no
+   other path uses, else the least used); a merge keeps the older path's id and color, a split gives the part without the oldest segment a new id
+   and color, nothing else changes color; then make colorfuzz a test in `tests/pathcolors.test.mjs`.
