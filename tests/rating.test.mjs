@@ -36,8 +36,7 @@ test('rule table is well formed', () => {
   assert.equal(new Set(RULE_IDS).size, RULE_IDS.length);
   for (const r of RULES) {
     assert.ok(TIERS.includes(r.tier), r.id);
-    assert.ok(r.weight >= 0 && typeof r.find === 'function' && r.label, r.id);
-    if (r.free) assert.equal(r.weight, 0, r.id);
+    assert.ok(Number.isInteger(r.weight) && r.weight > 0 && typeof r.find === 'function' && r.label, `${r.id}: every rule has an integer cost above zero`);
   }
   // easiest first: tiers never go down the table
   const tiers = RULES.map((r) => TIERS.indexOf(r.tier));
@@ -518,4 +517,49 @@ test('uniqueness: a pairing that can be drawn two ways is not the real one (uniq
 test('rules that assume a unique solution are kept out of everything that treats "solved by the rules" as proof of uniqueness', () => {
   const first = RULE_IDS.indexOf(RULES.find((r) => r.lookahead).id);
   for (const r of RULES.filter((r) => r.assumesUnique)) assert.ok(RULE_IDS.indexOf(r.id) > first, r.id);
+});
+
+import { HUMAN_ORDER } from '../js/rating.js';
+import { explainStep } from '../js/explain.js';
+
+test('rangeSameOne: two same-direction clues with one cell between them (Beginner); rangeSame keeps the longer gaps', () => {
+  // clue at 0 (right, 2) and clue at 2 (right, 1): the one cell between them holds 2 - 1 = 1 box
+  assert.deepEqual(asMap(ruleSets('rangeSameOne', row(5, [[0, R, 2], [2, R, 1]]))), { c1: SHADED });
+  // equal numbers: it holds none
+  assert.deepEqual(asMap(ruleSets('rangeSameOne', row(5, [[0, R, 1], [2, R, 1]]))), { c1: LOOP });
+  // two cells between them: that is rangeSame (Medium), not the special case
+  assert.deepEqual(ruleSets('rangeSameOne', row(6, [[0, R, 2], [3, R, 1]])), []);
+  assert.deepEqual(asMap(ruleSets('rangeSame', row(7, [[0, R, 2], [4, R, 0]]))), { c1: SHADED, c2: LOOP, c3: SHADED });
+  assert.equal(RULES.find((r) => r.id === 'rangeSameOne').tier, 'Beginner');
+});
+
+test('the order a person meets the rules in: cheapest first, bookkeeping costs something, tiers as reviewed', () => {
+  const w = HUMAN_ORDER.map((r) => r.weight);
+  assert.deepEqual(w, [...w].sort((a, b) => a - b));
+  const pos = (id) => HUMAN_ORDER.findIndex((r) => r.id === id);
+  assert.ok(pos('shadedNeighbor') < pos('clueDone'));
+  assert.ok(pos('noEarlyClose') < pos('sameSegmentExits'));
+  assert.ok(pos('cluePlacements') < pos('noEarlyClose'));
+  assert.ok(pos('rangeFacing') < pos('crossingParity') && pos('crossingParity') < pos('uniqueRoute') && pos('uniqueRoute') < pos('tryCell'));
+  const tier = (id) => RULES.find((r) => r.id === id).tier;
+  assert.equal(tier('tightCell'), 'Medium'); assert.equal(tier('deadEndNeighbor'), 'Medium'); assert.equal(tier('rangeFacingKnown'), 'Medium');
+  assert.equal(RULES.find((r) => r.id === 'forcedExits').weight, RULES.find((r) => r.id === 'deadEnd').weight);
+  // every Hard rule costs more than every Medium rule
+  const max = (t) => Math.max(...RULES.filter((r) => r.tier === t).map((r) => r.weight)), min = (t) => Math.min(...RULES.filter((r) => r.tier === t).map((r) => r.weight));
+  assert.ok(min('Hard') > max('Medium') && min('Medium') > max('Beginner'));
+  // bookkeeping shows up in a rating as steps with a price
+  const P = compile({ name: 'b', rows: 3, cols: 3, clues: [{ r: 1, c: 1, d: 1, n: 0 }] });
+  const r = rate(P);
+  const book = r.steps.filter((s) => s.info && s.info.bookkeeping);
+  assert.ok(book.length > 0 && book.every((s) => s.weight >= 1));
+});
+
+test('shadeClosesLoop and segmentClosesLoop are the "closes the loop early" halves of the forced-lines rules', () => {
+  const all = parseCsv(readFileSync(new URL('../data/bonus-bignum.csv', import.meta.url), 'utf8'));
+  const P = compile(all.find((p) => p.name === 'BONUS-BIGNUM-08'));
+  const r = rate(P);
+  assert.ok(r.counts.shadeClosesLoop >= 1 || r.counts.segmentClosesLoop >= 1, JSON.stringify(r.counts));
+  const step = r.steps.find((s) => s.rule === 'shadeClosesLoop' || s.rule === 'segmentClosesLoop');
+  assert.match(explainStep(P, step).text, /close the loop early/);
+  for (const s of r.steps.filter((q) => q.rule === 'shadeForcesLines' || q.rule === 'segmentForcesLines')) assert.doesNotMatch(explainStep(P, s).text, /close the loop early/);
 });

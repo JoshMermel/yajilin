@@ -1,5 +1,7 @@
 # Difficulty range at 16x16 and 20x32
 
+**Scores in the table and in `report.md` use the integer costs of 2026-11-14 (every rule costs something, Hard rules several times Medium); the notes below were written with earlier, smaller costs, so only compare numbers within one scale.** Every puzzle here now rates Hard because `shadeForcesLines` costs more than any Medium rule.
+
 **Scores here use the re-weighted rules** (Beginner weights x0.25, 2026-11-14). Under the first weights the same puzzles scored
 166 / 251 / 364 (16x16) and 536 / 661 / 838 (20x32); the within-size order barely changed (Spearman 0.98) but the spread within a size
 widened (max/min 2.2 -> 3.4 and 1.6 -> 1.9) but the gap between sizes did not shrink as I had predicted: the 20x32 / 16x16 median ratio went 2.74 -> 2.96 (area ratio 2.5), because a bigger board also needs proportionally more medium and hard steps, not just more mechanical ones.
@@ -13,8 +15,8 @@ Full numbers, histograms and the sample table are in `report.md`; per-puzzle sta
 
 | size | puzzles | score min / median / max | max/min | sd | per cell |
 | --- | --- | --- | --- | --- | --- |
-| 16x16 | 60 | 82 / 163 / 275 | 3.4x | 45 | 0.61 |
-| 20x32 | 41 | 323 / 464 / 621 | 1.9x | 76 | 0.73 |
+| 16x16 | 60 | 1287 / 2225 / 3946 | 3.1x | 579 | 8.9 |
+| 20x32 | 41 | 4359 / 5969 / 7977 | 1.8x | 753 | 9.3 |
 
 - The two sizes do not overlap: the easiest 20x32 (323) is harder than the hardest 16x16 (275). Within a size the hardest puzzle is 1.9-3.4x the easiest.
 - Within 16x16 the easy end is Medium-tier (15%: nothing needs more than `crossingParity`), the rest Hard. Every 20x32 puzzle is Hard.

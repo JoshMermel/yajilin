@@ -24,6 +24,7 @@ test('every step of every rated puzzle can be explained', () => {
     if (solve(P, { limit: 2 }).count !== 1) continue;
     puzzles++;
     for (const step of rate(P).steps) {
+      if (step.info && step.info.bookkeeping) continue;   // bookkeeping is charged but has nothing to show
       const e = explainStep(P, step);
       seen.add(step.rule);
       assert.ok(e.text.length > 20 && !/undefined|NaN/.test(e.text), `${step.rule}: ${e.text}`);

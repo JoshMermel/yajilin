@@ -4,102 +4,118 @@ Pools: `experiments/range/pools` (Nikoli-style settings: --edge-bias 0.8 --shade
 
 ## 16x16 (60 puzzles)
 
-score: min 82, 10% 107, 25% 115, median 163, 75% 185, 90% 216, max 275 (mean 157, sd 45, max/min 3.35)  
-score per cell: mean 0.61, sd 0.18  
+score: min 1287, 10% 1575, 25% 1906, median 2225, 75% 2739, 90% 3160, max 3946 (mean 2295, sd 579, max/min 3.07)  
+score per cell: mean 8.97, sd 2.26  
 clue cells 16.0%, boxes 11.3%  
-tiers: Medium 9, Hard 51  
-hardest rule needed: shadeForcesLines 42, crossingParity 9, rangeFacing 8, parityForces 1
+tiers: Hard 60  
+hardest rule needed: segmentForcesLines 26, parityForces 24, shadeForcesLines 10
 
 ```
-  82-101  #### 4
- 101-121  ############## 14
- 121-140  #### 4
- 140-159  ##### 5
- 159-179  ################ 16
- 179-198  ######## 8
- 198-217  #### 4
- 217-237  ## 2
- 237-256   0
- 256-275  ### 3
+1287-1553 ###### 6
+1553-1819 ######## 8
+1819-2085 ######## 8
+2085-2351 ################ 16
+2351-2617 ##### 5
+2617-2882 ######### 9
+2882-3148 ## 2
+3148-3414 ### 3
+3414-3680 ## 2
+3680-3946 # 1
 ```
 
 Steps by rule, easiest quarter vs hardest quarter (mean uses per puzzle):
 
 | rule | easiest quarter | hardest quarter |
 | --- | --- | --- |
-| shadeForcesLines | 0.8 | 10.8 |
-| tightCell | 18.8 | 22.6 |
-| noEarlyClose | 10.3 | 14.1 |
-| forcedExits | 123.3 | 126.8 |
-| crossingParity | 2.6 | 4.9 |
-| rangeSame | 0.2 | 1.1 |
-| cluePlacements | 1.8 | 2.4 |
-| sameSegmentExits | 3.0 | 3.4 |
-| closingCell | 0.6 | 0.5 |
-| deadEndNeighbor | 4.7 | 4.3 |
-| clueFull | 14.4 | 13.9 |
-| clueDone | 23.7 | 22.6 |
-| deadEnd | 8.7 | 6.5 |
-| shadedNeighbor | 9.7 | 7.3 |
+| shadeForcesLines | 4.3 | 15.5 |
+| tightCell | 18.4 | 23.6 |
+| segmentForcesLines | 1.0 | 5.3 |
+| noEarlyClose | 10.5 | 12.8 |
+| parityForces | 0.1 | 1.5 |
+| sameSegmentExits | 2.9 | 4.0 |
+| segmentClosesLoop | 0.1 | 1.0 |
+| fullCells | 50.6 | 51.5 |
+| clueFull | 13.6 | 14.4 |
+| rangeSame | 0.3 | 0.8 |
+| closingCell | 0.3 | 0.8 |
+| rangeSameOne | 0.3 | 0.7 |
+| cluePlacements | 2.3 | 2.6 |
+| closingNeighbor | 0.9 | 1.1 |
+| edgesOffShaded | 24.6 | 24.9 |
+| rangeFacingKnown | 0.4 | 0.2 |
+| deadEndNeighbor | 4.4 | 3.9 |
+| forcedExits | 126.1 | 125.4 |
+| clueDone | 23.5 | 22.1 |
+| shadedNeighbor | 11.8 | 10.1 |
+| deadEnd | 8.9 | 6.9 |
+| edgeEnds | 52.6 | 45.0 |
 
 Samples (in `samples.csv`):
 
 | name | score | tier | hardest rule | clue cells | boxes |
 | --- | --- | --- | --- | --- | --- |
-| 16x16 d5 (score 275) | 275 | Hard | parityForces | 15.6% | 10.2% |
-| 16x16 d4 (score 181) | 181 | Hard | shadeForcesLines | 14.8% | 12.5% |
-| 16x16 d3 (score 163) | 163 | Hard | shadeForcesLines | 14.5% | 12.1% |
-| 16x16 d2 (score 115) | 115 | Hard | shadeForcesLines | 16.0% | 9.8% |
-| 16x16 d1 (score 82) | 82 | Medium | crossingParity | 18.8% | 10.2% |
+| 16x16 d5 (score 3946) | 3946 | Hard | parityForces | 15.6% | 10.2% |
+| 16x16 d4 (score 2731) | 2731 | Hard | parityForces | 16.0% | 10.5% |
+| 16x16 d3 (score 2225) | 2225 | Hard | segmentForcesLines | 17.6% | 9.8% |
+| 16x16 d2 (score 1906) | 1906 | Hard | segmentForcesLines | 15.2% | 13.7% |
+| 16x16 d1 (score 1287) | 1287 | Hard | shadeForcesLines | 16.4% | 13.3% |
 
 ## 20x32 (41 puzzles)
 
-score: min 323, 10% 354, 25% 415, median 464, 75% 520, 90% 562, max 621 (mean 465, sd 76, max/min 1.92)  
-score per cell: mean 0.73, sd 0.12  
+score: min 4359, 10% 5105, 25% 5490, median 5969, 75% 6429, 90% 6913, max 7977 (mean 5981, sd 753, max/min 1.83)  
+score per cell: mean 9.34, sd 1.18  
 clue cells 15.8%, boxes 11.4%  
 tiers: Hard 41  
-hardest rule needed: rangeFacing 21, shadeForcesLines 14, parityForces 6
+hardest rule needed: parityForces 25, segmentForcesLines 9, rangeFacing 3, shadeForcesLines 2, segmentClosesLoop 2
 
 ```
- 323-353  #### 4
- 353-383  ### 3
- 383-412  ### 3
- 412-442  ###### 6
- 442-472  ##### 5
- 472-502  ###### 6
- 502-531  ##### 5
- 531-561  #### 4
- 561-591  ### 3
- 591-621  ## 2
+4359-4721 ### 3
+4721-5083 # 1
+5083-5444 ###### 6
+5444-5806 ##### 5
+5806-6168 ########### 11
+6168-6530 ##### 5
+6530-6892 ##### 5
+6892-7253 ### 3
+7253-7615 # 1
+7615-7977 # 1
 ```
 
 Steps by rule, easiest quarter vs hardest quarter (mean uses per puzzle):
 
 | rule | easiest quarter | hardest quarter |
 | --- | --- | --- |
-| shadeForcesLines | 8.6 | 26.6 |
-| tightCell | 45.7 | 56.5 |
-| cluePlacements | 5.5 | 8.7 |
-| noEarlyClose | 24.7 | 27.7 |
-| sameSegmentExits | 9.0 | 11.5 |
-| rangeFacing | 0.2 | 2.2 |
-| clueFull | 31.9 | 32.9 |
-| crossingParity | 8.3 | 9.0 |
-| rangeSame | 6.5 | 7.1 |
-| parityForces | 0.6 | 0.9 |
-| forcedExits | 303.3 | 303.5 |
-| shadedNeighbor | 18.4 | 18.2 |
-| closingCell | 1.1 | 0.9 |
-| deadEnd | 18.4 | 17.6 |
-| deadEndNeighbor | 14.0 | 12.7 |
-| clueDone | 53.5 | 49.0 |
+| segmentForcesLines | 4.9 | 15.6 |
+| shadeForcesLines | 17.7 | 27.2 |
+| fullCells | 134.7 | 140.6 |
+| sameSegmentExits | 8.8 | 11.7 |
+| segmentClosesLoop | 0.3 | 3.1 |
+| parityForces | 0.8 | 2.9 |
+| rangeFacingKnown | 1.1 | 2.5 |
+| closingNeighbor | 2.3 | 3.2 |
+| clueDone | 49.0 | 49.5 |
+| shadeClosesLoop | 0.8 | 0.9 |
+| pairedEnds | 0.4 | 0.4 |
+| rangeSameOne | 1.7 | 1.6 |
+| deadEnd | 17.5 | 17.3 |
+| closingCell | 1.5 | 1.3 |
+| rangeSame | 7.0 | 6.7 |
+| cluePlacements | 7.8 | 7.3 |
+| forcedExits | 302.8 | 301.4 |
+| tightCell | 54.1 | 52.1 |
+| shadedNeighbor | 26.1 | 23.5 |
+| clueFull | 33.8 | 30.8 |
+| noEarlyClose | 24.8 | 21.6 |
+| edgesOffShaded | 63.7 | 60.0 |
+| deadEndNeighbor | 14.4 | 10.0 |
+| edgeEnds | 100.8 | 91.9 |
 
 Samples (in `samples.csv`):
 
 | name | score | tier | hardest rule | clue cells | boxes |
 | --- | --- | --- | --- | --- | --- |
-| 20x32 d5 (score 621) | 621 | Hard | rangeFacing | 15.2% | 12.7% |
-| 20x32 d4 (score 520) | 520 | Hard | shadeForcesLines | 16.4% | 12.0% |
-| 20x32 d3 (score 464) | 464 | Hard | parityForces | 15.8% | 12.0% |
-| 20x32 d2 (score 415) | 415 | Hard | shadeForcesLines | 15.2% | 12.7% |
-| 20x32 d1 (score 323) | 323 | Hard | shadeForcesLines | 15.0% | 12.5% |
+| 20x32 d5 (score 7977) | 7977 | Hard | rangeFacing | 16.3% | 11.9% |
+| 20x32 d4 (score 6429) | 6429 | Hard | parityForces | 14.7% | 10.6% |
+| 20x32 d3 (score 5969) | 5969 | Hard | parityForces | 15.6% | 10.0% |
+| 20x32 d2 (score 5490) | 5490 | Hard | parityForces | 15.0% | 11.3% |
+| 20x32 d1 (score 4359) | 4359 | Hard | shadeForcesLines | 15.2% | 12.7% |

@@ -35,6 +35,7 @@
 //                    the loop early, two far ends always end up as the ends of one line, so no segment joins them
 //   crossingParity   the loop crosses the border of any rectangle an even number of times: when all but one crossing is
 //                    settled, the last is forced
+//   rangeSameOne     the special case of rangeSame with exactly one cell between the clues (Beginner)
 //   rangeSame        two clues in a line point the same way: the cells between them hold (first - second) shaded cells
 //   rangeFacingKnown two clues point at each other and one of the three parts of the line (between them, beyond either)
 //                    holds a known number of boxes: that fixes the other two
@@ -61,7 +62,7 @@ export const TIER_INFO = {
 
 export const beyondHints = (puzzle) => puzzle.rules === 'unsolved';
 
-export const UNDETERMINED_WEIGHT = 10; // per cell the rules leave undecided
+export const UNDETERMINED_WEIGHT = 100; // per cell the rules leave undecided (about one Hard step)
 
 // ------------------------------------------------------------ helpers
 
@@ -417,7 +418,7 @@ function cluePlacements(P, st) {
  * Two clues in one line pointing the same way: the second one's cells are part of the first one's line, so the cells
  * between them hold exactly (first number - second number) shaded cells.
  */
-function rangeSame(P, st) {
+function sameDirection(P, st, one) {
   const out = [];
   P.clues.forEach((A, a) => {
     P.clues.forEach((B, b) => {
@@ -427,12 +428,15 @@ function rangeSame(P, st) {
       const count = A.n - B.n;
       if (count < 0) return;
       const between = P.rays[a].filter((i) => posAlong(P, A.d, i) < posAlong(P, A.d, ib));
+      if ((between.length === 1) !== one) return;
       const sets = rangeDeduce(P, st, between, count, count);
       if (sets.length) out.push(firing(sets, { clue: a, other: b, count, cells: between }));
     });
   });
   return out;
 }
+const rangeSameOne = (P, st) => sameDirection(P, st, true);     // a single cell between them: box or dot by the difference of the numbers
+const rangeSame = (P, st) => sameDirection(P, st, false);
 
 /**
  * Two clues in one line pointing at each other split the line into three parts: M, the cells between them (seen by both),
@@ -535,24 +539,26 @@ function closedEarly(P, st) {
 }
 
 /** Imagine a cell is shaded and add the lines that forces: if some cell gets three lines (or is left stranded), it is loop. */
-function shadeForcesLines(P, st) {
+function shadeForces(P, st, closes) {
   const out = [];
   for (let i = 0; i < P.N; i++) {
     if (st.cell[i] !== UNKNOWN) continue;
     const st2 = cloneState(st);
     st2.cell[i] = SHADED;
     const bad = followLines(P, st2);
-    if (bad >= 0) out.push(firing([setCell(i, LOOP)], { cell: i, stranded: bad }));
+    if (bad >= 0 && !!st2.closedEarly === closes) out.push(firing([setCell(i, LOOP)], { cell: i, stranded: bad }));
   }
   return out;
 }
+const shadeForcesLines = (P, st) => shadeForces(P, st, false);   // a cell ends up with three lines or too few ways out
+const shadeClosesLoop = (P, st) => shadeForces(P, st, true);     // the forced lines close the loop too early
 
 /**
  * Like shadeForcesLines, for a segment: imagine it missing (or drawn) next to a loop cell, add the lines that forces, and if
  * some cell ends up with three lines or too few ways out, the segment is there (or is not). A loop cell with three ways out
  * that cannot skip one of them without a contradiction must use it.
  */
-function segmentForcesLines(P, st) {
+function segmentForces(P, st, closes) {
   const out = [];
   for (let x = 0; x < P.numEdges; x++) {
     if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
@@ -563,11 +569,16 @@ function segmentForcesLines(P, st) {
       const st2 = cloneState(st);
       st2.e[x] = v;
       const bad = followLines(P, st2);
-      if (bad >= 0) { out.push(firing([setEdge(x, v === E_OFF ? E_ON : E_OFF)], { edge: x, assumed: v === E_OFF ? 'off' : 'on', stranded: bad })); break; }
+      if (bad >= 0) {
+        if (!!st2.closedEarly === closes) out.push(firing([setEdge(x, v === E_OFF ? E_ON : E_OFF)], { edge: x, assumed: v === E_OFF ? 'off' : 'on', stranded: bad }));
+        break;
+      }
     }
   }
   return out;
 }
+const segmentForcesLines = (P, st) => segmentForces(P, st, false);
+const segmentClosesLoop = (P, st) => segmentForces(P, st, true);
 
 /**
  * A loop cell with three ways out where two of them lead to the two ends of one path: using both would close the loop
@@ -1014,42 +1025,47 @@ function lookahead(kind) {
   };
 }
 
-// Beginner weights are a quarter of what they were at first: those steps are the bulk of any solve (about half the old score) yet
-// nearly the same for every puzzle of a size, so they only blurred the difference between an easy and a hard puzzle.
-// The rule table. THIS is where rules are binned into tiers and given weights: re-bin a rule by changing its tier
-// here (and rescoring), change a weight by editing it. Listed easiest first; the solver tries them in this order.
+// THE RULE TABLE: where rules are binned into tiers and given a cost. Costs are integers ("tokens"); every rule costs something,
+// bookkeeping included (charged once per solving step in which it had something to do). The solver, the hints and the rating try
+// the rules cheapest first (ties: table order), so the order a person meets them in IS the order of the costs. The array itself is
+// sorted by tier and, within a tier, so that the cheap-to-compute rules come before the expensive ones: closure() and the generator
+// use prefixes of it (everything before the lookahead rules; the generator's cheap phase stops before shadeForcesLines).
 export const RULES = [
-  { id: 'edgesOffShaded', tier: 'Beginner', weight: 0, free: true, find: bookkeepingShadedEdges, label: 'segments touching a shaded cell are off' },
-  { id: 'edgeEnds', tier: 'Beginner', weight: 0, free: true, find: bookkeepingEdgeEnds, label: 'a segment makes both its cells loop cells' },
-  { id: 'fullCells', tier: 'Beginner', weight: 0, free: true, find: bookkeepingFullCells, label: 'a loop cell with two segments has no others' },
-  { id: 'clueDone', tier: 'Beginner', weight: 0.25, find: clueDone, label: 'a clue has all its shaded cells: the rest of its line is loop' },
-  { id: 'clueFull', tier: 'Beginner', weight: 0.25, find: clueFull, label: 'a clue needs every open cell left in its line: shade them' },
-  { id: 'shadedNeighbor', tier: 'Beginner', weight: 0.25, find: shadedNeighbor, label: 'cells next to a shaded cell are loop' },
-  { id: 'deadEnd', tier: 'Beginner', weight: 0.5, find: deadEnd, label: 'a cell with fewer than two exits is shaded' },
-  { id: 'forcedExits', tier: 'Beginner', weight: 0.075, find: forcedExits, label: 'a loop cell with two exits left uses both' },
-  { id: 'tightCell', tier: 'Beginner', weight: 0.125, find: tightCell, label: 'a box here would turn a corner-like neighbour into a dot with just one way out: this cell is a dot' },
-  { id: 'deadEndNeighbor', tier: 'Beginner', weight: 0.5, find: deadEndNeighbor, label: 'shading this cell would strand a neighbour: it is loop' },
-  { id: 'sameSegmentExits', tier: 'Medium', weight: 3, find: sameSegmentExits, label: 'two of a cell\'s three ways out lead to the same path: it uses the third' },
-  { id: 'closingCell', tier: 'Medium', weight: 3, find: closingCell, label: 'a cell whose only two ways out lead to the ends of one path would close the loop early: it is a box' },
-  { id: 'noEarlyClose', tier: 'Medium', weight: 3, find: noEarlyClose, label: 'a segment would close the loop too early' },
-  { id: 'closingNeighbor', tier: 'Medium', weight: 4, find: closingNeighbor, label: 'a box here would turn a neighbour into a dot whose only two ways out are the ends of one path: this cell is a dot' },
-  { id: 'cluePlacements', tier: 'Medium', weight: 4, find: cluePlacements, label: 'every way to place a clue\'s shaded cells includes (or leaves out) this cell' },
-  { id: 'rangeSame', tier: 'Medium', weight: 6, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
-  { id: 'crossingParity', tier: 'Hard', weight: 6, find: crossingParity, label: 'the loop crosses the border of a rectangle an even number of times' },
-  { id: 'pairedEnds', tier: 'Hard', weight: 7, find: pairedEnds, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
-  { id: 'shadeForcesLines', tier: 'Hard', weight: 8, find: shadeForcesLines, label: 'a box here would force a line end to do two incompatible things' },
-  { id: 'segmentForcesLines', tier: 'Hard', weight: 8, find: segmentForcesLines, label: 'a loop cell cannot skip (or take) this segment: the lines that forces leave a cell with three lines or too few ways out' },
-  { id: 'parityForces', tier: 'Hard', weight: 9, find: parityForces, label: 'a move here would cut off a region with an odd number of open ends' },
-  { id: 'rangeFacingKnown', tier: 'Hard', weight: 10, find: rangeFacingKnown, label: 'two clues point at each other and one part of the line has a known number of boxes: that fixes the other two parts' },
-  { id: 'rangeFacing', tier: 'Hard', weight: 12, find: rangeFacing, label: 'two clues point at each other: how many shaded cells fit in each part of the line fixes how many it holds' },
-  { id: 'tryCell', tier: 'Hard', weight: 12, lookahead: true, find: lookahead('cell'), label: 'trying a cell one way leads to a contradiction' },
-  { id: 'tryEdge', tier: 'Hard', weight: 14, lookahead: true, find: lookahead('edge'), label: 'trying a segment one way leads to a contradiction' },
-  { id: 'uniqueRoute', tier: 'Hard', weight: 11, assumesUnique: true, find: uniqueRoute, label: 'a way of joining the open ends here could be drawn two ways, which would give two solutions: so it is not the way' },
+  { id: 'edgesOffShaded', tier: 'Beginner', weight: 1, free: true, find: bookkeepingShadedEdges, label: 'segments touching a box are off' },
+  { id: 'edgeEnds', tier: 'Beginner', weight: 1, free: true, find: bookkeepingEdgeEnds, label: 'a segment makes both its cells loop cells' },
+  { id: 'fullCells', tier: 'Beginner', weight: 1, free: true, find: bookkeepingFullCells, label: 'a loop cell with two segments has no others' },
+  { id: 'shadedNeighbor', tier: 'Beginner', weight: 1, find: shadedNeighbor, label: 'cells next to a box are dots' },
+  { id: 'clueDone', tier: 'Beginner', weight: 2, find: clueDone, label: 'a clue has all its boxes: the rest of its line is dots' },
+  { id: 'clueFull', tier: 'Beginner', weight: 2, find: clueFull, label: 'a clue needs every open cell left in its line: they are boxes' },
+  { id: 'rangeSameOne', tier: 'Beginner', weight: 3, find: rangeSameOne, label: 'two clues point the same way with one cell between them: the difference of their numbers (0 or 1) says if it is a box' },
+  { id: 'deadEnd', tier: 'Beginner', weight: 4, find: deadEnd, label: 'a cell with fewer than two exits is a box' },
+  { id: 'forcedExits', tier: 'Beginner', weight: 4, find: forcedExits, label: 'a loop cell with two exits left uses both' },
+  { id: 'tightCell', tier: 'Medium', weight: 8, find: tightCell, label: 'a box here would turn a corner-like neighbor into a dot with just one way out: this cell is a dot' },
+  { id: 'deadEndNeighbor', tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
+  { id: 'cluePlacements', tier: 'Medium', weight: 12, find: cluePlacements, label: 'every way to place a clue\'s boxes includes (or leaves out) this cell' },
+  { id: 'noEarlyClose', tier: 'Medium', weight: 14, find: noEarlyClose, label: 'a segment would close the loop too early' },
+  { id: 'sameSegmentExits', tier: 'Medium', weight: 16, find: sameSegmentExits, label: 'two of a dot\'s three ways out lead to the ends of one path: it uses the third' },
+  { id: 'closingCell', tier: 'Medium', weight: 16, find: closingCell, label: 'a cell whose only two ways out are the ends of one path would close the loop early: it is a box' },
+  { id: 'closingNeighbor', tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
+  { id: 'rangeSame', tier: 'Medium', weight: 24, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
+  { id: 'rangeFacingKnown', tier: 'Medium', weight: 28, find: rangeFacingKnown, label: 'two clues point at each other and one part of the line has a known number of boxes: that fixes the other two parts' },
+  { id: 'crossingParity', tier: 'Hard', weight: 115, find: crossingParity, label: 'the loop crosses the border of a rectangle an even number of times' },
+  { id: 'pairedEnds', tier: 'Hard', weight: 60, find: pairedEnds, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
+  { id: 'shadeForcesLines', tier: 'Hard', weight: 70, find: shadeForcesLines, label: 'a box here would force lines that leave a cell with three lines or too few ways out: this cell is a dot' },
+  { id: 'shadeClosesLoop', tier: 'Hard', weight: 75, find: shadeClosesLoop, label: 'a box here would force lines that close the loop early: this cell is a dot' },
+  { id: 'segmentForcesLines', tier: 'Hard', weight: 80, find: segmentForcesLines, label: 'a segment here (or its absence) would force lines that leave a cell with three lines or too few ways out' },
+  { id: 'segmentClosesLoop', tier: 'Hard', weight: 85, find: segmentClosesLoop, label: 'a segment here (or its absence) would force lines that close the loop early' },
+  { id: 'parityForces', tier: 'Hard', weight: 95, find: parityForces, label: 'a move here would cut off a region with an odd number of open ends' },
+  { id: 'rangeFacing', tier: 'Hard', weight: 105, find: rangeFacing, label: 'two clues point at each other: how many boxes fit in each part of the line fixes how many it holds' },
+  { id: 'tryCell', tier: 'Hard', weight: 140, lookahead: true, find: lookahead('cell'), label: 'trying a cell one way leads to a contradiction' },
+  { id: 'tryEdge', tier: 'Hard', weight: 160, lookahead: true, find: lookahead('edge'), label: 'trying a segment one way leads to a contradiction' },
+  { id: 'uniqueRoute', tier: 'Hard', weight: 125, assumesUnique: true, find: uniqueRoute, label: 'a way of joining the open ends here could be drawn two ways, which would give two solutions: so it is not the way' },
 ];
 
+// The order a person (the rating, the hints) tries the rules in: bookkeeping first, then cheapest first (ties: table order).
 // Rules flagged assumesUnique are valid only if the puzzle has exactly one solution. They sit after the lookahead rules in the table
-// so that everything that takes "solved by the rules" as proof of uniqueness (solvedByRules, closure, the generator) never uses them;
-// nextSteps (rating and hints) tries them after the plain rules and before trial and error.
+// so that everything that takes "solved by the rules" as proof of uniqueness (solvedByRules, closure, the generator) never uses them.
+export const HUMAN_ORDER = RULES.map((r, i) => [r, i]).filter(([r]) => !r.free).sort((p, q) => p[0].weight - q[0].weight || p[1] - q[1]).map(([r]) => r);
 const FIRST_LOOKAHEAD = RULES.findIndex((r) => r.lookahead);
 export const RULE_IDS = RULES.map((r) => r.id);
 export const tierOfRule = (id) => (id === 'unsolved' ? 'Expert' : RULES.find((r) => r.id === id).tier);
@@ -1080,18 +1096,19 @@ export function closure(P, st, upto = FIRST_LOOKAHEAD) {
  * The easiest rule that has a deduction in `st`, with every firing of it: { rule, tier, weight, firings: [{sets, info}] },
  * or null if the rules are stuck. Bookkeeping is applied to `st` first (silently), so `st` is the position the rules saw.
  */
-export function nextSteps(P, st) {
+export function nextSteps(P, st, bookkeeping = null) {
   for (;;) {
     let any = false;
     for (const r of RULES) {
       if (!r.free) continue;
-      for (const f of r.find(P, st, {})) { if (applySets(st, f.sets)) any = true; else return null; }
+      let changed = false;
+      for (const f of r.find(P, st, {})) { if (applySets(st, f.sets)) { any = true; changed = true; } else return null; }
+      if (changed && bookkeeping) bookkeeping[r.id] = true;   // the caller charges the rule's cost: bookkeeping is not free
     }
     if (!any) break;
   }
-  // easiest first; the rules that assume a unique solution come after the plain ones but before trial and error
-  for (const rule of [...RULES.slice(0, FIRST_LOOKAHEAD), ...RULES.filter((r) => r.assumesUnique), ...RULES.filter((r) => r.lookahead)]) {
-    if (rule.free) continue;
+  // cheapest first; the rules that assume a unique solution come in at their price, trial and error last
+  for (const rule of HUMAN_ORDER) {
     const firings = rule.find(P, st, { upto: FIRST_LOOKAHEAD });
     if (firings.length) return { rule: rule.id, tier: rule.tier, weight: rule.weight, firings };
   }
@@ -1099,8 +1116,8 @@ export function nextSteps(P, st) {
 }
 
 /** The easiest deduction available in `st`, or null: { rule, tier, weight, sets, info }. */
-export function nextStep(P, st) {
-  const r = nextSteps(P, st);
+export function nextStep(P, st, bookkeeping = null) {
+  const r = nextSteps(P, st, bookkeeping);
   return r ? { rule: r.rule, tier: r.tier, weight: r.weight, sets: r.firings[0].sets, info: r.firings[0].info } : null;
 }
 
@@ -1123,7 +1140,13 @@ export function rate(P) {
   const counts = {};
   for (let guard = 0; guard < 2000; guard++) {
     if (!contradiction(P, st) && isComplete(P, st)) break;
-    const step = nextStep(P, st);
+    const bk = {};
+    const step = nextStep(P, st, bk);
+    for (const id of Object.keys(bk)) {          // bookkeeping that had something to do costs its price, once per step
+      const rule = RULES.find((q) => q.id === id);
+      steps.push({ rule: id, tier: rule.tier, weight: rule.weight, sets: [], info: { bookkeeping: true } });
+      counts[id] = (counts[id] || 0) + 1;
+    }
     if (!step) break;
     if (!applySets(st, step.sets)) break;
     steps.push(step);
@@ -1141,7 +1164,7 @@ export function rate(P) {
   }
   let unknown = 0;
   for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) unknown++;
-  const score = Math.round((steps.reduce((a, s) => a + s.weight, 0) + (solved ? 0 : unknown * UNDETERMINED_WEIGHT)) * 10) / 10;
+  const score = steps.reduce((a, s) => a + s.weight, 0) + (solved ? 0 : unknown * UNDETERMINED_WEIGHT);
   return { solved, rules: hardest, tier: tierOfRule(hardest), score, steps, counts, state: st };
 }
 

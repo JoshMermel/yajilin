@@ -48,15 +48,15 @@ function failureAt(P, s2, bad) {
 }
 
 /** How a box at info.cell ends in a contradiction: "that give E8 three lines" / "that leave E8 with just one way out" (needs `st`). */
-function strandedResult(P, st, info) {
-  if (!st) return `that give ${cellName(P, info.stranded)} three lines or too few ways out, or close the loop early`;
+function strandedResult(P, st, info, closes = false) {
+  if (!st) return closes ? 'that close the loop early' : `that give ${cellName(P, info.stranded)} three lines or too few ways out`;
   const s2 = cloneState(st); s2.cell[info.cell] = SHADED;
   return `that ${failureAt(P, s2, followLines(P, s2))}`;
 }
 
 /** The same for a segment assumed off or on. */
-function segmentResult(P, st, info) {
-  if (!st) return `give ${cellName(P, info.stranded)} three lines or too few ways out`;
+function segmentResult(P, st, info, closes = false) {
+  if (!st) return closes ? 'close the loop early' : `give ${cellName(P, info.stranded)} three lines or too few ways out`;
   const s2 = cloneState(st); s2.e[info.edge] = info.assumed === 'off' ? E_OFF : E_ON;
   return failureAt(P, s2, followLines(P, s2));
 }
@@ -153,6 +153,12 @@ export function explainStep(P, step, st = null) {
       text = `Place the boxes of the ${clueName(P, k)} without touching: each marked cell is a box in every placement, or in none.`;
       break;
     }
+    case 'rangeSameOne': {
+      role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
+      const cell = N(info.cells[0]);
+      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point the same way, so the one cell between them holds ${P.clues[info.clue].n} − ${P.clues[info.other].n} = ${info.count} ${info.count === 1 ? 'box' : 'boxes'}. So ${cell} is ${info.count === 1 ? 'a box' : 'a dot'}.`;
+      break;
+    }
     case 'rangeSame': {
       role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
       text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point the same way, so the cells between them hold ${P.clues[info.clue].n} − ${P.clues[info.other].n} = ${plural(info.count, 'box', 'boxes')}${info.count === 0 ? ': they get dots.' : '. Each marked cell is a box in every way of placing those, or in none.'}`;
@@ -174,8 +180,9 @@ export function explainStep(P, step, st = null) {
       break;
     }
     case 'shadeForcesLines':
+    case 'shadeClosesLoop':
       role('focus', info.cell); role('problem', info.stranded);
-      text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info)}. So ${N(info.cell)} gets a dot.`;
+      text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info, rule === 'shadeClosesLoop')}. So ${N(info.cell)} gets a dot.`;
       break;
     case 'uniqueRoute': {
       role('range', info.cells); role('focus', ...info.ends);
@@ -183,11 +190,12 @@ export function explainStep(P, step, st = null) {
       text = `Some ways to join the open ends here could be drawn two ways over the same cells (two solutions). Without those, ${info.value === E_ON ? 'there is a segment' : 'there is no segment'} between ${N(a)} and ${N(b)}.`;
       break;
     }
-    case 'segmentForcesLines': {
+    case 'segmentForcesLines':
+    case 'segmentClosesLoop': {
       const [a, b] = edgeCells(P, info.edge); role('focus', a, b); role('problem', info.stranded);
       text = info.assumed === 'off'
-        ? `Without a segment between ${N(a)} and ${N(b)}, the forced lines would ${segmentResult(P, st, info)}. So there is one.`
-        : `A segment between ${N(a)} and ${N(b)} would force lines that ${segmentResult(P, st, info)}. So there is none.`;
+        ? `Without a segment between ${N(a)} and ${N(b)}, the forced lines would ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}. So there is one.`
+        : `A segment between ${N(a)} and ${N(b)} would force lines that ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}. So there is none.`;
       break;
     }
     case 'parityForces': {
