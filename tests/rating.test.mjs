@@ -569,10 +569,15 @@ test('the order a person meets the rules in: cheapest first, bookkeeping costs s
 });
 
 test('shadeClosesLoop and segmentClosesLoop are the "closes the loop early" halves of the forced-lines rules', () => {
-  const all = parseCsv(readFileSync(new URL('../data/bonus-bignum.csv', import.meta.url), 'utf8'));
-  const P = compile(all.find((p) => p.name === 'BONUS-BIGNUM-08'));
-  const r = rate(P);
-  assert.ok(r.counts.shadeClosesLoop >= 1 || r.counts.segmentClosesLoop >= 1, JSON.stringify(r.counts));
+  // books get rebuilt, so look for any puzzle in the bonus books that needs one of these rules
+  let P = null, r = null;
+  search: for (const f of ['bonus-bignum', 'bonus-longway', 'bonus-onedir', 'bonus-packed', 'bonus-twos', 'bonus-zeros']) {
+    for (const raw of parseCsv(readFileSync(new URL(`../data/${f}.csv`, import.meta.url), 'utf8')).filter((q) => q.rows * q.cols <= 260)) {
+      const Q = compile(raw), q = rate(Q);
+      if (q.counts.shadeClosesLoop || q.counts.segmentClosesLoop) { P = Q; r = q; break search; }
+    }
+  }
+  assert.ok(P, 'some bonus puzzle should need shadeClosesLoop or segmentClosesLoop');
   const step = r.steps.find((s) => s.rule === 'shadeClosesLoop' || s.rule === 'segmentClosesLoop');
   assert.match(explainStep(P, step).text, /close the loop early/);
   for (const s of r.steps.filter((q) => q.rule === 'shadeForcesLines' || q.rule === 'segmentForcesLines')) assert.doesNotMatch(explainStep(P, s).text, /close the loop early/);

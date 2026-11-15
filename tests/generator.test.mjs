@@ -151,3 +151,17 @@ test('generatePuzzle with planted tight arrows is valid, unique, and has tight a
   }
   assert.ok(made >= 2 && tight >= 2, `${made} puzzles, ${tight} tight arrows`);
 });
+
+test('style gaps: zeros, twos and the box share', async () => {
+  const { styleGap, numbersOk } = await import('../js/generator.js');
+  const P = (ns, solution = '') => ({ clues: ns.map((n) => ({ n })), solution });
+  assert.ok(numbersOk(P([0, 0, 0]), 'zeros'));
+  assert.ok(!numbersOk(P([0, 1, 0]), 'zeros'));
+  assert.ok(numbersOk(P([2, 3, 5]), 'twos'));
+  assert.ok(!numbersOk(P([2, 1, 5]), 'twos'));
+  // 3 boxes and 7 clues: a box share of 0.3
+  const sol = 'xxx' + '0'.repeat(10);
+  assert.ok(numbersOk(P(new Array(7).fill(1), sol), null, 2, [0, 0.3]));
+  assert.ok(!numbersOk(P(new Array(7).fill(1), sol), null, 2, [0.5, 1]));
+  assert.ok(styleGap(P(new Array(7).fill(1), sol), null, 2, [0.5, 1]) > 0);
+});

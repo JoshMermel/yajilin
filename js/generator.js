@@ -408,7 +408,8 @@ export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen') {
  *             do, 66-84% of the time); without it, long rays are preferred (a clue pointing at a wall says little)
  *   dirs      allowed directions (indexes 0=U 1=R 2=D 3=L), e.g. [1] for "every arrow points right"
  *   numbers   'big' prefers directions whose line holds many boxes, 'small' prefers lines holding 0 or 1 (estimated from the
- *             solution's non-loop cells in the line that are not clues)
+ *             solution's non-loop cells in the line that are not clues); 'zeros' wants every number 0, 'twos' wants every number
+ *             at least 2 (both are hard requirements: the finished puzzle must have them)
  */
 function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null, numbers = null, holes = null) {
   const lens = [0, 1, 2, 3].map((d) => rayOf(rows, cols, i, d, isClue).length);
@@ -431,7 +432,10 @@ function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null,
     if (dirs && !dirs.includes(d)) { weights[d] = 0; continue; }
     if (numbers && holes && weights[d] > 0) {
       const est = rayOf(rows, cols, i, d, isClue).filter((j) => holes[j] && !isClue[j]).length;
-      weights[d] *= numbers === 'big' ? (1 + est) ** 2 : est <= 1 ? 1 : Math.exp(-1.2 * (est - 1));
+      weights[d] *= numbers === 'big' ? (1 + est) ** 2
+        : numbers === 'zeros' ? Math.exp(-2.5 * est)
+        : numbers === 'twos' ? (est >= 2 ? 1 + est : 0.05)
+        : est <= 1 ? 1 : Math.exp(-1.2 * (est - 1));
     }
   }
   const total = weights.reduce((x, y) => x + y, 0);
@@ -442,14 +446,26 @@ function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null,
 }
 
 /** How far a puzzle is from the requested number style (0 = it has it). Part of the climb's objective. */
-export function styleGap(P, numbers, minMean = 2.0) {
+export function styleGap(P, numbers, minMean = 2.0, boxRange = null) {
+  let gap = 0;
+  if (boxRange && P.solution) {        // the share of the solution's non-loop cells (boxes and clues) that are boxes, wanted in [lo, hi]
+    let boxes = 0;
+    for (const ch of P.solution) if (ch === 'x') boxes++;
+    const share = boxes / Math.max(1, boxes + P.clues.length);
+    gap += (Math.max(0, boxRange[0] - share) + Math.max(0, share - boxRange[1])) * 8;
+  }
+  return gap + numberGap(P, numbers, minMean);
+}
+function numberGap(P, numbers, minMean) {
   if (!numbers || !P.clues.length) return 0;
   const n = P.clues.map((c) => c.n);
   const mean = n.reduce((a, b) => a + b, 0) / n.length;
+  if (numbers === 'zeros') return n.filter((v) => v > 0).length / n.length * 6;
+  if (numbers === 'twos') return n.filter((v) => v < 2).length / n.length * 6;
   if (numbers === 'big') return Math.max(0, minMean - mean) + Math.max(0, n.filter((v) => v === 0).length / n.length - 0.1) * 3;
   return Math.max(0, 0.85 - n.filter((v) => v <= 1).length / n.length) * 5; // 'small': mostly 0s and 1s
 }
-export const numbersOk = (P, numbers, minMean = 2.0) => styleGap(P, numbers, minMean) === 0;
+export const numbersOk = (P, numbers, minMean = 2.0, boxRange = null) => styleGap(P, numbers, minMean, boxRange) === 0;
 
 /** How much the rules could not decide: undecided cells, plus loop cells that still miss a segment (half weight). */
 function undecidedScore(P, st) {
@@ -475,7 +491,7 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, boxRange = null, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
@@ -536,7 +552,7 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
       r = solvedByRules(P, upto);
       base = r.solved ? 0 : undecidedScore(P, r.state) + 0.001;
     }
-    const gap = styleGap(P, numbers, minMean);
+    const gap = styleGap(P, numbers, minMean, boxRange);
     return { P, r, gap, u: base + 3 * gap };
   };
   let cur = evaluate(), checks = 1, iter = 0;
@@ -596,7 +612,7 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
   say(`${iter} iterations, ${checks} checks, undecided score ${cur.u.toFixed(1)}, ${clueDir.size} clues, ${Date.now() - t0} ms`);
   if (!acceptable()) return null;
   let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++, fixed) : cur.P;
-  if (!numbersOk(puzzle, numbers, minMean)) { say('rejected: the numbers are not in the requested style'); return null; }
+  if (!numbersOk(puzzle, numbers, minMean, boxRange)) { say('rejected: the numbers are not in the requested style'); return null; }
   return { puzzle, stats: { iterations: iter, checks, ms: Date.now() - t0 } };
 }
 
