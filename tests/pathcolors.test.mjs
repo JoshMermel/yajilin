@@ -56,3 +56,32 @@ test('erasing a segment splits a line into two colors, and reset starts afresh',
   draw(on, 7); c = recolor(k, on);
   assert.equal(c(7), 0);
 });
+
+test('merging or splitting lines never recolors a line that was not touched (random strips, including a palette too small for the lines)', () => {
+  // regression for "merging two lines recolors an unrelated one": once colors had to be shared the old keeper reshuffled them
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const M = 60;
+  for (const palette of [3, 8]) {
+    for (let trial = 0; trial < 200; trial++) {
+      const keeper = makeColorKeeper(M), on = new Uint8Array(M);
+      const lines = () => {
+        const parent = Array.from({ length: M }, (_, i) => i);
+        const find = (a) => { while (parent[a] !== a) a = parent[a]; return a; };
+        on.forEach((v, x) => { if (v) { const a = find(x), b = find(x + 1); if (a !== b) parent[Math.max(a, b)] = Math.min(a, b); } });
+        const colorOf = assignPathColors(keeper, on, (x) => find(x), palette);
+        const m = new Map();
+        on.forEach((v, x) => { if (v) { const r = find(x); if (!m.has(r)) m.set(r, []); m.get(r).push(x); } });
+        return new Map([...m].map(([r, xs]) => [xs.join(','), colorOf.get(r)]));
+      };
+      let before = lines();
+      for (let step = 0; step < 80; step++) {
+        const x = (rnd() * (M - 1)) | 0;
+        on[x] = on[x] ? 0 : 1;
+        const after = lines();
+        for (const [key, c] of after) if (before.has(key)) assert.equal(c, before.get(key), `palette ${palette}, trial ${trial}, step ${step}: line ${key} changed color`);
+        before = after;
+      }
+    }
+  }
+});

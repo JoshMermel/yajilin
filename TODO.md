@@ -189,8 +189,4 @@ images suggest should lower the clue count.
    candidate cells in rows 12, 14 and 20: boxes at 12 and 14 leave the cell in row 13 wedged between them with the wall on its right (one way
    out), so one box must be in row 20. Easiest to see along edges, but it can happen mid-board. A new rule (probably Medium, costed above
    `cluePlacements`): when enumerating placements also discard any that leave a loop cell with fewer than two exits, then use what the survivors share.
-5. **Bug: merging two line segments recolors an unrelated line** ("Color separate lines"). Reproduce with `node tools/colorfuzz.mjs`. Cause: in
-   `js/pathcolors.js` a component whose stored color collides with an older one's is re-picked on every render, and with more than 8 lines (shared
-   colors) a merge frees a color that the colliding younger line grabs. Fix: a per-path id with an immutable color chosen at creation (lowest color no
-   other path uses, else the least used); a merge keeps the older path's id and color, a split gives the part without the oldest segment a new id
-   and color, nothing else changes color; then make colorfuzz a test in `tests/pathcolors.test.mjs`.
+5. ~~Bug: merging two line segments recolors an unrelated line.~~ Fixed (2026-11-15): each line has an identity whose color never changes; see `js/pathcolors.js` and the fuzz test in `tests/pathcolors.test.mjs`.
