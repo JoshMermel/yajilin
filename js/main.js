@@ -267,6 +267,18 @@ const solvedSet = () => { try { return new Set(JSON.parse(store.get('yj_solved')
 function markSolved() {
   const s = solvedSet(); s.add(puzzleHash(state.P));
   store.set('yj_solved', JSON.stringify([...s]));
+  recordBookSolved();
+}
+
+// How many puzzles of each book are solved, remembered per book so the book picker can show it without loading every book (a book's
+// puzzles are fetched only when it is opened; the count is refreshed then and whenever a puzzle is solved).
+const bookSolved = () => { try { return JSON.parse(store.get('yj_book_solved') || '{}'); } catch { return {}; } };
+function recordBookSolved() {
+  if (!state.book) return;
+  const solved = solvedSet();
+  const all = bookSolved();
+  all[state.book.id] = state.book.puzzles.filter((p) => solved.has(puzzleHash(p))).length;
+  store.set('yj_book_solved', JSON.stringify(all));
 }
 
 // ------------------------------------------------------------ check / toast
@@ -430,6 +442,7 @@ async function openBook(id, idx = 0) {
   if (!entry) { $('puz-info').textContent = 'No puzzle books found.'; return; }
   const raw = await fetchBook(entry);
   state.book = { id: entry.id, name: entry.name, puzzles: raw.map(compile) };
+  recordBookSolved();
   syncBookButton();
   $('puz-total').textContent = state.book.puzzles.length;
   $('puz-num').max = state.book.puzzles.length;
@@ -590,7 +603,10 @@ function renderBookPicker() {
       node.type = 'button';
       if (current) node.setAttribute('aria-current', 'true');
       const title = el('span', 'bp-book-title', b.label || b.name);
-      const count = el('span', 'bp-count', b.puzzles ? `${b.puzzles.length} puzzles` : '');
+      const total = b.count ?? (b.puzzles ? b.puzzles.length : null);
+      const done = bookSolved()[b.id] || 0;
+      const count = el('span', 'bp-count', total === null ? '' : done ? `${done} / ${total} solved` : `${total} puzzles`);
+      count.classList.toggle('bp-count-done', total !== null && done > 0 && done === total);
       if (b.blurb) node.title = b.blurb;
       if (tiles) {
         const head = el('span', 'bp-tile-head');
@@ -611,13 +627,14 @@ function renderBookPicker() {
     body.append(sec);
   }
   requestAnimationFrame(() => body.querySelector('.bp-current')?.scrollIntoView({ block: 'center' }));
-  // how many of each book's puzzles are solved: needs the book's puzzles, so load them (small files, cached) and update the rows as they arrive
+  // Only a book whose size is not in the manifest (a scratch book) is fetched to be counted; the others show their manifest count and the
+  // solved count remembered for them (see recordBookSolved), so opening the picker never loads a thousand-puzzle file.
   const solved = solvedSet();
   for (const { book, count } of counts) {
+    if (book.count !== undefined || book.puzzles) continue;
     fetchBook(book).then((raw) => {
       const n = raw.filter((p) => solved.has(puzzleHash(p))).length;
       count.textContent = n ? `${n} / ${raw.length} solved` : `${raw.length} puzzles`;
-      count.classList.toggle('bp-count-done', n > 0 && n === raw.length);
     }).catch(() => { /* the count stays as it was */ });
   }
 }
@@ -646,7 +663,7 @@ for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_co
 }
 clearBtn.addEventListener('click', () => {
   if (!clearBtn.classList.contains('danger-btn--confirm')) { clearBtn.classList.add('danger-btn--confirm'); clearBtn.textContent = 'Are you sure?'; return; }
-  try { Object.keys(localStorage).filter((k) => k.startsWith('yj_save_') || k === 'yj_solved').forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
+  try { Object.keys(localStorage).filter((k) => k.startsWith('yj_save_') || k === 'yj_solved' || k === 'yj_book_solved').forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
   disarmClear();
   if (state.P) openPuzzle(state.idx);
   toast('Saved progress cleared.');

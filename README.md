@@ -16,7 +16,7 @@ orthogonally. Every cell is a clue, shaded, or on the loop.
 | Human-style scorer (`js/rating.js`) | first rule table done (below); solves all 12 borrowed puzzles; weights and tiers not yet calibrated with Josh |
 | Hint button | done: shows the draft solver's next step (rule, tier, weight, explanation, ghost marks); says when it is stuck |
 | Generator (`js/generator.js`, `tools/generate.mjs`) | done up to 20x36: a unique-by-construction loop (`tightLoop`), then clues aimed so the human rules solve it; 14x14 in about a second, 20x36 in under a minute |
-| Corpus and books (`tools/library/`, `tools/build_book.mjs`) | six books in the app (a Gentle intro, three Bonus books, two Experiments), chosen in a picker modal with sections and solved counts; `data/manifest.json` lists them (id, name, label, group, blurb, file) and the sections; no tier shares, no print yet |
+| Corpus and books (`tools/library/`, `tools/build_book.mjs`) | eleven books in the app (a Gentle intro, three Bonus books, five Nikoli-style books of 1000 puzzles each by board size, two Experiments), chosen in a picker modal with sections and solved counts (the manifest holds each book's puzzle count; solved counts are remembered per book, so the picker never loads a book it does not need); `data/manifest.json` lists the books (id, name, label, group, blurb, count, file) and the sections; no tier shares, no print yet |
 
 See [TODO.md](TODO.md).
 
@@ -65,6 +65,7 @@ Progress is saved in `localStorage` keyed by a hash of the puzzle (size and clue
 | `js/rating.js` | The rule table (rule, tier, weight) and the human-style solver that rates puzzles (and will drive Hint) |
 | `js/board.js` | SVG board and pointer gestures (tap a cell, drag across cells) |
 | `js/main.js` | App controller: books, pager, marks, undo/redo, saves, settings |
+| `tools/overnight.mjs` | Many puzzles per board size in resumable chunks with a stop time and a summary (`tools/library/overnight/`), for long unattended runs; `build_book.mjs --dir <pool dir> --glob <prefix>` turns a pool directory into a book |
 | `tools/generate.mjs`, `tools/build_book.mjs` | Fill pools in `tools/library/` (git-ignored), then assemble `data/<book>.csv` |
 | `tools/rate_puzzles.mjs` | Rate every puzzle in a CSV and print tier, score and rule usage (`--steps` lists each step) |
 | `tools/import_puzzlemadness.mjs` | Convert the borrowed calibration puzzles in `tools/calibration/` to `data/tmp.csv` |

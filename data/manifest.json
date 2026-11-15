@@ -10,6 +10,10 @@
       "layout": "tiles"
     },
     {
+      "name": "Nikoli-style",
+      "blurb": "Generated to feel like the Nikoli book: arrows aimed at the nearer edge, plenty of arrows with exactly the room they need. A thousand puzzles per board size, easiest first."
+    },
+    {
       "name": "Experiments",
       "blurb": "Generator experiments: unusual shapes and imitations of the Nikoli books."
     }
@@ -21,7 +25,8 @@
       "label": "Gentle intro",
       "group": "Start here",
       "blurb": "5×5 up to 9×9, every puzzle Beginner.",
-      "file": "data/bonus-intro.csv"
+      "file": "data/bonus-intro.csv",
+      "count": 18
     },
     {
       "id": "bonus-longway",
@@ -29,7 +34,8 @@
       "label": "The long way round",
       "group": "Bonus",
       "blurb": "Arrows point away from the nearest edge: long lines of sight.",
-      "file": "data/bonus-longway.csv"
+      "file": "data/bonus-longway.csv",
+      "count": 15
     },
     {
       "id": "bonus-onedir",
@@ -37,7 +43,8 @@
       "label": "One direction",
       "group": "Bonus",
       "blurb": "Every arrow in a puzzle points the same way.",
-      "file": "data/bonus-onedir.csv"
+      "file": "data/bonus-onedir.csv",
+      "count": 13
     },
     {
       "id": "bonus-bignum",
@@ -45,7 +52,53 @@
       "label": "Big numbers",
       "group": "Bonus",
       "blurb": "Large numbers on the arrows.",
-      "file": "data/bonus-bignum.csv"
+      "file": "data/bonus-bignum.csv",
+      "count": 10
+    },
+    {
+      "id": "nikoli-8x8",
+      "name": "Nikoli-style 8x8",
+      "file": "data/nikoli-8x8.csv",
+      "count": 1000,
+      "label": "Nikoli 8×8",
+      "group": "Nikoli-style",
+      "blurb": "The smallest: quick puzzles, a few easier ones among them."
+    },
+    {
+      "id": "nikoli-12x12",
+      "name": "Nikoli-style 12x12",
+      "file": "data/nikoli-12x12.csv",
+      "count": 1000,
+      "label": "Nikoli 12×12",
+      "group": "Nikoli-style",
+      "blurb": "Mid-size boards."
+    },
+    {
+      "id": "nikoli-16x16",
+      "name": "Nikoli-style 16x16",
+      "file": "data/nikoli-16x16.csv",
+      "count": 1000,
+      "label": "Nikoli 16×16",
+      "group": "Nikoli-style",
+      "blurb": "Large boards; nearly all Hard."
+    },
+    {
+      "id": "nikoli-20x20",
+      "name": "Nikoli-style 20x20",
+      "file": "data/nikoli-20x20.csv",
+      "count": 1000,
+      "label": "Nikoli 20×20",
+      "group": "Nikoli-style",
+      "blurb": "Big boards; all Hard."
+    },
+    {
+      "id": "nikoli-20x36",
+      "name": "Nikoli-style 20x36",
+      "file": "data/nikoli-20x36.csv",
+      "count": 1000,
+      "label": "Nikoli 20×36",
+      "group": "Nikoli-style",
+      "blurb": "The Nikoli book's own size. Long solves."
     },
     {
       "id": "experiment-tall",
@@ -53,7 +106,8 @@
       "label": "Tall and skinny",
       "group": "Experiments",
       "blurb": "Narrow boards up to 100 rows tall.",
-      "file": "data/experiment-tall.csv"
+      "file": "data/experiment-tall.csv",
+      "count": 26
     },
     {
       "id": "experiment-nikoli",
@@ -61,7 +115,8 @@
       "label": "Nikoli imitation",
       "group": "Experiments",
       "blurb": "Big boards up to 20×36, arrows aimed at the nearer edge, and arrows with exactly the room they need.",
-      "file": "data/experiment-nikoli.csv"
+      "file": "data/experiment-nikoli.csv",
+      "count": 25
     }
   ],
   "default": "bonus-intro"
