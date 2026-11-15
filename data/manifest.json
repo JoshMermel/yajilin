@@ -5,17 +5,14 @@
       "blurb": "Small Beginner puzzles that need only the easiest rules."
     },
     {
-      "name": "Bonus",
-      "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
+      "name": "Default",
+      "blurb": "The plain board sizes: a thousand puzzles each, easiest first.",
       "layout": "tiles"
     },
     {
-      "name": "Nikoli-style",
-      "blurb": "Generated to feel like the Nikoli book: arrows aimed at the nearer edge, plenty of arrows with exactly the room they need. A thousand puzzles per board size, easiest first."
-    },
-    {
-      "name": "Experiments",
-      "blurb": "Generator experiments: unusual board shapes."
+      "name": "Bonus",
+      "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
+      "layout": "tiles"
     }
   ],
   "books": [
@@ -27,6 +24,51 @@
       "blurb": "5×5 up to 9×9, every puzzle Beginner.",
       "file": "data/bonus-intro.csv",
       "count": 18
+    },
+    {
+      "id": "8x8",
+      "name": "8×8",
+      "file": "data/8x8.csv",
+      "count": 1000,
+      "label": "8×8",
+      "group": "Default",
+      "blurb": "The smallest board: quick puzzles, a few easier ones among them."
+    },
+    {
+      "id": "12x12",
+      "name": "12×12",
+      "file": "data/12x12.csv",
+      "count": 1000,
+      "label": "12×12",
+      "group": "Default",
+      "blurb": "Mid-size boards."
+    },
+    {
+      "id": "16x16",
+      "name": "16×16",
+      "file": "data/16x16.csv",
+      "count": 1000,
+      "label": "16×16",
+      "group": "Default",
+      "blurb": "Large boards; nearly all Hard."
+    },
+    {
+      "id": "20x20",
+      "name": "20×20",
+      "file": "data/20x20.csv",
+      "count": 1000,
+      "label": "20×20",
+      "group": "Default",
+      "blurb": "Big boards; all Hard."
+    },
+    {
+      "id": "20x36",
+      "name": "20×36",
+      "file": "data/20x36.csv",
+      "count": 1000,
+      "label": "20×36",
+      "group": "Default",
+      "blurb": "The biggest board. Long solves."
     },
     {
       "id": "bonus-longway",
@@ -56,57 +98,12 @@
       "count": 10
     },
     {
-      "id": "nikoli-8x8",
-      "name": "Nikoli-style 8x8",
-      "file": "data/nikoli-8x8.csv",
-      "count": 1000,
-      "label": "Nikoli 8×8",
-      "group": "Nikoli-style",
-      "blurb": "The smallest: quick puzzles, a few easier ones among them."
-    },
-    {
-      "id": "nikoli-12x12",
-      "name": "Nikoli-style 12x12",
-      "file": "data/nikoli-12x12.csv",
-      "count": 1000,
-      "label": "Nikoli 12×12",
-      "group": "Nikoli-style",
-      "blurb": "Mid-size boards."
-    },
-    {
-      "id": "nikoli-16x16",
-      "name": "Nikoli-style 16x16",
-      "file": "data/nikoli-16x16.csv",
-      "count": 1000,
-      "label": "Nikoli 16×16",
-      "group": "Nikoli-style",
-      "blurb": "Large boards; nearly all Hard."
-    },
-    {
-      "id": "nikoli-20x20",
-      "name": "Nikoli-style 20x20",
-      "file": "data/nikoli-20x20.csv",
-      "count": 1000,
-      "label": "Nikoli 20×20",
-      "group": "Nikoli-style",
-      "blurb": "Big boards; all Hard."
-    },
-    {
-      "id": "nikoli-20x36",
-      "name": "Nikoli-style 20x36",
-      "file": "data/nikoli-20x36.csv",
-      "count": 1000,
-      "label": "Nikoli 20×36",
-      "group": "Nikoli-style",
-      "blurb": "The Nikoli book's own size. Long solves."
-    },
-    {
-      "id": "experiment-tall",
-      "name": "Experiment: tall and skinny",
+      "id": "bonus-tall",
+      "name": "Bonus: tall and skinny",
       "label": "Tall and skinny",
-      "group": "Experiments",
+      "group": "Bonus",
       "blurb": "Narrow boards up to 100 rows tall.",
-      "file": "data/experiment-tall.csv",
+      "file": "data/bonus-tall.csv",
       "count": 26
     }
   ],

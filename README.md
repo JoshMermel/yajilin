@@ -16,7 +16,7 @@ orthogonally. Every cell is a clue, shaded, or on the loop.
 | Human-style scorer (`js/rating.js`) | first rule table done (below); solves all 12 borrowed puzzles; weights and tiers not yet calibrated with Josh |
 | Hint button | done: shows the draft solver's next step (rule, tier, weight, explanation, ghost marks); says when it is stuck |
 | Generator (`js/generator.js`, `tools/generate.mjs`) | done up to 20x36: a unique-by-construction loop (`tightLoop`), then clues aimed so the human rules solve it; 14x14 in about a second, 20x36 in under a minute |
-| Corpus and books (`tools/library/`, `tools/build_book.mjs`) | eleven books in the app (a Gentle intro, three Bonus books, five Nikoli-style books of 1000 puzzles each by board size, two Experiments), chosen in a picker modal with sections and solved counts (the manifest holds each book's puzzle count; solved counts are remembered per book, so the picker never loads a book it does not need); `data/manifest.json` lists the books (id, name, label, group, blurb, count, file) and the sections; no tier shares, no print yet |
+| Corpus and books (`tools/library/`, `tools/build_book.mjs`) | ten books in the app (a Gentle intro, five Default books of 1000 puzzles each, by board size: 8×8, 12×12, 16×16, 20×20, 20×36; four Bonus books), chosen in a picker modal with sections and solved counts (the manifest holds each book's puzzle count; solved counts are remembered per book, so the picker never loads a book it does not need); `data/manifest.json` lists the books (id, name, label, group, blurb, count, file) and the sections; no tier shares, no print yet |
 
 See [TODO.md](TODO.md).
 
@@ -70,7 +70,7 @@ Progress is saved in `localStorage` keyed by a hash of the puzzle (size and clue
 | `tools/rate_puzzles.mjs` | Rate every puzzle in a CSV and print tier, score and rule usage (`--steps` lists each step) |
 | `tools/import_puzzlemadness.mjs` | Convert the borrowed calibration puzzles in `tools/calibration/` to `data/tmp.csv` |
 | `tests/` | `node --test tests/*.test.mjs`; `reference_solver.mjs` is the slow cross-check |
-| `data/manifest.json` | Published books (none yet). On localhost a git-ignored `data/tmp.csv` shows up as a scratch book |
+| `data/manifest.json` | The books shown in the app, their sections, labels, blurbs and puzzle counts |
 
 ## Difficulty: rules, tiers and score
 

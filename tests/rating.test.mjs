@@ -462,7 +462,7 @@ import { readFileSync } from 'node:fs';
 import { FIRST_LOOKAHEAD } from '../js/rating.js';
 
 test('the newer rules reach the stored solution on real generated puzzles (soundness on whole puzzles)', () => {
-  const want = { 'data/experiment-tall.csv': ['TALL-12 (6x50)', 'TALL-11 (5x60)'], 'data/bonus-longway.csv': ['BONUS-LONGWAY-15', 'BONUS-LONGWAY-11'], 'data/bonus-bignum.csv': ['BONUS-BIGNUM-10'], 'data/bonus-onedir.csv': ['BONUS-ONEDIR-12'] };
+  const want = { 'data/bonus-tall.csv': ['TALL-12 (6x50)', 'TALL-11 (5x60)'], 'data/bonus-longway.csv': ['BONUS-LONGWAY-15', 'BONUS-LONGWAY-11'], 'data/bonus-bignum.csv': ['BONUS-BIGNUM-10'], 'data/bonus-onedir.csv': ['BONUS-ONEDIR-12'] };
   let used = 0;
   for (const [file, names] of Object.entries(want)) {
     const all = parseCsv(readFileSync(new URL('../' + file, import.meta.url), 'utf8'));

@@ -1,7 +1,7 @@
 # Tall and skinny boards
 
 An experiment: how does the generator cope with boards much taller than wide? Default style (no edge bias), seeds 301/302.
-`data/experiment-tall.csv` is the book "Experiment: tall and skinny" (26 puzzles, 4x20 up to 8x100), built from `pools/` by `node tools/build_tall.mjs`.
+`data/bonus-tall.csv` is the book "Bonus: tall and skinny" (26 puzzles, 4x20 up to 8x100), built from `pools/` by `node tools/build_tall.mjs`.
 
 - Generation is easy: 4x20 to 6x50 in about a second, 12x48 in about 10 s, 6x80 in 14 s, 8x100 (800 cells) in 48 s. Narrow boards are cheap to make unique.
 - Difficulty: the narrowest (4 wide) are Medium, everything 5+ wide and 30+ tall is Hard. Scores (within-size reading only): 4x20 12-40, 6x30 90-170,

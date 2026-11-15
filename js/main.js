@@ -475,13 +475,6 @@ async function init() {
   try { manifest = await (await fetch('data/manifest.json')).json(); } catch { /* none yet */ }
   state.books = manifest.books || [];
   state.groups = manifest.groups || [];
-  // On localhost, a git-ignored data/tmp.csv shows up as a scratch book (the borrowed calibration puzzles).
-  if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
-    try {
-      const r = await fetch('data/tmp.csv', { method: 'HEAD' });
-      if (r.ok) state.books.push({ id: 'tmp', name: 'tmp (local scratch)', label: 'Scratch', group: 'Local', blurb: 'The borrowed calibration puzzles (private, this machine only).', file: 'data/tmp.csv' });
-    } catch { /* no scratch book */ }
-  }
   if (!state.books.length) { $('puz-info').textContent = 'No puzzle books yet. Load a CSV in Settings.'; return; }
   const params = new URLSearchParams(location.search);
   let last = null;
@@ -627,7 +620,7 @@ function renderBookPicker() {
     body.append(sec);
   }
   requestAnimationFrame(() => body.querySelector('.bp-current')?.scrollIntoView({ block: 'center' }));
-  // Only a book whose size is not in the manifest (a scratch book) is fetched to be counted; the others show their manifest count and the
+  // Only a book whose size is unknown (it has no manifest count) is fetched to be counted; the others show their manifest count and the
   // solved count remembered for them (see recordBookSolved), so opening the picker never loads a thousand-puzzle file.
   const solved = solvedSet();
   for (const { book, count } of counts) {
