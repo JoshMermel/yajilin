@@ -165,3 +165,15 @@ test('style gaps: zeros, twos and the box share', async () => {
   assert.ok(!numbersOk(P(new Array(7).fill(1), sol), null, 2, [0.5, 1]));
   assert.ok(styleGap(P(new Array(7).fill(1), sol), null, 2, [0.5, 1]) > 0);
 });
+
+test('pruning keeps a hard number style: a pruned all-zeros puzzle still has only zeros (it used to be thrown away, so zeros never grew past 9x9)', () => {
+  let made = 0;
+  for (let seed = 1; seed <= 4 && made < 2; seed++) {
+    const r = generatePuzzle(8, 8, makeRng(seed), { numbers: 'zeros', prune: true, density: 0.3, shadeShare: 0.3, budgetMs: 30000 });
+    if (!r) continue;
+    made++;
+    assert.ok(r.puzzle.clues.every((c) => c.n === 0), 'every arrow says 0');
+    assert.ok(solvedByRules(r.puzzle).solved, 'and the rules still solve it');
+  }
+  assert.ok(made >= 1, 'at least one 8x8 all-zeros puzzle came out');
+});

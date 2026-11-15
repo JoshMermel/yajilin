@@ -611,7 +611,7 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
   if (diagnose && (!diagnose.best || bestSeen.u < diagnose.best.u)) diagnose.best = { u: bestSeen.u, P: bestSeen.P, state: bestSeen.r.state, clues: bestSeen.P.clues.length, iterations: iter };
   say(`${iter} iterations, ${checks} checks, undecided score ${cur.u.toFixed(1)}, ${clueDir.size} clues, ${Date.now() - t0} ms`);
   if (!acceptable()) return null;
-  let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++, fixed) : cur.P;
+  let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++, fixed, numbers, minMean) : cur.P;
   if (!numbersOk(puzzle, numbers, minMean, boxRange)) { say('rejected: the numbers are not in the requested style'); return null; }
   return { puzzle, stats: { iterations: iter, checks, ms: Date.now() - t0 } };
 }
@@ -629,7 +629,10 @@ export function generatePuzzle(rows, cols, rng, options = {}) {
 }
 
 /** Turn clue cells back into shaded cells (where legal) while the rules still solve the puzzle. */
-function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, onCheck, fixed) {
+function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, onCheck, fixed, numbers = null, minMean = 2.0) {
+  // a hard number style ('zeros', 'twos') is a requirement of the finished puzzle: a new box must not land in an arrow's line and spoil
+  // a number (before this, such a prune was rejected only at the very end, so every pruned zeros puzzle was thrown away)
+  const hardStyle = numbers === 'zeros' || numbers === 'twos';
   const N = rows * cols;
   const order = shuffle([...clueDir.keys()].filter((i) => loop.holes[i]), rng);
   let P = buildPuzzle(rows, cols, loop, clueDir, name);
@@ -641,6 +644,7 @@ function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budg
     const d = clueDir.get(i);
     clueDir.delete(i); isClue[i] = 0;
     const Q = buildPuzzle(rows, cols, loop, clueDir, name);
+    if (hardStyle && numberGap(Q, numbers, minMean) > 0) { clueDir.set(i, d); isClue[i] = 1; continue; }
     onCheck();
     if (solvedByRules(Q, upto).solved) P = Q;
     else { clueDir.set(i, d); isClue[i] = 1; }
