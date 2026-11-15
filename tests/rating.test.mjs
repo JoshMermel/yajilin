@@ -539,10 +539,10 @@ test('the order a person meets the rules in: cheapest first, bookkeeping costs s
   const pos = (id) => HUMAN_ORDER.findIndex((r) => r.id === id);
   assert.ok(pos('shadedNeighbor') < pos('clueDone'));
   assert.ok(pos('forcedExits') < pos('noEarlyClose') && pos('noEarlyClose') < pos('tightCell'));   // the last Beginner rule
-  assert.ok(pos('cluePlacements') < pos('sameSegmentExits'));
+  assert.ok(pos('closingCell') < pos('tightCell') && pos('sameSegmentExits') < pos('tightCell'));   // the "don't close the loop early" rules are Beginner, like Nikoli's easy puzzles use them
   assert.ok(pos('rangeFacing') < pos('crossingParity') && pos('crossingParity') < pos('uniqueRoute') && pos('uniqueRoute') < pos('tryCell'));
   const tier = (id) => RULES.find((r) => r.id === id).tier;
-  assert.equal(tier('noEarlyClose'), 'Beginner');
+  assert.equal(tier('noEarlyClose'), 'Beginner'); assert.equal(tier('closingCell'), 'Beginner'); assert.equal(tier('sameSegmentExits'), 'Beginner');
   assert.equal(tier('tightCell'), 'Medium'); assert.equal(tier('deadEndNeighbor'), 'Medium'); assert.equal(tier('rangeFacingKnown'), 'Medium');
   assert.equal(RULES.find((r) => r.id === 'forcedExits').weight, RULES.find((r) => r.id === 'deadEnd').weight);
   // every Hard rule costs more than every Medium rule
@@ -574,6 +574,14 @@ test('clueTight: a clue with exactly 2r-1 open cells puts its boxes on every oth
   const P = row(8, [[0, R, 3]]);
   const st = initialState(P); st.cell[7] = SHADED; for (const i of [4, 5, 6]) st.cell[i] = LOOP;
   assert.deepEqual(asMap(ruleSets('clueTight', P, st)), { c1: SHADED, c2: LOOP, c3: SHADED });
+  // several runs: 4 boxes, dots at 4 and 8 leave runs of 3 and 3 cells (room for 2 + 2): boxes on 1, 3, 5, 7
+  const Q = row(9, [[0, R, 4]]);
+  const stQ = initialState(Q); stQ.cell[4] = LOOP; stQ.cell[8] = LOOP;
+  assert.deepEqual(asMap(ruleSets('clueTight', Q, stQ)), { c1: SHADED, c2: LOOP, c3: SHADED, c5: SHADED, c6: LOOP, c7: SHADED });
+  // a run of even length is cluePlacements territory
+  const E = row(9, [[0, R, 3]]);
+  const stE = initialState(E); stE.cell[4] = LOOP;                                  // runs of 3 and 4 cells hold 2 + 2 >= 3: not tight
+  assert.deepEqual(ruleSets('clueTight', E, stE), []);
   const r = RULES.find((q) => q.id === 'clueTight');
   assert.equal(r.tier, 'Beginner');
   assert.ok(r.weight < RULES.find((q) => q.id === 'cluePlacements').weight);

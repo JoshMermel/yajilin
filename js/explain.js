@@ -155,7 +155,9 @@ export function explainStep(P, step, st = null) {
     }
     case 'clueTight': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', info.cells);
-      text = `The ${clueName(P, k)} needs ${info.need} ${info.need === 1 ? 'box' : 'boxes'} and has exactly ${info.cells.length} open cells left in its line, so they go on every other cell, starting at ${N(info.cells[0])}.`;
+      text = info.runs > 1
+        ? `The ${clueName(P, k)} needs ${info.need} boxes and has exactly enough room, in runs of odd length: in each run the boxes go on every other cell.`
+        : `The ${clueName(P, k)} needs ${info.need} ${info.need === 1 ? 'box' : 'boxes'} and has exactly ${info.cells.length} open cells left in its line, so they go on every other cell, starting at ${N(info.cells[0])}.`;
       break;
     }
     case 'rangeSameOne': {

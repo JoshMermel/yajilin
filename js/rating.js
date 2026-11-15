@@ -35,7 +35,7 @@
 //                    the loop early, two far ends always end up as the ends of one line, so no segment joins them
 //   crossingParity   the loop crosses the border of any rectangle an even number of times: when all but one crossing is
 //                    settled, the last is forced
-//   clueTight        a clue needs r boxes and has exactly 2r-1 open cells in a run: boxes on every other cell (Beginner)
+//   clueTight        a clue needs r boxes and its open cells are odd runs that hold exactly r: boxes on every other cell of each (Beginner)
 //   rangeSameOne     the special case of rangeSame with exactly one cell between the clues (Beginner)
 //   rangeSame        two clues in a line point the same way: the cells between them hold (first - second) shaded cells
 //   rangeFacingKnown two clues point at each other and one of the three parts of the line (between them, beyond either)
@@ -406,9 +406,10 @@ export function rangeDeduce(P, st, cells, kmin, kmax) {
 }
 
 /**
- * The special case of cluePlacements a person sees at a glance: a clue that still needs r >= 2 boxes and has exactly one run of
- * 2r-1 cells that can hold a box (not touching a box, not a dot or a clue). Boxes cannot touch, so they sit on every other cell of the
- * run, and the cells between them are dots. (Nikoli's setters love these: an arrow k boxes strong with just enough room.)
+ * The special case of cluePlacements a person sees at a glance: a clue that still needs r >= 2 boxes whose open cells (not touching a box,
+ * not a dot or a clue) form runs that can hold exactly r boxes between them, every run an odd length 2m-1 (it holds m boxes only on its
+ * every other cell). Boxes cannot touch, so each run's boxes sit on its 1st, 3rd, ... cell and the cells between them are dots. With one run
+ * this is a k-arrow with just enough room (Nikoli's setters love them); with several, the dots and clues between the runs fix the room.
  */
 function clueTight(P, st) {
   const out = [];
@@ -425,8 +426,9 @@ function clueTight(P, st) {
     }
     if (run.length) runs.push(run);
     const need = cl.n - boxes;
-    if (need < 2 || runs.length !== 1 || runs[0].length !== 2 * need - 1) return;
-    out.push(firing(runs[0].map((i, q) => (q % 2 === 0 ? setCell(i, SHADED) : setCell(i, LOOP))), { clue: k, cells: runs[0], need }));
+    if (need < 2 || !runs.length || runs.some((r) => r.length % 2 === 0)) return;
+    if (runs.reduce((a, r) => a + (r.length + 1) / 2, 0) !== need) return;
+    out.push(firing(runs.flatMap((r) => r.map((i, q) => (q % 2 === 0 ? setCell(i, SHADED) : setCell(i, LOOP)))), { clue: k, cells: runs.flat(), need, runs: runs.length }));
   });
   return out;
 }
@@ -1069,11 +1071,11 @@ export const RULES = [
   { id: 'deadEnd', tier: 'Beginner', weight: 4, find: deadEnd, label: 'a cell with fewer than two exits is a box' },
   { id: 'forcedExits', tier: 'Beginner', weight: 4, find: forcedExits, label: 'a loop cell with two exits left uses both' },
   { id: 'noEarlyClose', tier: 'Beginner', weight: 6, find: noEarlyClose, label: 'a segment would close the loop too early' },
+  { id: 'sameSegmentExits', tier: 'Beginner', weight: 7, find: sameSegmentExits, label: 'two of a dot\'s three ways out lead to the ends of one path: it uses the third' },
+  { id: 'closingCell', tier: 'Beginner', weight: 7, find: closingCell, label: 'a cell whose only two ways out are the ends of one path would close the loop early: it is a box' },
   { id: 'tightCell', tier: 'Medium', weight: 8, find: tightCell, label: 'a box here would turn a corner-like neighbor into a dot with just one way out: this cell is a dot' },
   { id: 'deadEndNeighbor', tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
   { id: 'cluePlacements', tier: 'Medium', weight: 12, find: cluePlacements, label: 'every way to place a clue\'s boxes includes (or leaves out) this cell' },
-  { id: 'sameSegmentExits', tier: 'Medium', weight: 16, find: sameSegmentExits, label: 'two of a dot\'s three ways out lead to the ends of one path: it uses the third' },
-  { id: 'closingCell', tier: 'Medium', weight: 16, find: closingCell, label: 'a cell whose only two ways out are the ends of one path would close the loop early: it is a box' },
   { id: 'closingNeighbor', tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
   { id: 'rangeSame', tier: 'Medium', weight: 24, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
   { id: 'rangeFacingKnown', tier: 'Medium', weight: 28, find: rangeFacingKnown, label: 'two clues point at each other and one part of the line has a known number of boxes: that fixes the other two parts' },
