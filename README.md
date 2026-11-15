@@ -1,6 +1,6 @@
 # Yajilin
 
-**Play it:** <https://joshmermel.github.io/yajilin/> (once published; or run it locally, below). Feedback: see the link in the app's help, or <https://joshmermelstein.com>.
+**Play it:** <https://joshmermelstein.com/yajilin/> (or run it locally, below). Feedback: see the link in the app's help, or <https://joshmermelstein.com>.
 
 A browser game and puzzle toolkit for **Yajilin**, built to the same pattern as
 `polyomino-panel` and `multiverse-star-battle`: generators, a human-style scorer, a corpus turned into books, and a GUI.
