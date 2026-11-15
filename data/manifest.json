@@ -23,7 +23,7 @@
       "group": "Start here",
       "blurb": "5×5 up to 9×9, every puzzle Beginner.",
       "file": "data/bonus-intro.csv",
-      "count": 18
+      "count": 32
     },
     {
       "id": "8x8",
@@ -77,7 +77,7 @@
       "group": "Bonus",
       "blurb": "Arrows point away from the nearest edge: long lines of sight.",
       "file": "data/bonus-longway.csv",
-      "count": 15
+      "count": 25
     },
     {
       "id": "bonus-onedir",
@@ -86,7 +86,7 @@
       "group": "Bonus",
       "blurb": "Every arrow in a puzzle points the same way.",
       "file": "data/bonus-onedir.csv",
-      "count": 13
+      "count": 23
     },
     {
       "id": "bonus-bignum",
@@ -95,16 +95,16 @@
       "group": "Bonus",
       "blurb": "Large numbers on the arrows.",
       "file": "data/bonus-bignum.csv",
-      "count": 10
+      "count": 23
     },
     {
-      "id": "bonus-tall",
-      "name": "Bonus: tall and skinny",
-      "label": "Tall and skinny",
+      "id": "bonus-skinny",
+      "name": "Bonus: skinny",
+      "label": "Skinny",
       "group": "Bonus",
-      "blurb": "Narrow boards up to 100 rows tall.",
-      "file": "data/bonus-tall.csv",
-      "count": 26
+      "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
+      "file": "data/bonus-skinny.csv",
+      "count": 29
     }
   ],
   "default": "bonus-intro"

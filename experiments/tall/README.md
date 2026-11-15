@@ -1,7 +1,9 @@
-# Tall and skinny boards
+# Tall and skinny boards (the "Skinny" book)
 
 An experiment: how does the generator cope with boards much taller than wide? Default style (no edge bias), seeds 301/302.
-`data/bonus-tall.csv` is the book "Bonus: tall and skinny" (26 puzzles, 4x20 up to 8x100), built from `pools/` by `node tools/build_tall.mjs`.
+`data/bonus-skinny.csv` is the book "Bonus: skinny" (29 puzzles, 3x20 up to 8x36), built from `pools/` by `node tools/build_skinny.mjs`: only boards whose
+longer side is at most 36 (2026-11-15; the first version of the book went up to 8x100 and the longer pools are still here, not in the book). Pools for the
+newer sizes come from `tools/make_bonus_pools.sh`. The page shows a skinny board sideways when that gives bigger cells (Settings: "Turn tall boards sideways").
 
 - Generation is easy: 4x20 to 6x50 in about a second, 12x48 in about 10 s, 6x80 in 14 s, 8x100 (800 cells) in 48 s. Narrow boards are cheap to make unique.
 - Difficulty: the narrowest (4 wide) are Medium, everything 5+ wide and 30+ tall is Hard. Scores (within-size reading only): 4x20 12-40, 6x30 90-170,
