@@ -1040,10 +1040,10 @@ export const RULES = [
   { id: 'rangeSameOne', tier: 'Beginner', weight: 3, find: rangeSameOne, label: 'two clues point the same way with one cell between them: the difference of their numbers (0 or 1) says if it is a box' },
   { id: 'deadEnd', tier: 'Beginner', weight: 4, find: deadEnd, label: 'a cell with fewer than two exits is a box' },
   { id: 'forcedExits', tier: 'Beginner', weight: 4, find: forcedExits, label: 'a loop cell with two exits left uses both' },
+  { id: 'noEarlyClose', tier: 'Beginner', weight: 6, find: noEarlyClose, label: 'a segment would close the loop too early' },
   { id: 'tightCell', tier: 'Medium', weight: 8, find: tightCell, label: 'a box here would turn a corner-like neighbor into a dot with just one way out: this cell is a dot' },
   { id: 'deadEndNeighbor', tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
   { id: 'cluePlacements', tier: 'Medium', weight: 12, find: cluePlacements, label: 'every way to place a clue\'s boxes includes (or leaves out) this cell' },
-  { id: 'noEarlyClose', tier: 'Medium', weight: 14, find: noEarlyClose, label: 'a segment would close the loop too early' },
   { id: 'sameSegmentExits', tier: 'Medium', weight: 16, find: sameSegmentExits, label: 'two of a dot\'s three ways out lead to the ends of one path: it uses the third' },
   { id: 'closingCell', tier: 'Medium', weight: 16, find: closingCell, label: 'a cell whose only two ways out are the ends of one path would close the loop early: it is a box' },
   { id: 'closingNeighbor', tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
@@ -1076,11 +1076,14 @@ export const ruleLabel = (id) => (id === 'unsolved' ? 'none of the current rules
  * lookahead rules: "follow what it forces"). Mutates `st`. Returns { contradiction, steps }.
  */
 export function closure(P, st, upto = FIRST_LOOKAHEAD) {
+  // `upto` is a prefix length of the rule table, or a list of rule ids (then exactly those rules, plus the bookkeeping, are used)
+  const allowed = Array.isArray(upto) ? new Set(upto) : null;
   let steps = 0;
   for (let guard = 0; guard < 5000; guard++) {
     if (contradiction(P, st)) return { contradiction: true, steps };
     let fired = false;
-    for (let r = 0; r < upto; r++) {
+    for (let r = 0; r < (allowed ? RULES.length : upto); r++) {
+      if (allowed && !(RULES[r].free || allowed.has(RULES[r].id))) continue;   // a chosen set of rules instead of a prefix of the table
       const fs = RULES[r].find(P, st, { upto: r });
       if (!fs.length) continue;
       for (const f of fs) if (!applySets(st, f.sets)) return { contradiction: true, steps };

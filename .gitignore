@@ -9,3 +9,4 @@ data/tmp.csv
 # Big scratch pools and staging (built by tools/, not published).
 tools/library/
 tools/books_staging/
+data/pm_all.csv

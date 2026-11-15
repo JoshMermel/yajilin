@@ -89,10 +89,10 @@ The table lives in `js/rating.js` (`RULES`); re-binning a rule or changing a cos
 | 7 | `rangeSameOne` | two clues in a line point the same way with exactly one cell between them: that cell holds (first number - second number) boxes, so it is a box if the difference is 1 and a dot if it is 0 | Beginner | 3 |
 | 8 | `deadEnd` | a cell with fewer than two exits cannot be on the loop: shaded | Beginner | 4 |
 | 9 | `forcedExits` | a loop cell with exactly two exits left uses both | Beginner | 4 |
-| 10 | `tightCell` | a neighbour has only two cells it can ever connect to (board edge and clue cells around it: a corner, clues touching diagonally, a gap between two clues): a box here would leave it one way out and it cannot be a box itself, so this cell gets a dot. Seen at a glance | Medium | 8 |
-| 11 | `deadEndNeighbor` | shading a cell would strand a neighbour (given the marks so far): the cell is loop | Medium | 10 |
-| 12 | `cluePlacements` | try every way to place the clue's boxes without two touching: a cell they all use is shaded, a cell none uses is loop | Medium | 12 |
-| 13 | `noEarlyClose` | a segment joining the two ends of one path would close the loop while other loop cells are outside it | Medium | 14 |
+| 10 | `noEarlyClose` | a segment joining the two ends of one path would close the loop while other loop cells are outside it | Beginner | 6 |
+| 11 | `tightCell` | a neighbour has only two cells it can ever connect to (board edge and clue cells around it: a corner, clues touching diagonally, a gap between two clues): a box here would leave it one way out and it cannot be a box itself, so this cell gets a dot. Seen at a glance | Medium | 8 |
+| 12 | `deadEndNeighbor` | shading a cell would strand a neighbour (given the marks so far): the cell is loop | Medium | 10 |
+| 13 | `cluePlacements` | try every way to place the clue's boxes without two touching: a cell they all use is shaded, a cell none uses is loop | Medium | 12 |
 | 14 | `sameSegmentExits` | a loop cell has three ways out and two of them lead to the two ends of one path: using both would close the loop early, so it uses the third | Medium | 16 |
 | 15 | `closingCell` | a cell has only two ways out and both lead to the two ends of one path: using them would close the loop early, so the cell is a box | Medium | 16 |
 | 16 | `closingNeighbor` | imagine a cell shaded: its undecided neighbour would be a dot whose only two ways out lead to the two ends of one path, so using both would close the loop early. The cell is a dot (`closingCell` one step removed) | Medium | 20 |

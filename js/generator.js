@@ -60,7 +60,6 @@ function gridNeighbours(rows, cols, i) {
  */
 export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40 } = {}) {
   const N = rows * cols;
-  if (N % 2) throw new Error('rows * cols must be even');
   const color = (i) => (((i / cols) | 0) + (i % cols)) & 1;
   const grid = Array.from({ length: N }, (_, i) => gridNeighbours(rows, cols, i)); // fixed
   const adj = grid.map((g) => g.slice());                                        // shrinks as cells become holes
@@ -156,7 +155,19 @@ export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40 } = {}) {
     return count === 1;
   };
 
-  const init = () => { for (const v of shuffle([...Array(N).keys()], rng)) if (!fill(v)) return false; return mergeCycles(); };
+  const init = () => {
+    // A cycle alternates chessboard colors, so it needs as many cells of each color. A board with an odd number of cells has one cell
+    // too many of color 0: make one of those a hole first (a corner or edge cell is as good as any), then build as usual.
+    if (N % 2) {
+      const spare = shuffle([...Array(N).keys()].filter((c) => color(c) === 0), rng).find((c) => adj[c].every((w) => adj[w].length - 1 >= 2));
+      if (spare === undefined) return false;
+      hole[spare] = 1;
+      for (const w of adj[spare]) adj[w] = adj[w].filter((x) => x !== spare);
+      adj[spare] = [];
+    }
+    for (const v of shuffle([...Array(N).keys()], rng)) if (!hole[v] && !fill(v)) return false;
+    return mergeCycles();
+  };
   // may this cell become a hole? (every neighbour keeps two neighbours; `clump` is the chance of refusing a hole next to a hole)
   const okCell = (c, clump = 0) => !hole[c] && adj[c].every((w) => adj[w].length - 1 >= 2) && !(clump > 0 && grid[c].some((w) => hole[w]) && rng() < clump);
   /** Make c1 and c2 (opposite colors) holes, keeping one cycle through the rest. Returns false, changing nothing, if impossible. */

@@ -538,10 +538,11 @@ test('the order a person meets the rules in: cheapest first, bookkeeping costs s
   assert.deepEqual(w, [...w].sort((a, b) => a - b));
   const pos = (id) => HUMAN_ORDER.findIndex((r) => r.id === id);
   assert.ok(pos('shadedNeighbor') < pos('clueDone'));
-  assert.ok(pos('noEarlyClose') < pos('sameSegmentExits'));
-  assert.ok(pos('cluePlacements') < pos('noEarlyClose'));
+  assert.ok(pos('forcedExits') < pos('noEarlyClose') && pos('noEarlyClose') < pos('tightCell'));   // the last Beginner rule
+  assert.ok(pos('cluePlacements') < pos('sameSegmentExits'));
   assert.ok(pos('rangeFacing') < pos('crossingParity') && pos('crossingParity') < pos('uniqueRoute') && pos('uniqueRoute') < pos('tryCell'));
   const tier = (id) => RULES.find((r) => r.id === id).tier;
+  assert.equal(tier('noEarlyClose'), 'Beginner');
   assert.equal(tier('tightCell'), 'Medium'); assert.equal(tier('deadEndNeighbor'), 'Medium'); assert.equal(tier('rangeFacingKnown'), 'Medium');
   assert.equal(RULES.find((r) => r.id === 'forcedExits').weight, RULES.find((r) => r.id === 'deadEnd').weight);
   // every Hard rule costs more than every Medium rule

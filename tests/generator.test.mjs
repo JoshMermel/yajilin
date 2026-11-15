@@ -101,3 +101,18 @@ test('crossing chords: a loop with a crossing pair is never unique; tightLoop bu
     for (let i = 0; i < rows * cols; i++) assert.equal(deg[i], r.holes[i] ? 0 : 2);
   }
 });
+
+test('odd boards: 7x7 and 5x7 puzzles are valid, unique and rule-solved', () => {
+  let made = 0;
+  for (const [rows, cols, seed] of [[7, 7, 1], [7, 7, 2], [5, 7, 3], [7, 5, 4], [9, 9, 5]]) {
+    const r = generatePuzzle(rows, cols, makeRng(seed), { name: `odd${seed}`, budgetMs: 20000 });
+    if (!r) continue;
+    made++;
+    const P = r.puzzle;
+    const sol = decodeSolution(P, P.solution);
+    assert.ok(checkSolved(P, Uint8Array.from(sol.cell, (v) => (v === SHADED ? 1 : 0)), Int8Array.from(sol.e, (v) => (v === E_ON ? 1 : 0))));
+    if (rows * cols <= 49) { const u = solve(P, { limit: 2, maxNodes: 5000000 }); assert.equal(u.exceeded, false); assert.equal(u.count, 1); }
+    assert.ok(ratePuzzle(P).solved);
+  }
+  assert.ok(made >= 3, `only ${made} odd-board puzzles`);
+});

@@ -2,7 +2,7 @@
 //
 //   node tools/generate.mjs --size 12x12 [--count 3] [--seed 1] [--budget 300] [--out tools/library/y_12x12_s1.csv]
 //
-// --size is COLSxROWS (rows * cols must be even); --budget is seconds per puzzle. Each puzzle is appended to the output file
+// --size is COLSxROWS --budget is seconds per puzzle. Each puzzle is appended to the output file
 // the moment it is found, so a long run can be stopped at any time. Every puzzle is checked (solution valid, exactly one
 // solution by the exhaustive solver) and rated with the human-style solver before it is stored.
 import fs from 'node:fs';
