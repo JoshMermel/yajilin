@@ -1,50 +1,68 @@
 {
+  "groups": [
+    {
+      "name": "Start here",
+      "blurb": "Small Beginner puzzles that need only the easiest rules."
+    },
+    {
+      "name": "Bonus",
+      "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
+      "layout": "tiles"
+    },
+    {
+      "name": "Experiments",
+      "blurb": "Generator experiments: unusual shapes and imitations of the Nikoli books."
+    }
+  ],
   "books": [
     {
       "id": "bonus-intro",
       "name": "Bonus: gentle intro",
+      "label": "Gentle intro",
+      "group": "Start here",
+      "blurb": "5×5 up to 9×9, every puzzle Beginner.",
       "file": "data/bonus-intro.csv"
-    },
-    {
-      "id": "large-nk",
-      "name": "Large (Nikoli-style)",
-      "file": "data/large-nk.csv"
-    },
-    {
-      "id": "range-samples",
-      "name": "Difficulty samples (16x16, 20x32)",
-      "file": "data/range-samples.csv"
-    },
-    {
-      "id": "large",
-      "name": "Large (draft)",
-      "file": "data/large.csv"
     },
     {
       "id": "bonus-longway",
       "name": "Bonus: the long way round",
+      "label": "The long way round",
+      "group": "Bonus",
+      "blurb": "Arrows point away from the nearest edge: long lines of sight.",
       "file": "data/bonus-longway.csv"
     },
     {
       "id": "bonus-onedir",
       "name": "Bonus: one direction",
+      "label": "One direction",
+      "group": "Bonus",
+      "blurb": "Every arrow in a puzzle points the same way.",
       "file": "data/bonus-onedir.csv"
     },
     {
       "id": "bonus-bignum",
       "name": "Bonus: big numbers",
+      "label": "Big numbers",
+      "group": "Bonus",
+      "blurb": "Large numbers on the arrows.",
       "file": "data/bonus-bignum.csv"
     },
     {
       "id": "experiment-tall",
       "name": "Experiment: tall and skinny",
+      "label": "Tall and skinny",
+      "group": "Experiments",
+      "blurb": "Narrow boards up to 100 rows tall.",
       "file": "data/experiment-tall.csv"
     },
     {
       "id": "experiment-nikoli",
       "name": "Experiment: Nikoli imitation",
+      "label": "Nikoli imitation",
+      "group": "Experiments",
+      "blurb": "Big boards up to 20×36, arrows aimed at the nearer edge, and arrows with exactly the room they need.",
       "file": "data/experiment-nikoli.csv"
     }
   ],
-  "default": "large"
+  "default": "bonus-intro"
 }

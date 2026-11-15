@@ -26,7 +26,7 @@
     </header>
 
     <div class="nav">
-      <select id="book-select" aria-label="Choose a book"></select>
+      <button id="book-btn" class="book-btn" type="button" aria-haspopup="dialog" aria-label="Choose a book"></button>
       <div class="pager">
         <button id="prev-puz" class="step-btn" aria-label="Previous puzzle">‹</button>
         <input type="number" id="puz-num" min="1" aria-label="Puzzle number">
@@ -55,6 +55,16 @@
 
     <div id="board" aria-label="Yajilin board"></div>
     <div id="toast" class="toast" role="status" hidden></div>
+  </div>
+
+  <div id="book-modal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
+    <div class="modal-box modal-box--wide">
+      <div class="modal-header">
+        <h2 id="book-modal-title">Choose a book</h2>
+        <button data-close aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body bp-body" id="bp-body"><!-- filled in by js/main.js --></div>
+    </div>
   </div>
 
   <div id="browse-modal" class="modal-overlay modal-hidden" role="dialog" aria-modal="true" aria-labelledby="browse-modal-title">

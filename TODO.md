@@ -55,6 +55,7 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
 - Two-press (step-by-step) hints like polyomino-panel; a "peek" when the solver is stuck.
 - Edge crosses ("no segment here") as player marks.
 - Three lines into a cell: currently allowed and outlined in red. Alternative: drawing a third line removes the oldest.
+- Book picker modal: done (a button with the current book's name opens sections of books with blurbs and solved counts, like polyomino-panel's; the old dropdown is gone). Books removed from the list 2026-11-14 (files kept in `data/`): Large (draft), Large (Nikoli-style), Difficulty samples.
 - Puzzle selector modal: done (the Browse button next to the pager; it augments the prev/next arrows and the number box). A grid of numbered
   tiles for the current book, solved / in progress / current, a summary line, "First unsolved", and section headings by tier (if the book runs
   through tiers in order) or by board size. Modeled on polyomino-panel's `renderBrowse()`. Not done: a tier/size filter, keyboard navigation of tiles.

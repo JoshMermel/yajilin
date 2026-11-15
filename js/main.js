@@ -13,7 +13,9 @@ const store = {
 };
 
 const state = {
-  books: [],        // [{ id, name, file | puzzles }]
+  books: [],        // [{ id, name, label, group, blurb, file | puzzles }]
+  groups: [],       // [{ name, blurb, layout }]: the book picker's sections, in order
+  loaded: new Map(),// book id -> its raw puzzles (for the solved counts in the picker)
   book: null,       // the loaded book: { id, name, puzzles: [compiled puzzle] }
   idx: 0,
   P: null,
@@ -411,9 +413,12 @@ function showHint() {
 
 async function fetchBook(entry) {
   if (entry.puzzles) return entry.puzzles;
+  if (state.loaded.has(entry.id)) return state.loaded.get(entry.id);
   const res = await fetch(entry.file);
   if (!res.ok) throw new Error(`${entry.file}: ${res.status}`);
-  return parseCsv(await res.text());
+  const raw = parseCsv(await res.text());
+  state.loaded.set(entry.id, raw);
+  return raw;
 }
 
 async function openBook(id, idx = 0) {
@@ -421,7 +426,7 @@ async function openBook(id, idx = 0) {
   if (!entry) { $('puz-info').textContent = 'No puzzle books found.'; return; }
   const raw = await fetchBook(entry);
   state.book = { id: entry.id, name: entry.name, puzzles: raw.map(compile) };
-  $('book-select').value = entry.id;
+  syncBookButton();
   $('puz-total').textContent = state.book.puzzles.length;
   $('puz-num').max = state.book.puzzles.length;
   openPuzzle(Math.min(Math.max(idx, 0), state.book.puzzles.length - 1));
@@ -452,21 +457,22 @@ async function init() {
   let manifest = { books: [] };
   try { manifest = await (await fetch('data/manifest.json')).json(); } catch { /* none yet */ }
   state.books = manifest.books || [];
+  state.groups = manifest.groups || [];
   // On localhost, a git-ignored data/tmp.csv shows up as a scratch book (the borrowed calibration puzzles).
   if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
     try {
       const r = await fetch('data/tmp.csv', { method: 'HEAD' });
-      if (r.ok) state.books.push({ id: 'tmp', name: 'tmp (local scratch)', file: 'data/tmp.csv' });
+      if (r.ok) state.books.push({ id: 'tmp', name: 'tmp (local scratch)', label: 'Scratch', group: 'Local', blurb: 'The borrowed calibration puzzles (private, this machine only).', file: 'data/tmp.csv' });
     } catch { /* no scratch book */ }
   }
-  const sel = $('book-select');
-  sel.innerHTML = state.books.map((b) => `<option value="${b.id}">${b.name}</option>`).join('');
   if (!state.books.length) { $('puz-info').textContent = 'No puzzle books yet. Load a CSV in Settings.'; return; }
   const params = new URLSearchParams(location.search);
   let last = null;
   try { last = JSON.parse(store.get('yj_last') || 'null'); } catch { /* ignore */ }
-  const bookId = params.get('book') || (last && last.book) || manifest.default || state.books[0].id;
-  const idx = params.has('puzzle') ? +params.get('puzzle') - 1 : (last && last.book === bookId ? last.idx : 0);
+  let bookId = params.get('book') || (last && last.book) || manifest.default || state.books[0].id;
+  const known = state.books.some((b) => b.id === bookId);
+  if (!known) bookId = manifest.default || state.books[0].id;      // a remembered or linked book that no longer exists: start at the default
+  const idx = !known ? 0 : params.has('puzzle') ? +params.get('puzzle') - 1 : (last && last.book === bookId ? last.idx : 0);
   await openBook(bookId, Number.isFinite(idx) ? idx : 0);
 }
 
@@ -476,7 +482,6 @@ const step = (d) => { if (state.book) openPuzzle((state.idx + d + state.book.puz
 $('prev-puz').addEventListener('click', () => step(-1));
 $('next-puz').addEventListener('click', () => step(1));
 $('puz-num').addEventListener('change', (e) => { if (state.book) openPuzzle(Math.min(Math.max((+e.target.value || 1) - 1, 0), state.book.puzzles.length - 1)); });
-$('book-select').addEventListener('change', (e) => openBook(e.target.value, 0));
 $('undo-btn').addEventListener('click', undo);
 $('redo-btn').addEventListener('click', redo);
 $('reset-btn').addEventListener('click', reset);
@@ -546,6 +551,73 @@ const settingsModal = setupModal('settings-modal', 'settings-btn', () => {
   disarmClear();
 });
 setupModal('help-modal', 'help-btn');
+
+// --- Book picker: a button showing the current book opens a modal of every book, in sections, each with what it holds and how many of
+// its puzzles are solved (the same idea as polyomino-panel's). Books and sections come from data/manifest.json.
+function syncBookButton() {
+  const btn = $('book-btn');
+  btn.textContent = '';
+  const name = document.createElement('span');
+  name.className = 'book-btn-name';
+  const entry = state.books.find((b) => state.book && b.id === state.book.id);
+  name.textContent = entry ? entry.label || entry.name : 'Choose a book';
+  btn.append(name);
+}
+
+function renderBookPicker() {
+  const body = $('bp-body');
+  body.textContent = '';
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  // the manifest's sections in order, then any section a book names that the manifest does not list (a file loaded from disk, say)
+  const groups = [...state.groups];
+  for (const b of state.books) { const g = b.group || 'Your files'; if (!groups.some((x) => x.name === g)) groups.push({ name: g }); }
+  const counts = [];                                       // [{ book, node }]: solved counts to fill in once each book is loaded
+  for (const g of groups) {
+    const books = state.books.filter((b) => (b.group || 'Your files') === g.name);
+    if (!books.length) continue;
+    const sec = el('div', 'bp-section');
+    sec.append(el('h3', '', g.name));
+    if (g.blurb && books.length > 1) sec.append(el('p', 'bp-blurb', g.blurb));     // a lone book says enough in its own blurb
+    const tiles = g.layout === 'tiles' && books.length > 1;
+    const holder = tiles ? el('div', 'bp-grid') : sec;
+    for (const b of books) {
+      const current = state.book && b.id === state.book.id;
+      const node = el('button', (tiles ? 'bp-tile' : 'bp-book') + (current ? ' bp-current' : ''));
+      node.type = 'button';
+      if (current) node.setAttribute('aria-current', 'true');
+      const title = el('span', 'bp-book-title', b.label || b.name);
+      const count = el('span', 'bp-count', b.puzzles ? `${b.puzzles.length} puzzles` : '');
+      if (b.blurb) node.title = b.blurb;
+      if (tiles) {
+        const head = el('span', 'bp-tile-head');
+        head.append(title, count);
+        node.append(head);
+        if (b.blurb) node.append(el('span', 'bp-book-blurb', b.blurb));
+      } else {
+        const text = el('span', 'bp-book-text');
+        text.append(title);
+        if (b.blurb) text.append(el('span', 'bp-book-blurb', b.blurb));
+        node.append(text, count);
+      }
+      node.addEventListener('click', () => { bookModal.close(); if (!current) openBook(b.id, 0); });
+      holder.append(node);
+      counts.push({ book: b, count });
+    }
+    if (tiles) sec.append(holder);
+    body.append(sec);
+  }
+  requestAnimationFrame(() => body.querySelector('.bp-current')?.scrollIntoView({ block: 'center' }));
+  // how many of each book's puzzles are solved: needs the book's puzzles, so load them (small files, cached) and update the rows as they arrive
+  const solved = solvedSet();
+  for (const { book, count } of counts) {
+    fetchBook(book).then((raw) => {
+      const n = raw.filter((p) => solved.has(puzzleHash(p))).length;
+      count.textContent = n ? `${n} / ${raw.length} solved` : `${raw.length} puzzles`;
+      count.classList.toggle('bp-count-done', n > 0 && n === raw.length);
+    }).catch(() => { /* the count stays as it was */ });
+  }
+}
+const bookModal = setupModal('book-modal', 'book-btn', renderBookPicker);
 const browseModal = setupModal('browse-modal', 'browse-btn', renderBrowse);
 $('browse-jump-btn').addEventListener('click', () => {
   const solved = solvedSet();
@@ -585,7 +657,6 @@ $('csv-file').addEventListener('change', async (e) => {
   const id = `file:${f.name}`;
   state.books = state.books.filter((b) => b.id !== id);
   state.books.push({ id, name: f.name, puzzles });
-  $('book-select').innerHTML = state.books.map((b) => `<option value="${b.id}">${b.name}</option>`).join('');
   settingsModal.close();
   openBook(id, 0);
 });

@@ -27,8 +27,10 @@ fs.writeFileSync(`${root}data/${id}.csv`, toCsv(puzzles));
 
 const manifestPath = root + 'data/manifest.json';
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-manifest.books = (manifest.books || []).filter((b) => b.id !== id);
-manifest.books.push({ id, name, file: `data/${id}.csv` });
+manifest.books = manifest.books || [];
+const at = manifest.books.findIndex((b) => b.id === id);            // a rebuilt book keeps its place, group, label and blurb
+const entry = { ...(at >= 0 ? manifest.books[at] : {}), id, name, file: `data/${id}.csv` };
+if (at >= 0) manifest.books[at] = entry; else manifest.books.push(entry);
 if (!manifest.default) manifest.default = id;
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 console.log(`${puzzles.length} puzzles in data/${id}.csv: ${puzzles.map((p) => `${p.cols}x${p.rows} ${p.tier}`).join(', ')}`);

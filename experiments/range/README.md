@@ -10,8 +10,7 @@ Later rule additions (closingNeighbor, pairedEnds, segmentForcesLines, the range
 101 Nikoli-style puzzles (`--edge-bias 0.8 --shade 0.7`, the settings of the "Large (Nikoli-style)" book): 60 at 16x16, 41 at 20x32.
 Reproduce: `bash experiments/range/run.sh` (it fills `pools/`), then `node tools/range_report.mjs`.
 Full numbers, histograms and the sample table are in `report.md`; per-puzzle stats in `range.json`.
-`samples.csv` holds five puzzles per size at evenly spaced difficulty quantiles; the same file is the book "Difficulty samples" in the app
-(`data/range-samples.csv`). Names say `d5` (hardest) to `d1` (easiest) within their size.
+`samples.csv` holds five puzzles per size at evenly spaced difficulty quantiles; the same file is `data/range-samples.csv` (a book until 2026-11-14; no longer listed in the app's picker, the file is kept). Names say `d5` (hardest) to `d1` (easiest) within their size.
 
 | size | puzzles | score min / median / max | max/min | sd | per cell |
 | --- | --- | --- | --- | --- | --- |
