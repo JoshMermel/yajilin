@@ -38,6 +38,7 @@
 
     <div class="infobar">
       <div id="puz-info" class="puz-info"></div>
+      <button id="rotate-btn" class="ghost rotate-btn" type="button" aria-label="Turn the board a quarter turn" title="Turn the board a quarter turn" hidden>⟳ Turn</button>
       <div id="status" class="status" role="status" aria-live="polite"></div>
     </div>
 
@@ -141,6 +142,16 @@
             </div>
             <div class="toggle-switch">
               <input type="checkbox" id="setting-color-lines" role="switch">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </div>
+          </label>
+          <label class="settings-row">
+            <div class="settings-row-text">
+              <span class="settings-label">Turn tall boards sideways</span>
+              <span class="settings-desc">Show a board that is taller than it is wide a quarter turn, when that gives bigger cells in this window (a wide screen with a 20 × 36 board). Your progress is the same either way; the Turn button above the board turns one puzzle by hand</span>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="setting-auto-rotate" role="switch">
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </div>
           </label>

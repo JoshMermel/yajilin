@@ -1,4 +1,5 @@
 // App controller: books and puzzle selection, marks, undo/redo, persistence, checks, settings.
+import { rotated, turnMarks } from './rotate.js';
 import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, initialState, E_ON, SHADED, LOOP, UNKNOWN } from './logic.js';
 import { nextSteps, RULES } from './rating.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
@@ -33,6 +34,7 @@ const settings = {
   colorLines: store.get('yj_colorLines') === '1', // color each separate path differently
   labels: store.get('yj_labels') === '1',         // number the rows and columns
   autoDots: store.get('yj_autoDots') === '1',     // automatic dots: next to a box, and along a satisfied clue
+  autoRotate: store.get('yj_autoRotate') !== '0', // show a tall board sideways when that fits the window better (js/rotate.js)
 };
 
 const board = new Board($('board'), {
@@ -241,21 +243,25 @@ function updateButtons() {
 
 const saveKey = (P) => `yj_save_${puzzleHash(P)}`;
 
+// progress is stored in the puzzle's ORIGINAL orientation, whichever way the board is shown (js/rotate.js)
 function save() {
-  const P = state.P, m = state.marks;
-  if (isPristine(m)) { store.del(saveKey(P)); return; }
+  const P = state.P;
+  const m = P.rotated ? turnMarks(state.marks, state.orig.rows, state.orig.cols, false) : state.marks;
+  if (isPristine(state.marks)) { store.del(saveKey(P)); return; }
   store.set(saveKey(P), JSON.stringify({ c: Array.from(m.cells).join(''), e: Array.from(m.edges).join(''), a: Array.from(m.auto).join('') }));
 }
 
 function load(P) {
   let m = null;
+  const O = P.rotated ? state.orig : P;       // the saved marks are in the original's orientation
   try {
     const s = JSON.parse(store.get(saveKey(P)) || 'null');
-    if (s && s.c.length === P.N && s.e.length === P.numEdges) {
-      m = emptyMarks(P);
-      for (let i = 0; i < P.N; i++) m.cells[i] = +s.c[i];
-      for (let i = 0; i < P.numEdges; i++) m.edges[i] = +s.e[i];
-      if (s.a && s.a.length === P.N) for (let i = 0; i < P.N; i++) m.auto[i] = +s.a[i];
+    if (s && s.c.length === O.N && s.e.length === O.numEdges) {
+      m = emptyMarks(O);
+      for (let i = 0; i < O.N; i++) m.cells[i] = +s.c[i];
+      for (let i = 0; i < O.numEdges; i++) m.edges[i] = +s.e[i];
+      if (s.a && s.a.length === O.N) for (let i = 0; i < O.N; i++) m.auto[i] = +s.a[i];
+      if (P.rotated) m = turnMarks(m, O.rows, O.cols, true);
     }
   } catch { m = null; /* corrupt save: start fresh */ }
   if (!m) return freshMarks(P);
@@ -453,15 +459,16 @@ function openPuzzle(idx) {
   const book = state.book;
   if (!book || !book.puzzles.length) return;
   state.idx = idx;
-  const P = state.P = book.puzzles[idx];
+  state.flip = false;
+  const orig = state.orig = book.puzzles[idx];
+  const P = state.P = shownPuzzle(orig);
   state.marks = load(P);
   state.undo = []; state.redo = [];
   state.solved = false;
   board.setPuzzle(P);
   fitBoard();
   $('puz-num').value = idx + 1;
-  const tier = P.tier ? ` · ${P.tier}` : '';
-  $('puz-info').textContent = `${P.name} · ${P.cols}×${P.rows}${tier}`;
+  showInfo();
   store.set('yj_last', JSON.stringify({ book: book.id, idx }));
   const url = new URL(location.href);
   url.searchParams.set('book', book.id); url.searchParams.set('puzzle', idx + 1);
@@ -469,6 +476,42 @@ function openPuzzle(idx) {
   refresh();
   state.solved = isSolved(); // opening an already-solved save should not count as a fresh solve
 }
+
+function showInfo() {
+  const P = state.P, tier = P.tier ? ` · ${P.tier}` : '';
+  $('puz-info').textContent = `${P.name} · ${P.cols}×${P.rows}${tier}`;
+  $('rotate-btn').hidden = !state.orig || state.orig.rows === state.orig.cols && !state.flip;   // a square board looks the same turned
+}
+
+/** How big a cell could be if a rows x cols board had the window to itself (the width AND the height count). */
+function cellFit(rows, cols) {
+  const off = settings.labels ? 16 : 0;
+  const w = Math.min(window.innerWidth - 24, 1500) - off, h = window.innerHeight - 230;
+  return Math.min(46, w / (cols + 0.5), h / (rows + 0.5));
+}
+/** The puzzle as it is shown: a quarter turn if "turn tall boards sideways" is on and that gives bigger cells, flipped by the Rotate button. */
+function shownPuzzle(orig) {
+  const sideways = settings.autoRotate && orig.rows !== orig.cols && cellFit(orig.cols, orig.rows) > cellFit(orig.rows, orig.cols) * 1.1;
+  return sideways !== !!state.flip ? rotated(orig, puzzleHash(orig)) : orig;
+}
+/** Show the current puzzle the other way up (or back), keeping the marks and the undo history. */
+function reorient() {
+  if (!state.orig) return;
+  const P = shownPuzzle(state.orig);
+  if (P === state.P) return;
+  const turn = (m) => turnMarks(m, state.orig.rows, state.orig.cols, P.rotated);   // from the old orientation to the new
+  const back = (m) => (state.P.rotated ? turnMarks(m, state.orig.rows, state.orig.cols, false) : m);
+  const conv = (m) => { const o = back(m); return P.rotated ? turn(o) : o; };
+  state.marks = conv(state.marks);
+  state.undo = state.undo.map(conv); state.redo = state.redo.map(conv);
+  state.P = P; state.hint = null; hideHintToast();
+  board.setPuzzle(P);
+  fitBoard();
+  showInfo();
+  refresh();
+}
+let resizeTimer = 0;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(reorient, 200); });
 
 async function init() {
   let manifest = { books: [] };
@@ -644,6 +687,9 @@ $('setting-dark-mode').addEventListener('change', (e) => {
   document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
   store.set('yj_dark', e.target.checked ? '1' : '0');
 });
+$('setting-auto-rotate').checked = settings.autoRotate;
+$('setting-auto-rotate').addEventListener('change', (e) => { settings.autoRotate = e.target.checked; store.set('yj_autoRotate', e.target.checked ? '1' : '0'); reorient(); });
+$('rotate-btn').addEventListener('click', () => { state.flip = !state.flip; reorient(); });
 for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_colorLines'], ['setting-labels', 'labels', 'yj_labels'], ['setting-auto-dots', 'autoDots', 'yj_autoDots']]) {
   const el = $(id);
   el.checked = settings[key];

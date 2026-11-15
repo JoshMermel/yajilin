@@ -103,6 +103,7 @@ button.ghost { background: transparent; }
 
 .infobar { display: flex; justify-content: space-between; align-items: baseline; min-height: 1.8rem; color: var(--text-secondary); }
 .status { font-weight: 600; }
+.rotate-btn { padding: 0.15rem 0.6rem; font-size: 0.85rem; margin: 0 0.5rem; }
 .status.solved { color: var(--color-solved); }
 .controls { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 6px 0 10px; }
 .btn-group { display: flex; gap: 6px; }

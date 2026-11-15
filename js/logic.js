@@ -361,6 +361,7 @@ export function parseCsv(text) {
 
 /** A short stable hash of a puzzle's identity (size + clues), for save keys that survive renumbering. */
 export function puzzleHash(p) {
+  if (p.hashKey) return p.hashKey;   // a rotated twin of a puzzle (js/rotate.js) keeps the original's identity
   const s = `${p.rows}x${p.cols}|${cluesToString(p.clues)}` + (p.boxes && p.boxes.length ? `|${boxesToString(p.boxes)}` : '');
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
