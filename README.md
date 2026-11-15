@@ -12,7 +12,7 @@ orthogonally. Every cell is a clue, shaded, or on the loop.
 | Part | State |
 | --- | --- |
 | Exact solver / uniqueness counter (`js/logic.js`) | done, cross-checked against a brute-force reference (`tests/`) |
-| Browser GUI (`index.html`, `js/board.js`, `js/main.js`) | playable: tap to cycle empty/dot/shaded, drag to draw the loop, undo/redo, saves, "Correct so far?" |
+| Browser GUI (`index.html`, `js/board.js`, `js/main.js`) | playable: tap to cycle empty/dot/shaded, drag to draw the loop, undo/redo, saves, "Correct so far?", Hint, a Browse modal (grid of the book's puzzles: solved / in progress / current) next to the prev/next arrows |
 | Human-style scorer (`js/rating.js`) | first rule table done (below); solves all 12 borrowed puzzles; weights and tiers not yet calibrated with Josh |
 | Hint button | done: shows the draft solver's next step (rule, tier, weight, explanation, ghost marks); says when it is stuck |
 | Generator (`js/generator.js`, `tools/generate.mjs`) | done up to 20x36: a unique-by-construction loop (`tightLoop`), then clues aimed so the human rules solve it; 14x14 in about a second, 20x36 in under a minute |

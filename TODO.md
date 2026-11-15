@@ -42,6 +42,12 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
   pruning pass); *Symmetric* (rotationally symmetric loop and clues); *Zeros only* style puzzles (clues are all 0s and 1s: a gentle intro);
   *Giants* (20x36); *Beginner tour* (small boards, one new rule per puzzle, which doubles as the tutorial); *Mixed* (the daily-style
   Easy/Medium/Hard split by board size). Like polyomino-panel's Bonus books these are built from the same pools with their own recipe.
+- Bonus book ideas from Josh (2026-11-14), for future exploration:
+  - *All zeros*: every clue is a 0 arrow (no boxes counted at all; the puzzle is pure loop reasoning plus where boxes can hide).
+  - *Big numbers only*: the smallest number on any arrow is large, maybe > 0 or even > 1 (no cheap 0 and 1 clues to lean on; the existing
+    `numbers: 'big'` style weighting is a start, but a hard floor on the number is a different constraint).
+  - *Diagonal arrows* (maybe?): arrows may also point along diagonals. Needs a new ray definition in the logic, the rules (ranges become
+    diagonal lines, boxes on a diagonal can touch only at corners, which is allowed) and the GUI; a much bigger change than the others.
 
 ## GUI ideas not done yet
 
@@ -49,6 +55,14 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
 - Two-press (step-by-step) hints like polyomino-panel; a "peek" when the solver is stuck.
 - Edge crosses ("no segment here") as player marks.
 - Three lines into a cell: currently allowed and outlined in red. Alternative: drawing a third line removes the oldest.
+- Puzzle selector modal: done (the Browse button next to the pager; it augments the prev/next arrows and the number box). A grid of numbered
+  tiles for the current book, solved / in progress / current, a summary line, "First unsolved", and section headings by tier (if the book runs
+  through tiers in order) or by board size. Modeled on polyomino-panel's `renderBrowse()`. Not done: a tier/size filter, keyboard navigation of tiles.
+- Cell and line interaction (Josh, 2026-11-14; to think through after the generator experiments). The click cycle is empty -> dot -> box.
+  Open questions: (1) may a cell holding a line be promoted to a box (the line would be erased, or the click refused)?
+  (2) does it matter whether the cell had a dot before the line went through it (a dot the player placed, as a statement, versus no mark)?
+  Things to weigh: dots are the player's own claim "this cell is on the loop"; a line through a cell implies the same claim; promoting to a box
+  contradicts it, so it can be an error-correction shortcut (fewer clicks) or an easy way to destroy work by accident; undo covers the latter.
 
 ## Other grids (hex)
 

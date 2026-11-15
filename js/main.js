@@ -496,6 +496,49 @@ function setupModal(modalId, openBtnId, onOpen) {
 }
 const modalOpen = () => modals.some(({ modal }) => !modal.classList.contains('modal-hidden'));
 
+// --- Puzzle selector (Browse): a grid of tiles for the current book that augments the prev/next arrows and the number box
+// (the same idea as polyomino-panel's Browse). A tile is solved, in progress (the saved game is not pristine) or not started.
+const hasSave = (P) => store.get(saveKey(P)) !== null;
+function renderBrowse() {
+  const book = state.book;
+  if (!book) return;
+  const solved = solvedSet();
+  const isDone = (P) => solved.has(puzzleHash(P));
+  const grid = $('browse-grid');
+  grid.textContent = '';
+  const doneCount = book.puzzles.filter(isDone).length;
+  $('browse-summary').textContent = `${book.name}: ${doneCount} of ${book.puzzles.length} solved`;
+  // Headings only where they help: tiers if the book runs through them in order, otherwise board sizes if it runs through those in order.
+  const TIER_ORDER = ['Beginner', 'Medium', 'Hard', 'Expert'];
+  const inOrder = (vals) => new Set(vals).size > 1 && vals.every((v, i) => i === 0 || v >= vals[i - 1]);
+  const byTier = book.puzzles.every((P) => P.tier) && inOrder(book.puzzles.map((P) => TIER_ORDER.indexOf(P.tier)));
+  const bySize = !byTier && inOrder(book.puzzles.map((P) => P.rows * P.cols));
+  const section = (P) => (byTier ? P.tier : bySize ? `${P.cols}×${P.rows}` : null);
+  let current = null;
+  book.puzzles.forEach((P, i) => {
+    const sec = section(P);
+    if (sec && sec !== current) {
+      current = sec;
+      const head = document.createElement('div');
+      head.className = 'browse-section-header';
+      head.innerHTML = '<span class="browse-section-name"></span>';
+      head.firstChild.textContent = sec;
+      grid.append(head);
+    }
+    const done = isDone(P), started = !done && hasSave(P);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'browse-tile' + (done ? ' bt-solved' : started ? ' bt-in-progress' : '') + (i === state.idx ? ' bt-current' : '');
+    b.textContent = i + 1;
+    const what = `${P.name} · ${P.cols}×${P.rows}${P.tier ? ' · ' + P.tier : ''}`;
+    b.title = what;
+    b.setAttribute('aria-label', `Puzzle ${i + 1}, ${what}${done ? ' (solved)' : started ? ' (in progress)' : ''}`);
+    b.addEventListener('click', () => { browseModal.close(); openPuzzle(i); });
+    grid.append(b);
+  });
+  requestAnimationFrame(() => grid.querySelector('.bt-current')?.scrollIntoView({ block: 'nearest' }));   // the modal is shown right after this runs
+}
+
 const clearBtn = $('clear-saves-btn');
 const disarmClear = () => { clearBtn.classList.remove('danger-btn--confirm'); clearBtn.textContent = 'Clear saves'; };
 const settingsModal = setupModal('settings-modal', 'settings-btn', () => {
@@ -503,6 +546,13 @@ const settingsModal = setupModal('settings-modal', 'settings-btn', () => {
   disarmClear();
 });
 setupModal('help-modal', 'help-btn');
+const browseModal = setupModal('browse-modal', 'browse-btn', renderBrowse);
+$('browse-jump-btn').addEventListener('click', () => {
+  const solved = solvedSet();
+  const next = state.book && state.book.puzzles.findIndex((P) => !solved.has(puzzleHash(P)));
+  browseModal.close();
+  if (next >= 0) openPuzzle(next); else toast('You have solved every puzzle in this book!');
+});
 
 $('setting-dark-mode').addEventListener('change', (e) => {
   document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
