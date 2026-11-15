@@ -1,5 +1,5 @@
 // App controller: books and puzzle selection, marks, undo/redo, persistence, checks, settings.
-import { rotated, turnMarks } from './rotate.js';
+import { rotated, turnMarks, realEdges } from './rotate.js';
 import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, initialState, E_ON, SHADED, LOOP, UNKNOWN } from './logic.js';
 import { nextSteps, RULES } from './rating.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
@@ -259,7 +259,8 @@ function load(P) {
     if (s && s.c.length === O.N && s.e.length === O.numEdges) {
       m = emptyMarks(O);
       for (let i = 0; i < O.N; i++) m.cells[i] = +s.c[i];
-      for (let i = 0; i < O.numEdges; i++) m.edges[i] = +s.e[i];
+      const real = realEdges(O.rows, O.cols);       // saves written by an older build may hold segments on slots that are no edge (a turning bug): drop them
+      for (let i = 0; i < O.numEdges; i++) m.edges[i] = real[i] ? +s.e[i] : 0;
       if (s.a && s.a.length === O.N) for (let i = 0; i < O.N; i++) m.auto[i] = +s.a[i];
       if (P.rotated) m = turnMarks(m, O.rows, O.cols, true);
     }

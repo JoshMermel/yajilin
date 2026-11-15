@@ -12,9 +12,19 @@ export function cellMap(rows, cols) {
   return m;
 }
 
-/** Same for segments: edge 2i is cell i's right edge, 2i + 1 its bottom edge; the rotated board has `rows` columns. */
+/** Which of a rows x cols board's 2 * rows * cols edge SLOTS are real edges: 1 where it is (no right edge in the last column, no bottom edge in the last row). */
+export function realEdges(rows, cols) {
+  const m = new Uint8Array(2 * rows * cols);
+  for (let i = 0; i < rows * cols; i++) {
+    if (i % cols !== cols - 1) m[2 * i] = 1;
+    if (i + cols < rows * cols) m[2 * i + 1] = 1;
+  }
+  return m;
+}
+
+/** Same for segments: edge 2i is cell i's right edge, 2i + 1 its bottom edge; the rotated board has `rows` columns. Slots that are no real edge map to -1. */
 export function edgeMap(rows, cols) {
-  const cm = cellMap(rows, cols), m = new Int32Array(2 * rows * cols);
+  const cm = cellMap(rows, cols), m = new Int32Array(2 * rows * cols).fill(-1);       // -1: the slot is no real edge (see realEdges), it goes nowhere
   for (let i = 0; i < rows * cols; i++) {
     for (const [kind, j] of [[0, i + 1], [1, i + cols]]) {
       if (kind === 0 && (i % cols) === cols - 1) continue;
@@ -53,8 +63,9 @@ export function rotated(orig, hash) {
 }
 
 const permute = (arr, map, inverse) => {
-  const out = new arr.constructor(arr.length);
-  if (inverse) for (let i = 0; i < map.length; i++) out[i] = arr[map[i]]; else for (let i = 0; i < map.length; i++) out[map[i]] = arr[i];
+  const out = new arr.constructor(arr.length);                 // slots with map -1 (edge slots that are no real edge) stay 0 both ways
+  if (inverse) { for (let i = 0; i < map.length; i++) if (map[i] >= 0) out[i] = arr[map[i]]; }
+  else for (let i = 0; i < map.length; i++) if (map[i] >= 0) out[map[i]] = arr[i];
   return out;
 };
 
