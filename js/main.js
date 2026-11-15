@@ -4,6 +4,7 @@ import { nextSteps, RULES } from './rating.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
 import { Board } from './board.js';
 import { clueStates } from './clues.js';
+import { nextMark } from './marks.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -120,7 +121,10 @@ function cycleCell(i) {
   const P = state.P;
   if (P.clueAt[i] >= 0 || isBox(i)) return;
   const m = state.marks, before = state.pending || snapshot();
-  const next = [2, 0, 1][m.cells[i]]; // empty -> dot -> shaded -> empty
+  // empty -> dot -> box -> empty; a cell a segment passes through is already on the loop, so it goes straight to a box (see js/marks.js)
+  let lined = false;
+  for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && m.edges[x]) lined = true; }
+  const next = nextMark(m.cells[i], lined);
   if (next === 1) shade(i); else { m.cells[i] = next; m.auto[i] = 0; }
   reconcile(P, before, m);
   refresh();

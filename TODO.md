@@ -59,11 +59,13 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
 - Puzzle selector modal: done (the Browse button next to the pager; it augments the prev/next arrows and the number box). A grid of numbered
   tiles for the current book, solved / in progress / current, a summary line, "First unsolved", and section headings by tier (if the book runs
   through tiers in order) or by board size. Modeled on polyomino-panel's `renderBrowse()`. Not done: a tier/size filter, keyboard navigation of tiles.
-- Cell and line interaction (Josh, 2026-11-14; to think through after the generator experiments). The click cycle is empty -> dot -> box.
-  Open questions: (1) may a cell holding a line be promoted to a box (the line would be erased, or the click refused)?
-  (2) does it matter whether the cell had a dot before the line went through it (a dot the player placed, as a statement, versus no mark)?
-  Things to weigh: dots are the player's own claim "this cell is on the loop"; a line through a cell implies the same claim; promoting to a box
-  contradicts it, so it can be an error-correction shortcut (fewer clicks) or an easy way to destroy work by accident; undo covers the latter.
+- Cell and line interaction (Josh, 2026-11-14): DONE (agreed 2026-11-14; `js/marks.js`). Today the tap cycle is empty -> dot -> box -> empty, a line
+  passing through a cell leaves its mark alone (a dot under a line is hidden), and shading a cell erases the segments at it (so a lined cell
+  already becomes a box after TWO taps, the first of which is invisible because the new dot hides under the line). Proposal: a cell with a
+  segment is already "on the loop", so the dot state is skipped for it: tap on a lined cell = box (its segments are erased, one undo step
+  brings everything back), then empty, then the normal cycle. Whether a dot was there before the line does not matter: dots are the player's
+  claims, kept (hidden) under lines, replaced when the cell becomes a box, never restored automatically (undo does that). Right-click already
+  toggles a box on any cell. Open: erase silently (proposed, undo covers it) or only when the cell has at most one segment.
 
 ## Other grids (hex)
 
