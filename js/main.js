@@ -3,6 +3,7 @@ import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, init
 import { nextSteps, RULES } from './rating.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
 import { Board } from './board.js';
+import { clueStates } from './clues.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -184,11 +185,7 @@ function reset() {
 
 function analyse() {
   const P = state.P, m = state.marks;
-  const clueState = P.clues.map((cl, k) => {
-    let s = 0;
-    for (const i of P.rays[k]) if (m.cells[i] === 1) s++;
-    return s > cl.n ? 'bad' : s === cl.n ? 'ok' : '';
-  });
+  const clueState = clueStates(P, m);
   const badShaded = new Set();
   for (let i = 0; i < P.N; i++) {
     if (m.cells[i] !== 1) continue;
