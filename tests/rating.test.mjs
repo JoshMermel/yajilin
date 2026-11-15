@@ -485,15 +485,18 @@ test('the newer rules reach the stored solution on real generated puzzles (sound
 
 const CLUES06 = [10, 10, '0:4:L:1;0:7:D:1;2:2:R:1;2:4:R:1;2:7:L:0;3:0:D:1;3:5:D:1;4:0:R:2;4:2:R:2;4:5:L:1;4:6:D:0;7:4:R:0;8:1:U:0;8:2:D:0;8:4:R:0;9:7:L:0'];
 
-test('pairedEnds with four open ends: the two lines leaving the sealed-off area end up as one line', () => {
-  // A1-D2 has four open ends (B1 and B2 are the ends of one little path, so they cannot join each other); A2 and D2 must
-  // end up joined through it, so the far ends D6 and E6 cannot be joined to each other, and later F7 and F8 cannot either.
+test('pairedEnds with several open ends: the two lines leaving the sealed-off area end up as one line', () => {
+  // A1-D2 has open ends B1, B2 (one little path: they cannot join each other), A2 and D2: whatever the pairing, A2's line and D2's
+  // line end up as one line. So its far ends cannot be joined to each other, D6 goes down, F7 and F8 cannot be joined, and H7, whose
+  // only two ways out are the (virtual) ends H6 and I7 of one line, is a box.
   const P = stuckPuzzle('d06', CLUES06[0], CLUES06[1], CLUES06[2]);
   const r = rate(P);
-  const offs = r.steps.filter((s) => s.rule === 'pairedEnds').flatMap((s) => s.sets.filter(([k, i, v]) => k === 'e' && v === E_OFF).map(([, i]) => i));
-  const d6 = cellIdx(P, 'D6'), f7 = cellIdx(P, 'F7');
-  assert.ok(offs.includes(2 * d6), 'D6-E6 should be ruled out');
-  assert.ok(offs.includes(2 * f7 + 1), 'F7-F8 should be ruled out');
+  const steps = r.steps.filter((s) => s.rule === 'pairedEnds');
+  const sets = steps.flatMap((s) => s.sets.map(([k, i, v]) => `${k}${i}=${v}`));
+  const d6 = cellIdx(P, 'D6'), f7 = cellIdx(P, 'F7'), h7 = cellIdx(P, 'H7');
+  assert.ok(sets.includes(`e${2 * d6}=${E_OFF}`) || sets.includes(`e${2 * d6 + 1}=${E_ON}`), 'D6 should be sent down');
+  assert.ok(sets.includes(`e${2 * f7 + 1}=${E_OFF}`), 'F7-F8 should be ruled out');
+  assert.ok(sets.includes(`c${h7}=${SHADED}`), 'H7 should be a box');
 });
 
 const CLUES03 = [16, 16, '0:7:R:1;0:10:L:0;0:14:L:0;1:2:D:1;1:3:D:0;1:4:D:2;2:2:R:1;2:13:D:3;3:4:L:1;3:12:L:3;4:2:L:1;4:7:D:4;4:8:L:1;4:13:D:2;4:15:L:1;5:6:R:3;6:4:D:2;6:10:D:1;7:3:R:4;7:8:L:2;7:9:L:2;7:12:D:0;7:14:D:0;8:1:U:1;8:8:U:0;8:11:L:0;10:2:R:1;10:5:U:2;10:13:U:3;11:11:L:2;11:12:U:0;12:2:R:0;12:9:L:0;12:15:U:3;13:4:U:1;13:6:R:0;13:11:L:0;14:9:L:1;15:2:U:1;15:13:U:3'];

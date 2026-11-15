@@ -718,6 +718,7 @@ function pairedEnds(P, st) {
     if ([...far.values()].some((w) => w < 0)) continue;
     const outsideOf = (roots) => { for (let i = 0; i < P.N; i++) if (st.cell[i] === LOOP && !inGroup.has(i) && !roots.has(path(i))) return true; return false; };
     let common = null;      // "a,b|outside": pairs of free ends that every valid pairing leaves as the two ends of one line
+    const linkRoots = new Map();   // for each such pair: the paths of the chains that join them, over every valid pairing
     let valid = 0;
     for (const m of perfectMatchings(es)) {
       const partner = new Map();
@@ -748,6 +749,11 @@ function pairedEnds(P, st) {
       if (cycle.size && outsideOf(cycle)) continue;
       valid++;
       const keys = new Set(chains.map((c) => `${Math.min(c.a, c.b)},${Math.max(c.a, c.b)}|${outsideOf(c.roots) ? 1 : 0}`));
+      for (const c of chains) {
+        const k = `${Math.min(c.a, c.b)},${Math.max(c.a, c.b)}`;
+        if (!linkRoots.has(k)) linkRoots.set(k, new Set());
+        for (const r of c.roots) linkRoots.get(k).add(r);
+      }
       common = common === null ? keys : new Set([...common].filter((k) => keys.has(k)));
     }
     if (!valid || !common) continue;
@@ -756,10 +762,47 @@ function pairedEnds(P, st) {
       if (outside !== '1') continue;
       const [a, b] = ab.split(',').map(Number);
       if (inGroup.has(a) || inGroup.has(b)) continue;
-      for (let d = 0; d < 4; d++) {
+      // a and b are the two ends of one line, whatever the pairing: everything that would join them (or only be able to) is out
+      const info = { pair: es.slice(0, 2), ends: es, far: [a, b], cells: group, k: es.length };
+      const waysOut = (c, ignore = -1) => {
+        const ex = [];
+        for (let d = 0; d < 4; d++) {
+          const x = P.ed[c * 4 + d];
+          const j = P.nb[c * 4 + d];
+          if (x < 0 || j === ignore || st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
+          if (st.e[x] !== E_ON && onCount(P, st, j) >= 2) continue;
+          ex.push({ x, j });
+        }
+        return ex;
+      };
+      const isAB = (e) => e.length >= 2 && [a, b].every((t) => e.some((o) => o.j === t));
+      for (let d = 0; d < 4; d++) {                      // a segment between them
         const x = P.ed[a * 4 + d];
         if (x < 0 || P.nb[a * 4 + d] !== b || st.e[x] !== E_UNKNOWN) continue;
-        out.push(firing([setEdge(x, E_OFF)], { edge: x, pair: es.slice(0, 2), ends: es, far: [a, b], cells: group, k: es.length }));
+        out.push(firing([setEdge(x, E_OFF)], { ...info, kind: 'edge', edge: x }));
+      }
+      for (let c = 0; c < P.N; c++) {
+        if (c === a || c === b || inGroup.has(c)) continue;
+        if (st.cell[c] === UNKNOWN && onCount(P, st, c) === 0) {
+          const ex = waysOut(c);
+          if (ex.length === 2 && isAB(ex)) out.push(firing([setCell(c, SHADED)], { ...info, kind: 'box', cell: c }));   // its only two ways out
+          for (let d = 0; d < 4; d++) {                  // a box here would leave a neighbour with only those two ways out
+            const n = P.nb[c * 4 + d];
+            if (n < 0 || n === a || n === b || st.cell[n] !== UNKNOWN || onCount(P, st, n) > 0) continue;
+            const exn = waysOut(n, c);
+            if (exn.length === 2 && isAB(exn)) { out.push(firing([setCell(c, LOOP)], { ...info, kind: 'dot', cell: c, neighbor: n })); break; }
+          }
+        } else if (st.cell[c] === LOOP && onCount(P, st, c) === 0) {
+          const ex = waysOut(c);
+          // (c itself lies on the loop that would close, so it must not be what makes the loop "not finished": another loop cell must lie outside)
+          const roots = linkRoots.get(ab);
+          let other = false;
+          for (let i = 0; i < P.N && !other; i++) if (i !== c && st.cell[i] === LOOP && !inGroup.has(i) && !roots.has(path(i))) other = true;
+          if (ex.length === 3 && isAB(ex) && other) {    // three ways out, two of them lead to a and b: it uses the third
+            const third = ex.find((o) => o.j !== a && o.j !== b);
+            out.push(firing([setEdge(third.x, E_ON)], { ...info, kind: 'third', cell: c, third: third.j }));
+          }
+        }
       }
     }
   }

@@ -1,6 +1,6 @@
 // Where does the human-style solver get stuck? Export every such position as JSON, then render images with tools/render_stuck.py.
 //
-//   node tools/stuck_report.mjs [--out tools/calibration/stuck] [--derive 30] [--max-undecided 14] [--seed 1] [--from data/large.csv,...]
+//   node tools/stuck_report.mjs [--min-cells 100] [--max-cells N] [--no-existing] [--out tools/calibration/stuck] [--derive 30] [--max-undecided 14] [--seed 1] [--from data/large.csv,...]
 //
 // Cases: (1) every puzzle in data/ and tools/library/ the non-lookahead rules cannot finish; (2) --derive N more, made from our
 // own generated puzzles by removing clues one at a time (a removed clue's cell becomes a box the solver must find) for as long as
@@ -20,6 +20,7 @@ const root = new URL('..', import.meta.url).pathname;
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const outDir = path.resolve(root, arg('out', 'tools/calibration/stuck'));
 const derive = +arg('derive', 30), maxUnd = +arg('max-undecided', 14), seed = +arg('seed', 1), minutes = +arg('minutes', 8);
+const minCells = +arg('min-cells', 100), maxCells = +arg('max-cells', 1e9), noExisting = process.argv.includes('--no-existing'), scan = process.argv.includes('--scan');   // --scan: look for already-stuck puzzles in --from instead of in data/
 const t0 = Date.now();
 const sources = arg('from', 'data/large.csv,data/large-nk.csv,data/bonus-longway.csv,data/bonus-onedir.csv,data/bonus-bignum.csv,data/experiment-tall.csv,data/range-samples.csv').split(',');
 fs.mkdirSync(path.join(outDir, 'json'), { recursive: true });
@@ -101,7 +102,7 @@ function reportOf(name, source, p) {
 const cases = [];
 // 1. puzzles that are already stuck
 const files = [path.join(root, 'data/tmp.csv'), ...fs.readdirSync(path.join(root, 'data')).filter((f) => f.endsWith('.csv') && f !== 'tmp.csv').map((f) => path.join(root, 'data', f))];
-for (const f of files) for (const p of parseCsv(fs.readFileSync(f, 'utf8'))) {
+for (const f of scan ? sources.map((q) => path.join(root, q)) : noExisting ? [] : files) for (const p of parseCsv(fs.readFileSync(f, 'utf8')).filter((q) => q.rows * q.cols >= minCells && q.rows * q.cols <= maxCells)) {
   const rep = reportOf(p.name, path.relative(root, f), p);
   if (rep) cases.push(rep);
 }
@@ -110,7 +111,7 @@ console.log(`${cases.length} puzzle(s) already stuck`);
 // 2. derive near-stuck positions by removing clues while the puzzle stays unique
 const pool = [];
 const seenStuck = new Set();
-for (const s of sources) { const f = path.join(root, s); if (fs.existsSync(f)) pool.push(...parseCsv(fs.readFileSync(f, 'utf8')).filter((p) => p.rows * p.cols >= 100)); }
+for (const s of sources) { const f = path.join(root, s); if (fs.existsSync(f)) pool.push(...parseCsv(fs.readFileSync(f, 'utf8')).filter((p) => p.rows * p.cols >= minCells && p.rows * p.cols <= maxCells)); }
 let attempts = 0;
 while (cases.filter((c) => c.source === 'derived').length < derive && attempts < derive * 40 && pool.length && Date.now() - t0 < minutes * 60000) {
   attempts++;
