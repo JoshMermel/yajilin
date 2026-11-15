@@ -35,6 +35,7 @@
 //                    the loop early, two far ends always end up as the ends of one line, so no segment joins them
 //   crossingParity   the loop crosses the border of any rectangle an even number of times: when all but one crossing is
 //                    settled, the last is forced
+//   clueTight        a clue needs r boxes and has exactly 2r-1 open cells in a run: boxes on every other cell (Beginner)
 //   rangeSameOne     the special case of rangeSame with exactly one cell between the clues (Beginner)
 //   rangeSame        two clues in a line point the same way: the cells between them hold (first - second) shaded cells
 //   rangeFacingKnown two clues point at each other and one of the three parts of the line (between them, beyond either)
@@ -402,6 +403,32 @@ export function rangeDeduce(P, st, cells, kmin, kmax) {
     else if (with_ === 0) sets.push(setCell(elig[p], LOOP));
   }
   return sets;
+}
+
+/**
+ * The special case of cluePlacements a person sees at a glance: a clue that still needs r >= 2 boxes and has exactly one run of
+ * 2r-1 cells that can hold a box (not touching a box, not a dot or a clue). Boxes cannot touch, so they sit on every other cell of the
+ * run, and the cells between them are dots. (Nikoli's setters love these: an arrow k boxes strong with just enough room.)
+ */
+function clueTight(P, st) {
+  const out = [];
+  P.clues.forEach((cl, k) => {
+    if (cl.n < 2) return;
+    let boxes = 0, run = [];
+    const runs = [];
+    for (const i of P.rays[k]) {
+      if (st.cell[i] === SHADED) boxes++;
+      if (st.cell[i] === UNKNOWN && !touchesShaded(P, st, i)) {
+        if (run.length && !adjacent(P, run[run.length - 1], i)) { runs.push(run); run = []; }   // rays skip other clue cells: a gap
+        run.push(i);
+      } else { if (run.length) runs.push(run); run = []; }
+    }
+    if (run.length) runs.push(run);
+    const need = cl.n - boxes;
+    if (need < 2 || runs.length !== 1 || runs[0].length !== 2 * need - 1) return;
+    out.push(firing(runs[0].map((i, q) => (q % 2 === 0 ? setCell(i, SHADED) : setCell(i, LOOP))), { clue: k, cells: runs[0], need }));
+  });
+  return out;
 }
 
 /** Every way to place the clue's shaded cells without two touching includes (or excludes) a cell. */
@@ -1037,6 +1064,7 @@ export const RULES = [
   { id: 'shadedNeighbor', tier: 'Beginner', weight: 1, find: shadedNeighbor, label: 'cells next to a box are dots' },
   { id: 'clueDone', tier: 'Beginner', weight: 2, find: clueDone, label: 'a clue has all its boxes: the rest of its line is dots' },
   { id: 'clueFull', tier: 'Beginner', weight: 2, find: clueFull, label: 'a clue needs every open cell left in its line: they are boxes' },
+  { id: 'clueTight', tier: 'Beginner', weight: 3, find: clueTight, label: 'a clue needs as many more boxes as fit in the open cells left in its line (every other cell): those are boxes, the ones between are dots' },
   { id: 'rangeSameOne', tier: 'Beginner', weight: 3, find: rangeSameOne, label: 'two clues point the same way with one cell between them: the difference of their numbers (0 or 1) says if it is a box' },
   { id: 'deadEnd', tier: 'Beginner', weight: 4, find: deadEnd, label: 'a cell with fewer than two exits is a box' },
   { id: 'forcedExits', tier: 'Beginner', weight: 4, find: forcedExits, label: 'a loop cell with two exits left uses both' },

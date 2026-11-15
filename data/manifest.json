@@ -39,6 +39,11 @@
       "id": "experiment-tall",
       "name": "Experiment: tall and skinny",
       "file": "data/experiment-tall.csv"
+    },
+    {
+      "id": "experiment-nikoli",
+      "name": "Experiment: Nikoli imitation",
+      "file": "data/experiment-nikoli.csv"
     }
   ],
   "default": "large"

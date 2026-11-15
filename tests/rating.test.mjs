@@ -564,3 +564,17 @@ test('shadeClosesLoop and segmentClosesLoop are the "closes the loop early" halv
   assert.match(explainStep(P, step).text, /close the loop early/);
   for (const s of r.steps.filter((q) => q.rule === 'shadeForcesLines' || q.rule === 'segmentForcesLines')) assert.doesNotMatch(explainStep(P, s).text, /close the loop early/);
 });
+
+test('clueTight: a clue with exactly 2r-1 open cells puts its boxes on every other cell (Beginner)', () => {
+  // 3 boxes, 5 cells to the right: boxes on cells 1, 3, 5
+  assert.deepEqual(asMap(ruleSets('clueTight', row(6, [[0, R, 3]]))), { c1: SHADED, c2: LOOP, c3: SHADED, c4: LOOP, c5: SHADED });
+  // 2 boxes in 4 cells: several placements, nothing forced here (cluePlacements territory)
+  assert.deepEqual(ruleSets('clueTight', row(5, [[0, R, 2]])), []);
+  // one box already placed at the far end (cells 4-6 are dots): the clue needs 2 more and has exactly 3 open cells left
+  const P = row(8, [[0, R, 3]]);
+  const st = initialState(P); st.cell[7] = SHADED; for (const i of [4, 5, 6]) st.cell[i] = LOOP;
+  assert.deepEqual(asMap(ruleSets('clueTight', P, st)), { c1: SHADED, c2: LOOP, c3: SHADED });
+  const r = RULES.find((q) => q.id === 'clueTight');
+  assert.equal(r.tier, 'Beginner');
+  assert.ok(r.weight < RULES.find((q) => q.id === 'cluePlacements').weight);
+});
