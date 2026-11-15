@@ -23,7 +23,7 @@
       "group": "Start here",
       "blurb": "5×5 up to 9×9, every puzzle Beginner.",
       "file": "data/bonus-intro.csv",
-      "count": 32
+      "count": 100
     },
     {
       "id": "8x8",
@@ -77,7 +77,7 @@
       "group": "Bonus",
       "blurb": "Arrows point away from the nearest edge: long lines of sight.",
       "file": "data/bonus-longway.csv",
-      "count": 25
+      "count": 100
     },
     {
       "id": "bonus-onedir",
@@ -86,16 +86,7 @@
       "group": "Bonus",
       "blurb": "Every arrow in a puzzle points the same way.",
       "file": "data/bonus-onedir.csv",
-      "count": 23
-    },
-    {
-      "id": "bonus-bignum",
-      "name": "Bonus: big numbers",
-      "label": "Big numbers",
-      "group": "Bonus",
-      "blurb": "Large numbers on the arrows.",
-      "file": "data/bonus-bignum.csv",
-      "count": 23
+      "count": 100
     },
     {
       "id": "bonus-skinny",
@@ -104,31 +95,31 @@
       "group": "Bonus",
       "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
       "file": "data/bonus-skinny.csv",
-      "count": 29
+      "count": 100
     },
     {
       "id": "bonus-zeros",
       "name": "Bonus: all zeros",
       "file": "data/bonus-zeros.csv",
-      "count": 18,
+      "count": 100,
       "label": "All zeros",
       "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.",
       "group": "Bonus"
     },
     {
-      "id": "bonus-twos",
-      "name": "Bonus: twos and up",
-      "file": "data/bonus-twos.csv",
-      "count": 12,
-      "label": "Twos and up",
-      "blurb": "Every arrow says 2 or more.",
-      "group": "Bonus"
+      "id": "bonus-bignum",
+      "name": "Bonus: big numbers",
+      "label": "Big numbers",
+      "group": "Bonus",
+      "blurb": "Large numbers on the arrows; some puzzles go further and every arrow says 2 or more.",
+      "file": "data/bonus-bignum.csv",
+      "count": 100
     },
     {
       "id": "bonus-few",
       "name": "Bonus: few boxes",
       "file": "data/bonus-few.csv",
-      "count": 18,
+      "count": 100,
       "label": "Few boxes",
       "blurb": "Under a third of the non-loop cells are boxes: lots of arrows, a long loop.",
       "group": "Bonus"
@@ -137,7 +128,7 @@
       "id": "bonus-packed",
       "name": "Bonus: packed with boxes",
       "file": "data/bonus-packed.csv",
-      "count": 17,
+      "count": 100,
       "label": "Packed with boxes",
       "blurb": "Over half the non-loop cells are boxes, with few arrows to say where.",
       "group": "Bonus"

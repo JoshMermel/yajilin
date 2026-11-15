@@ -571,7 +571,7 @@ test('the order a person meets the rules in: cheapest first, bookkeeping costs s
 test('shadeClosesLoop and segmentClosesLoop are the "closes the loop early" halves of the forced-lines rules', () => {
   // books get rebuilt, so look for any puzzle in the bonus books that needs one of these rules
   let P = null, r = null;
-  search: for (const f of ['bonus-bignum', 'bonus-longway', 'bonus-onedir', 'bonus-packed', 'bonus-twos', 'bonus-zeros']) {
+  search: for (const f of ['bonus-bignum', 'bonus-longway', 'bonus-onedir', 'bonus-packed', 'bonus-zeros']) {
     for (const raw of parseCsv(readFileSync(new URL(`../data/${f}.csv`, import.meta.url), 'utf8')).filter((q) => q.rows * q.cols <= 260)) {
       const Q = compile(raw), q = rate(Q);
       if (q.counts.shadeClosesLoop || q.counts.segmentClosesLoop) { P = Q; r = q; break search; }
