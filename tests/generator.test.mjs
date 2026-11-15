@@ -116,3 +116,38 @@ test('odd boards: 7x7 and 5x7 puzzles are valid, unique and rule-solved', () => 
   }
   assert.ok(made >= 3, `only ${made} odd-board puzzles`);
 });
+
+import { plantTightArrows } from '../js/generator.js';
+
+test('plantTightArrows: arrows with exactly 2n-1 cells to the wall, boxes on every other cell, no touching', () => {
+  const rng = makeRng(77);
+  for (let t = 0; t < 30; t++) {
+    const rows = 12, cols = 12;
+    const plan = plantTightArrows(rows, cols, rng, 4);
+    const boxes = new Set(plan.boxes);
+    for (const [cell, d] of plan.clues) {
+      const r = (cell / cols) | 0, c = cell % cols;
+      const dr = [-1, 0, 1, 0][d], dc = [0, 1, 0, -1][d];
+      const ray = [];
+      for (let rr = r + dr, cc = c + dc; rr >= 0 && cc >= 0 && rr < rows && cc < cols; rr += dr, cc += dc) ray.push(rr * cols + cc);
+      assert.equal(ray.length % 2, 1, 'the cells to the wall number 2n-1');
+      ray.forEach((i, q) => assert.equal(boxes.has(i), q % 2 === 0, `cell ${q} of the ray`));        // boxes on the 1st, 3rd, ... cell
+      ray.forEach((i, q) => { if (q % 2 === 1) assert.ok(plan.between.has(i)); });                     // dots between them
+    }
+    for (const b of plan.boxes) for (const j of [b - 1, b + 1, b - cols, b + cols]) if (!(j === b - 1 && b % cols === 0) && !(j === b + 1 && (b + 1) % cols === 0)) assert.ok(!boxes.has(j), 'boxes never touch');
+  }
+});
+
+test('generatePuzzle with planted tight arrows is valid, unique, and has tight arrows', () => {
+  let made = 0, tight = 0;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const r = generatePuzzle(10, 10, makeRng(seed), { name: `tight${seed}`, budgetMs: 20000, tightArrows: 2, edgeBias: 0.8, shadeShare: 0.7 });
+    if (!r) continue;
+    made++;
+    const P = r.puzzle;
+    const u = solve(P, { limit: 2, maxNodes: 5000000 });
+    assert.equal(u.exceeded, false); assert.equal(u.count, 1);
+    P.clues.forEach((c, k) => { if (c.n >= 2 && P.rays[k].filter((i) => P.clueAt[i] < 0).length === 2 * c.n - 1) tight++; });
+  }
+  assert.ok(made >= 2 && tight >= 2, `${made} puzzles, ${tight} tight arrows`);
+});

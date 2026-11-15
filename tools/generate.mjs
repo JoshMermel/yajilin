@@ -21,6 +21,7 @@ const dirsArg = arg('dirs', '');                                  // e.g. UR: on
 const directions = dirsArg ? [...dirsArg].map((ch) => 'URDL'.indexOf(ch)) : null;
 const numbers = arg('numbers', '') || null;                       // 'big' or 'small'
 const minMean = +arg('min-mean', 2.0);                            // with --numbers big: required mean clue number
+const tightRate = +arg('tight-rate', 0);                          // tight arrows per 100 cells (Nikoli's own puzzles: about 0.65)
 const cheapFirst = arg('cheap', '') === '' ? null : arg('cheap') === '1';   // climb with the cheap rules first (default: boards of 150+ cells)
 const maxTier = arg('max-tier', '');   // 'medium': only the rules up to Medium (no shadeForcesLines etc.)
 const out = arg('out', `${root}tools/library/y_${cols}x${rows}_s${seed}.csv`);
@@ -33,7 +34,7 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const t0 = Date.now();
   const name = `Y${cols}x${rows}_s${seed}_${made + 1}`;
   const upto = maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
-  const r = generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, cheapFirst, loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
+  const r = generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, cheapFirst, tightArrows: Math.round(tightRate * cols * rows / 100), loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
   if (!r) { console.log(`${name}: no puzzle within ${budget} s`); continue; }
   const P = r.puzzle;
   // check: the stored solution is valid and the exhaustive solver agrees it is the only one

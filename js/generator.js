@@ -271,12 +271,45 @@ export function crossingChords(rows, cols, hole, pos, length) {
 }
 
 /**
+ * Tight arrows, which hand-made puzzles are full of: a clue pointing at a wall with exactly 2n-1 cells between it and the wall,
+ * n boxes on every other cell (the first right next to the clue) and loop cells between them. All n boxes are forced from the start.
+ * Plans `count` of them that do not collide. Returns { clues: Map(cell -> direction), boxes: [cells], between: Set(cells that must stay on
+ * the loop), holes: [clue cells and boxes], fixed: Set(clue cells and boxes) }.
+ */
+export function plantTightArrows(rows, cols, rng, count, { sizes = [[2, 0.45], [3, 0.4], [4, 0.1], [5, 0.05]] } = {}) {
+  const DR = [-1, 0, 1, 0], DC = [0, 1, 0, -1];
+  const clues = new Map(), boxes = [], between = new Set(), taken = new Set(), boxSet = new Set();
+  for (let k = 0; k < count; k++) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      let x = rng(), n = sizes[sizes.length - 1][0];
+      for (const [size, w] of sizes) { if (x < w) { n = size; break; } x -= w; }
+      const d = (rng() * 4) | 0, L = 2 * n - 1;
+      let r, c;
+      if (d === 0) { r = L; c = (rng() * cols) | 0; } else if (d === 2) { r = rows - 1 - L; c = (rng() * cols) | 0; }
+      else if (d === 1) { c = cols - 1 - L; r = (rng() * rows) | 0; } else { c = L; r = (rng() * rows) | 0; }
+      if (r < 0 || c < 0 || r >= rows || c >= cols) continue;
+      const cells = [];
+      for (let t = 0; t <= L; t++) cells.push((r + DR[d] * t) * cols + (c + DC[d] * t));
+      if (cells.some((i) => taken.has(i))) continue;
+      const bx = cells.filter((_, t) => t % 2 === 1), dots = cells.filter((_, t) => t > 0 && t % 2 === 0);
+      if (bx.some((i) => gridNeighbours(rows, cols, i).some((j) => boxSet.has(j)))) continue;
+      cells.forEach((i) => taken.add(i));
+      clues.set(cells[0], d);
+      bx.forEach((i) => { boxes.push(i); boxSet.add(i); });
+      dots.forEach((i) => between.add(i));
+      break;
+    }
+  }
+  return { clues, boxes, between, holes: [...clues.keys(), ...boxes], fixed: new Set([...clues.keys(), ...boxes]) };
+}
+
+/**
  * A loop whose cells admit no other loop (it is unique), built by repair instead of by luck: start from a random loop with
  * few holes and, while two chords cross (see crossingChords), try to make a pair of cells beside one crossing into holes; keep
  * the move only if the number of crossings goes down (or stays level, now and then, to cross plateaus). Returns
  * { holes, edges, stats } or null. Random loops almost never pass at 14x14 and above; this is what scales.
  */
-export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, clump = 0.5, check = true } = {}) {
+export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, clump = 0.5, check = true, preset = null } = {}) {
   const t0 = Date.now();
   const N = rows * cols;
   const b = makeLoopBuilder(rows, cols, rng);
@@ -284,9 +317,25 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
   const near = (a, c, dist) => Math.abs(((a / cols) | 0) - ((c / cols) | 0)) + Math.abs((a % cols) - (c % cols)) <= dist;
   const target = Math.round((N * startDensity) / 2) * 2;
   let holes = 0;
+  const forbid = preset ? preset.between : new Set();                 // cells that must stay on the loop
+  const okc = (c, cl) => !forbid.has(c) && b.okCell(c, cl);
+  if (preset) {
+    // the planted holes first, paired by chessboard color; an odd one out gets a random partner of the other color
+    const presetSet = new Set(preset.holes);
+    const A = preset.holes.filter((c) => b.color(c) === 0), B = preset.holes.filter((c) => b.color(c) === 1);
+    const pairs = [];
+    while (A.length && B.length) pairs.push([A.pop(), B.pop()]);
+    for (const c of [...A, ...B]) {
+      let partner = -1;
+      for (let k = 0; k < 400 && partner < 0; k++) { const q = (rng() * N) | 0; if (b.color(q) !== b.color(c) && !presetSet.has(q) && !b.hole[q] && okc(q, 0)) partner = q; }
+      if (partner < 0) return null;
+      pairs.push([c, partner]);
+    }
+    for (const [c1, c2] of pairs) { if (!b.tryHoles(c1, c2)) return null; holes += 2; }
+  }
   for (let attempt = 0; attempt < target * 150 && holes < target; attempt++) {
     const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0;
-    if (b.okCell(c1, clump) && b.okCell(c2, clump) && near(c1, c2, 6) && b.tryHoles(c1, c2)) holes += 2;
+    if (okc(c1, clump) && okc(c2, clump) && near(c1, c2, 6) && b.tryHoles(c1, c2)) holes += 2;
   }
   if (holes < target * 0.7) return null;
   const evaluate = () => { const { pos, length } = b.positions(); return crossingChords(rows, cols, b.hole, pos, length); };
@@ -298,7 +347,7 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
         return { holes: b.hole, edges: b.edges(), stats: { holePct: (100 * holes / N).toFixed(1), moves, accepted, ms: Date.now() - t0 } };
       }
       // no local alternative but still not unique (a longer alternating cycle): add a random pair and look again
-      for (let k = 0; k < 400; k++) { const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0; if (b.okCell(c1, clump) && b.okCell(c2, clump) && near(c1, c2, 3) && b.tryHoles(c1, c2)) { holes += 2; break; } }
+      for (let k = 0; k < 400; k++) { const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0; if (okc(c1, clump) && okc(c2, clump) && near(c1, c2, 3) && b.tryHoles(c1, c2)) { holes += 2; break; } }
       cur = evaluate(); continue;
     }
     // pick one crossing pair and a hole pair beside it
@@ -309,9 +358,9 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
     if (!cells.length) continue;
     const c1 = cells[(rng() * cells.length) | 0];
     const opp = cells.filter((i) => b.color(i) !== b.color(c1) && near(i, c1, 3));
-    if (!opp.length || !b.okCell(c1)) continue;
+    if (!opp.length || !okc(c1, 0)) continue;
     const c2 = opp[(rng() * opp.length) | 0];
-    if (!b.okCell(c2)) continue;
+    if (!okc(c2, 0)) continue;
     moves++;
     const snap = b.snapshot();
     if (!b.tryHoles(c1, c2)) continue;
@@ -426,7 +475,7 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
@@ -435,7 +484,9 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
   if (tight) {
     // build a loop that is unique by repair (tightLoop); the climb then only has to fix which holes are boxes and which are clues
     for (let tries = 0; tries < 50 && !loop && Date.now() - t0 < budgetMs; tries++) {
-      const cand = tightLoop(rows, cols, rng, { startDensity: Math.min(density, 0.24), clump, budgetMs: Math.min(30000, budgetMs - (Date.now() - t0)) });
+      const plan = tightArrows > 0 ? plantTightArrows(rows, cols, rng, tightArrows) : null;
+      const cand = tightLoop(rows, cols, rng, { startDensity: Math.min(density, 0.24), clump, preset: plan, budgetMs: Math.min(30000, budgetMs - (Date.now() - t0)) });
+      if (cand) cand.plan = plan;
       looked++;
       if (cand) loop = cand;
     }
@@ -454,16 +505,21 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
   const isClue = new Uint8Array(N);
   const setClue = (i, d) => { clueDir.set(i, d); isClue[i] = 1; };
   const dropClue = (i) => { clueDir.delete(i); isClue[i] = 0; };
+  const fixed = new Uint8Array(N);                                   // planted tight-arrow cells: never changed
   // holes -> a random non-touching subset becomes shaded (about shadeShare of the holes), every other hole is a clue cell
   const holes = [];
   for (let i = 0; i < N; i++) if (loop.holes[i]) holes.push(i);
   const keep = new Uint8Array(N);
   let kept = 0;
-  for (const i of shuffle(holes.slice(), rng)) {
+  if (loop.plan) {
+    for (const [c, d] of loop.plan.clues) { setClue(c, d); fixed[c] = 1; }
+    for (const bx of loop.plan.boxes) { keep[bx] = 1; fixed[bx] = 1; kept++; }
+  }
+  for (const i of shuffle(holes.filter((q) => !fixed[q]), rng)) {
     if (kept >= holes.length * shadeShare) break;
     if (gridNeighbours(rows, cols, i).every((j) => !keep[j])) { keep[i] = 1; kept++; }
   }
-  for (const i of holes) if (!keep[i]) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d >= 0) setClue(i, d); else keep[i] = 1; }
+  for (const i of holes) if (!keep[i] && !fixed[i]) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d >= 0) setClue(i, d); else keep[i] = 1; }
   // a "shaded" cell is a hole that is not a clue; make sure those do not touch (clue cells that failed to point anywhere were kept shaded)
   for (const i of holes) if (!isClue[i] && gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j] && j < i)) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d < 0) return null; setClue(i, d); }
 
@@ -508,7 +564,7 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
     const moves = [];
     for (let radius = 3; radius <= 8 && !moves.length; radius++) {
       for (let i = 0; i < N; i++) {
-        if (!loop.holes[i] || dist(i, target) > radius) continue;
+        if (!loop.holes[i] || fixed[i] || dist(i, target) > radius) continue;
         if (isClue[i]) { moves.push([i, 'aim'], [i, 'aim']); if (canShade(i)) moves.push([i, 'unclue']); } else moves.push([i, 'clue']);
       }
     }
@@ -539,7 +595,7 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
   if (diagnose && (!diagnose.best || bestSeen.u < diagnose.best.u)) diagnose.best = { u: bestSeen.u, P: bestSeen.P, state: bestSeen.r.state, clues: bestSeen.P.clues.length, iterations: iter };
   say(`${iter} iterations, ${checks} checks, undecided score ${cur.u.toFixed(1)}, ${clueDir.size} clues, ${Date.now() - t0} ms`);
   if (!acceptable()) return null;
-  let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++) : cur.P;
+  let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++, fixed) : cur.P;
   if (!numbersOk(puzzle, numbers, minMean)) { say('rejected: the numbers are not in the requested style'); return null; }
   return { puzzle, stats: { iterations: iter, checks, ms: Date.now() - t0 } };
 }
@@ -557,12 +613,13 @@ export function generatePuzzle(rows, cols, rng, options = {}) {
 }
 
 /** Turn clue cells back into shaded cells (where legal) while the rules still solve the puzzle. */
-function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, onCheck) {
+function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, onCheck, fixed) {
   const N = rows * cols;
   const order = shuffle([...clueDir.keys()].filter((i) => loop.holes[i]), rng);
   let P = buildPuzzle(rows, cols, loop, clueDir, name);
   for (const i of order) {
     if (Date.now() - t0 > budgetMs) break;
+    if (fixed && fixed[i]) continue;                                 // a planted tight arrow stays
     // a shaded cell may not touch another shaded cell
     if (gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j])) continue;
     const d = clueDir.get(i);
