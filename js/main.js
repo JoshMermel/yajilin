@@ -603,7 +603,9 @@ const settingsModal = setupModal('settings-modal', 'settings-btn', () => {
   $('setting-dark-mode').checked = document.documentElement.dataset.theme === 'dark';
   disarmClear();
 });
-setupModal('help-modal', 'help-btn');
+const helpModal = setupModal('help-modal', 'help-btn');
+// the very first visit opens the rules, then remembers it was seen (like polyomino-panel and star battle)
+if (!store.get('yj_seenHelp')) { store.set('yj_seenHelp', '1'); helpModal.open(); }
 
 // --- Book picker: a button showing the current book opens a modal of every book, in sections, each with what it holds and how many of
 // its puzzles are solved (the same idea as polyomino-panel's). Books and sections come from data/manifest.json.

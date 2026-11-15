@@ -10,3 +10,10 @@ data/tmp.csv
 tools/library/
 tools/books_staging/
 data/pm_all.csv
+
+# Scratch books and private tools: kept locally, not published (they never get linked from the app).
+data/large.csv
+data/large-nk.csv
+data/range-samples.csv
+tools/fetch_puzzlemadness.mjs
+tools/import_puzzlemadness.mjs
