@@ -108,7 +108,7 @@ button.ghost { background: transparent; }
 .controls { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 6px 0 10px; }
 .btn-group { display: flex; gap: 6px; }
 
-#board { touch-action: none; user-select: none; -webkit-user-select: none; }
+#board { margin: 0 auto; touch-action: none; user-select: none; -webkit-user-select: none; }
 #board svg { width: 100%; height: auto; display: block; }
 #board.solved svg { filter: drop-shadow(0 0 6px var(--color-solved)); }
 .cell-bg { fill: var(--cell-bg); }

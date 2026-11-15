@@ -7,12 +7,14 @@
 // handlers.onStart() / handlers.onEnd() bracket every gesture, so a whole gesture is one undo step.
 import { colName } from './logic.js';
 import { makeColorKeeper, assignPathColors } from './pathcolors.js';
+import { makeGrace } from './grace.js';
 
 const S = 44;     // cell size in SVG units
 const PAD = 4;    // room for the frame
 const LABEL = 16; // extra room at the top and left for row/column numbers
 const PATH_COLORS = 8;
 const ARROWS = ['↑', '→', '↓', '←'];
+const BAD_DELAY_MS = 300; // how long a newly red arrow or box waits, so a double tap can finish first (see js/grace.js)
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 export class Board {
@@ -23,6 +25,7 @@ export class Board {
     this.gesture = null;
     this.hoverCell = -1;
     this.opts = { colorLines: false, labels: false };
+    this.grace = makeGrace(); this._badTimer = 0; this._graceNow = true;
     el.addEventListener('pointerdown', (e) => this.down(e));
     el.addEventListener('pointermove', (e) => this.move(e));
     el.addEventListener('pointerup', (e) => this.up(e));
@@ -31,7 +34,7 @@ export class Board {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  setPuzzle(P) { this.P = P; this.colors = null; }
+  setPuzzle(P) { this.P = P; this.colors = null; this.grace.reset(); clearTimeout(this._badTimer); this._graceNow = true; }   // the first render of a puzzle shows its red at once
 
   /** Display options: { colorLines: color each separate path differently, labels: number the rows and columns }. */
   setOptions(opts) { Object.assign(this.opts, opts); if (this.marks) this.render(this.marks, this.info, this.hint); }
@@ -69,6 +72,18 @@ export class Board {
     const P = this.P;
     if (!P) { this.el.innerHTML = ''; return; }
     this.marks = marks; this.info = info; this.hint = hint;
+    // Red is the only thing that scolds, and a state that is bad right now may just be the first tap of a double tap, so newly bad arrows
+    // and boxes wait BAD_DELAY_MS before they show (any change that clears them cancels it; clearing red is immediate).
+    const wanted = new Set();
+    info.clueState.forEach((st, k) => { if (st === 'bad') wanted.add(`c${k}`); });
+    for (const i of info.badShaded) wanted.add(`s${i}`);
+    const { show, waiting, fresh } = this.grace.update(wanted, this._graceNow);
+    this._graceNow = false;
+    if (!waiting.size) clearTimeout(this._badTimer);
+    else if (fresh) {
+      clearTimeout(this._badTimer);
+      this._badTimer = setTimeout(() => { this.grace.commit(); if (this.marks) this.render(this.marks, this.info, this.hint); }, BAD_DELAY_MS);
+    }
     const OFF = this.offset;
     const W = P.cols * S + 2 * PAD + OFF, H = P.rows * S + 2 * PAD + OFF;
     const cx = (c) => PAD + c * S + S / 2, cy = (r) => PAD + r * S + S / 2;
@@ -82,7 +97,7 @@ export class Board {
         const k = P.clueAt[i];
         if (k >= 0) {
           const cl = P.clues[k];
-          g += `<rect class="clue-bg ${info.clueState[k] || ''}" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
+          g += `<rect class="clue-bg ${info.clueState[k] === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : info.clueState[k] || ''}" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
           const horiz = cl.d === 1 || cl.d === 3;
           // number and arrow side by side along the arrow's axis keeps the glyph readable in every direction
           g += `<text class="clue-text" x="${x + S / 2 - (horiz ? 0 : 7)}" y="${y + S / 2 + (horiz ? -8 : 1)}" font-size="${S * 0.46}">${cl.n}</text>`;
@@ -108,7 +123,7 @@ export class Board {
     for (let i = 0; i < P.N; i++) {
       const r = (i / P.cols) | 0, c = i % P.cols;
       if (marks.cells[i] === 1) {
-        g += `<rect class="shaded ${info.badShaded.has(i) ? 'bad' : ''}" x="${cellX(i) + 3}" y="${cellY(i) + 3}" width="${S - 6}" height="${S - 6}" rx="5"/>`;
+        g += `<rect class="shaded ${show.has(`s${i}`) ? 'bad' : ''}" x="${cellX(i) + 3}" y="${cellY(i) + 3}" width="${S - 6}" height="${S - 6}" rx="5"/>`;
         if (boxes.has(i)) g += `<rect class="given-ring" x="${cellX(i) + 9}" y="${cellY(i) + 9}" width="${S - 18}" height="${S - 18}" rx="3"/>`;
       } else if (marks.cells[i] === 2 && deg[i] === 0) {
         // a dot only says "on the loop, exits unknown": once a segment passes through, the line says it better
