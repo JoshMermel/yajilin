@@ -16,7 +16,7 @@ orthogonally. Every cell is a clue, shaded, or on the loop.
 | Human-style scorer (`js/rating.js`) | first rule table done (below); solves all 12 borrowed puzzles; weights and tiers not yet calibrated with Josh |
 | Hint button | done: shows the draft solver's next step (rule, tier, weight, explanation, ghost marks); says when it is stuck |
 | Generator (`js/generator.js`, `tools/generate.mjs`) | done up to 20x36: a unique-by-construction loop (`tightLoop`), then clues aimed so the human rules solve it; 14x14 in about a second, 20x36 in under a minute |
-| Corpus and books (`tools/library/`, `tools/build_book.mjs`) | ten books in the app (a Gentle intro, five Default books of 1000 puzzles each, by board size: 8×8, 12×12, 16×16, 20×20, 20×36; four Bonus books), chosen in a picker modal with sections and solved counts (the manifest holds each book's puzzle count; solved counts are remembered per book, so the picker never loads a book it does not need); `data/manifest.json` lists the books (id, name, label, group, blurb, count, file) and the sections; no tier shares, no print yet |
+| Corpus and books (`tools/library/`, `tools/build_book.mjs`) | fourteen books in the app (a Gentle intro, five Default books of 1000 puzzles each, by board size: 8×8, 12×12, 16×16, 20×20, 20×36; eight Bonus books: the long way round, one direction, big numbers, skinny, all zeros, twos and up, few boxes, packed with boxes), chosen in a picker modal with sections and solved counts (the manifest holds each book's puzzle count; solved counts are remembered per book, so the picker never loads a book it does not need); `data/manifest.json` lists the books (id, name, label, group, blurb, count, file) and the sections; no tier shares, no print yet |
 
 See [TODO.md](TODO.md).
 
@@ -35,6 +35,8 @@ Making puzzles (the pattern from the sibling projects: pools, then books):
 ```bash
 node tools/generate.mjs --size 12x12 --count 3 --seed 1 --budget 600   # COLSxROWS, rows*cols even; appends to tools/library/
 node tools/build_book.mjs --id bonus-intro --name "Bonus: gentle intro" --glob intro3_   # pools -> data/<id>.csv; a rebuilt book keeps its place, group and blurb in manifest.json
+sh tools/make_bonus_pools.sh; sh tools/make_style_pools.sh   # the generator recipes of the bonus books (flags per book are in those scripts)
+node tools/generate.mjs --size 10x10 --numbers zeros       # style options: --numbers big|small|zeros|twos, --boxes LO,HI (share of boxes among the non-loop cells), --one-dir, --edge-bias q
 ```
 
 `generate.mjs` re-checks every puzzle (stored solution valid; exactly one solution by a *complete* exhaustive search) and rates it

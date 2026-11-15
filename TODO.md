@@ -176,17 +176,14 @@ images suggest should lower the clue count.
 
 ## Queued for when Josh is away (2026-11-15; start when he asks, any order)
 
-1. **Landscape fit for 20x36 boards.** They do not fit his landscape monitor. Either rotate the 20x36 book to 36x20 (swap rows/cols and arrow
-   directions; saves are keyed by puzzle content, so rotated puzzles would lose saved progress unless the hash is made rotation-aware), or a GUI
-   option that rotates the board automatically (board taller than the viewport) or manually (a button/setting). Rotating the view is the more
-   general fix and keeps the data and saves intact.
-2. **More puzzles in the intro and each bonus book.** Rename "Tall and skinny" to **"Skinny"** (it may render horizontally) and cap its larger
-   dimension at **36** (the old pools in `experiments/tall/pools/` go up to 8x100).
-3. **New book ideas to explore:** (a) every arrow is a 0; (b) every arrow is 2 or more; (c) very few boxes in the solution (close to (a)?);
-   (d) tons of boxes in the solution (close to (b)?). Needs a hard floor/ceiling on clue numbers in `pickDirection` / `numbersOk`; `shadeShare`
-   controls the box share.
-4. **New inference, an advanced `cluePlacements`:** drop box placements that create a dead end. A 2-arrow in the rightmost column pointing down with
-   candidate cells in rows 12, 14 and 20: boxes at 12 and 14 leave the cell in row 13 wedged between them with the wall on its right (one way
-   out), so one box must be in row 20. Easiest to see along edges, but it can happen mid-board. A new rule (probably Medium, costed above
-   `cluePlacements`): when enumerating placements also discard any that leave a loop cell with fewer than two exits, then use what the survivors share.
-5. ~~Bug: merging two line segments recolors an unrelated line.~~ Fixed (2026-11-15): each line has an identity whose color never changes; see `js/pathcolors.js` and the fuzz test in `tests/pathcolors.test.mjs`.
+All five done on 2026-11-15:
+
+1. ~~Landscape fit for 20x36 boards.~~ `js/rotate.js` turns a puzzle a quarter turn; the page does it automatically when that gives bigger cells in the window
+   (Settings: "Turn tall boards sideways", on by default) and has a Turn button to flip one puzzle by hand. Progress is stored in the original orientation.
+2. ~~More puzzles in the intro and bonus books; "Skinny".~~ Intro 32, long way round 25, one direction 23, big numbers 23; "Skinny" (29 puzzles, longer side <= 36).
+3. ~~New book ideas.~~ Four new Bonus books: all zeros (`--numbers zeros`: only 6x6 to 9x9 are feasible; 10x10 and up found nothing in 3-5 minutes), twos and up
+   (`--numbers twos`: slow, a puzzle in a few minutes at 12x12), few boxes (`--boxes 0,0.3 --shade 0.2 --prune 0`: easy to make, often Beginner/Medium at 8-12),
+   packed with boxes (`--boxes 0.55,1 --shade 0.85 --density 0.26`: slow, always Hard). "Few boxes" is the most useful for a gentler feel; the box share is a
+   soft penalty in the climb (`styleGap`) and a hard check at the end. Recipes: `tools/make_style_pools.sh`.
+4. ~~Dead-end-aware cluePlacements.~~ `placementDeadEnd` (Medium, cost 14). The rating of the old books was refreshed; it moved a few puzzles Hard -> Medium.
+5. ~~Line recoloring bug.~~ Fixed (`js/pathcolors.js`: each line has an identity with an immutable color; fuzz test in `tests/pathcolors.test.mjs`).

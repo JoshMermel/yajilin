@@ -105,6 +105,42 @@
       "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
       "file": "data/bonus-skinny.csv",
       "count": 29
+    },
+    {
+      "id": "bonus-zeros",
+      "name": "Bonus: all zeros",
+      "file": "data/bonus-zeros.csv",
+      "count": 18,
+      "label": "All zeros",
+      "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.",
+      "group": "Bonus"
+    },
+    {
+      "id": "bonus-twos",
+      "name": "Bonus: twos and up",
+      "file": "data/bonus-twos.csv",
+      "count": 12,
+      "label": "Twos and up",
+      "blurb": "Every arrow says 2 or more.",
+      "group": "Bonus"
+    },
+    {
+      "id": "bonus-few",
+      "name": "Bonus: few boxes",
+      "file": "data/bonus-few.csv",
+      "count": 18,
+      "label": "Few boxes",
+      "blurb": "Under a third of the non-loop cells are boxes: lots of arrows, a long loop.",
+      "group": "Bonus"
+    },
+    {
+      "id": "bonus-packed",
+      "name": "Bonus: packed with boxes",
+      "file": "data/bonus-packed.csv",
+      "count": 17,
+      "label": "Packed with boxes",
+      "blurb": "Over half the non-loop cells are boxes, with few arrows to say where.",
+      "group": "Bonus"
     }
   ],
   "default": "bonus-intro"
