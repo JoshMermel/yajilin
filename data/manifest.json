@@ -15,7 +15,7 @@
     },
     {
       "name": "Experiments",
-      "blurb": "Generator experiments: unusual shapes and imitations of the Nikoli books."
+      "blurb": "Generator experiments: unusual board shapes."
     }
   ],
   "books": [
@@ -108,15 +108,6 @@
       "blurb": "Narrow boards up to 100 rows tall.",
       "file": "data/experiment-tall.csv",
       "count": 26
-    },
-    {
-      "id": "experiment-nikoli",
-      "name": "Experiment: Nikoli imitation",
-      "label": "Nikoli imitation",
-      "group": "Experiments",
-      "blurb": "Big boards up to 20×36, arrows aimed at the nearer edge, and arrows with exactly the room they need.",
-      "file": "data/experiment-nikoli.csv",
-      "count": 25
     }
   ],
   "default": "bonus-intro"
