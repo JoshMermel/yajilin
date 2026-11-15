@@ -153,6 +153,11 @@ export function explainStep(P, step, st = null) {
       text = `Place the boxes of the ${clueName(P, k)} without touching: each marked cell is a box in every placement, or in none.`;
       break;
     }
+    case 'placementDeadEnd': {
+      const k = info.clue; role('clue', clueCell(P, k)); role('range', info.cells);
+      text = `Place the boxes of the ${clueName(P, k)} without touching, and without stranding a dot (leaving it just one way out): each marked cell is a box in every placement that works, or in none.`;
+      break;
+    }
     case 'clueTight': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', info.cells);
       text = info.runs > 1

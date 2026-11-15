@@ -146,6 +146,17 @@ test('pattern: every placement of the clue\'s boxes contains / avoids a cell (cl
   assert.deepEqual(asMap(ruleSets('cluePlacements', Q, st)), { c1: SHADED });
 });
 
+test('pattern: placements that strand a neighbour are thrown out (placementDeadEnd): the edge example', () => {
+  // the right-hand column of a 12 x 2 board; a 2-arrow at the top pointing down, and only rows 3, 5 and 9 are open for its boxes.
+  // Boxes at rows 3 and 5 would leave the edge cell between them (row 4) with a single way out, so one box must be in row 9.
+  const P = compile({ name: 'e', rows: 12, cols: 2, clues: [{ r: 0, c: 1, d: 2, n: 2 }] });
+  const st = initialState(P);
+  for (const r of [1, 2, 4, 6, 7, 8, 10, 11]) st.cell[r * 2 + 1] = LOOP;
+  assert.deepEqual(ruleSets('cluePlacements', P, st), []);                       // plain placements: nothing is forced
+  assert.deepEqual(asMap(ruleSets('placementDeadEnd', P, st)), { c19: SHADED });  // row 9, right column
+  assert.ok(RULES.find((r) => r.id === 'placementDeadEnd').weight > RULES.find((r) => r.id === 'cluePlacements').weight);
+});
+
 test('pattern: shading a cell would leave a neighbour with one exit (deadEndNeighbor): corners and one-cell gaps', () => {
   // corner: the cells next to a corner cell must be loop, or the corner would have a single exit
   const corner = compile({ name: 'c', rows: 3, cols: 3, clues: [] });
@@ -237,7 +248,7 @@ test('every rule is sound on random partial positions of true solutions', () => 
     }
   }
   console.log(`    ${positions} positions; firings: ${JSON.stringify(fired)}`);
-  for (const id of ['cluePlacements', 'rangeSame', 'rangeFacingKnown', 'deadEndNeighbor', 'shadeForcesLines']) {
+  for (const id of ['cluePlacements', 'placementDeadEnd', 'rangeSame', 'rangeFacingKnown', 'deadEndNeighbor', 'shadeForcesLines']) {
     assert.ok(fired[id] > 0, `${id} never fired in the sample`);
   }
 });

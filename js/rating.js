@@ -16,6 +16,7 @@
 //   deadEndNeighbor  shading a cell would leave a neighbour with fewer than two exits: the cell is loop
 //   cluePlacements   try every way to place a clue's shaded cells without two touching: a cell they all use is shaded,
 //                    a cell none uses is loop
+//   placementDeadEnd cluePlacements again, throwing out placements whose boxes would leave a neighbouring cell with fewer than two exits
 //   shadeForcesLines imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if that
 //                    makes a line end do two incompatible things (a cell gets three lines, or is left with fewer than
 //                    two exits), the cell is loop
@@ -439,6 +440,63 @@ function cluePlacements(P, st) {
   P.clues.forEach((cl, k) => {
     const sets = rangeDeduce(P, st, P.rays[k], cl.n, cl.n);
     if (sets.length) out.push(firing(sets, { clue: k, cells: P.rays[k] }));
+  });
+  return out;
+}
+
+/**
+ * cluePlacements that also throws out the placements a person sees fail at a glance: one that boxes in a neighbour so it is left with
+ * fewer than two ways out (for example a 2-arrow down the right edge with room in rows 12, 14 and 20: boxes in rows 12 and 14 would
+ * leave the edge cell in row 13 with just one way out, so one box must go in row 20). Boxes in the placements are tried against the
+ * dots they create: the neighbours of every box must keep two exits. Gives up on a line with too many placements to look through.
+ */
+const PLACEMENT_CAP = 3000;
+function placementDeadEnd(P, st) {
+  const out = [];
+  P.clues.forEach((cl, k) => {
+    const ray = P.rays[k];
+    let have = 0;
+    const elig = [];
+    for (const i of ray) {
+      if (st.cell[i] === SHADED) have++;
+      else if (st.cell[i] === UNKNOWN && !touchesShaded(P, st, i)) elig.push(i);
+    }
+    const need = cl.n - have;
+    if (need < 1 || elig.length < need) return;
+    const chosen = [];
+    const hits = new Map(elig.map((i) => [i, 0]));          // in how many surviving placements each cell is a box
+    let total = 0, nodes = 0, gaveUp = false;
+    const ok = () => {
+      for (const i of chosen) st.cell[i] = SHADED;
+      let good = true;
+      for (const i of chosen) {
+        for (let d = 0; d < 4 && good; d++) {
+          const j = P.nb[i * 4 + d];
+          if (j >= 0 && st.cell[j] !== SHADED && exits(P, st, j) < 2) good = false;
+        }
+        if (!good) break;
+      }
+      for (const i of chosen) st.cell[i] = UNKNOWN;
+      return good;
+    };
+    const go = (from) => {
+      if (gaveUp) return;
+      if (chosen.length === need) {
+        if (ok()) { total++; for (const i of chosen) hits.set(i, hits.get(i) + 1); }
+        return;
+      }
+      if (++nodes > PLACEMENT_CAP) { gaveUp = true; return; }
+      for (let q = from; q < elig.length; q++) {
+        if (elig.length - q < need - chosen.length) break;
+        if (chosen.length && adjacent(P, chosen[chosen.length - 1], elig[q])) continue;
+        chosen.push(elig[q]); go(q + 1); chosen.pop();
+      }
+    };
+    go(0);
+    if (gaveUp || !total) return;                          // no placement left is the contradiction check's business
+    const sets = [];
+    for (const i of elig) { const h = hits.get(i); if (h === total) sets.push(setCell(i, SHADED)); else if (h === 0) sets.push(setCell(i, LOOP)); }
+    if (sets.length) out.push(firing(sets, { clue: k, cells: ray }));
   });
   return out;
 }
@@ -1076,6 +1134,7 @@ export const RULES = [
   { id: 'tightCell', tier: 'Medium', weight: 8, find: tightCell, label: 'a box here would turn a corner-like neighbor into a dot with just one way out: this cell is a dot' },
   { id: 'deadEndNeighbor', tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
   { id: 'cluePlacements', tier: 'Medium', weight: 12, find: cluePlacements, label: 'every way to place a clue\'s boxes includes (or leaves out) this cell' },
+  { id: 'placementDeadEnd', tier: 'Medium', weight: 14, find: placementDeadEnd, label: 'every way to place a clue\'s boxes that leaves no neighbor stranded includes (or leaves out) this cell' },
   { id: 'closingNeighbor', tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
   { id: 'rangeSame', tier: 'Medium', weight: 24, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
   { id: 'rangeFacingKnown', tier: 'Medium', weight: 28, find: rangeFacingKnown, label: 'two clues point at each other and one part of the line has a known number of boxes: that fixes the other two parts' },
