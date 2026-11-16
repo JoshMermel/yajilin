@@ -2,7 +2,8 @@
 import { rotated, turnMarks, realEdges } from './rotate.js';
 import { parseSelection, planPrint, buildPrintRoot } from './print.js';
 import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, initialState, E_ON, SHADED, LOOP, UNKNOWN } from './logic.js';
-import { nextSteps, RULES } from './rating.js';
+import { RULES } from './rating.js';
+import { nextMarkableStep } from './hintstep.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
 import { Board } from './board.js';
 import { clueStates } from './clues.js';
@@ -335,14 +336,15 @@ function hint() {
     } else {
       const st = solverState();
       const t0 = performance.now();
-      const res = nextSteps(P, st);
+      const next = nextMarkableStep(P, st);       // skips steps that only rule a segment out (nothing to mark); see js/hintstep.js
+      const res = next && next.res;
       const ms = Math.round(performance.now() - t0);
       if (!res) {
         const undecided = [];
         for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) undecided.push(i);
         state.hint = { sig, kind: 'stuck', visible: true, undecided, ms };
       } else {
-        state.hint = { sig, kind: 'step', visible: true, res, idx: 0, ms, st };
+        state.hint = { sig, kind: 'step', visible: true, res, idx: 0, ms, st, background: next.background };
       }
     }
   }
@@ -390,6 +392,10 @@ function showHint() {
     line('hint-meta', `${e.rule} · ${e.tier} · weight ${e.weight} · ${h.ms} ms`);
     line('', e.text);
     line('hint-marks', describeMarks(e.targets));
+    if (h.background && h.background.length) {     // facts the step relies on that are not marks: "no segment here" (the last two, newest last)
+      const shown = h.background.slice(-2);
+      line('hint-more', `Relies on: ${shown.map((b) => b.text).join(' ')}${h.background.length > shown.length ? ` (and ${h.background.length - shown.length} more)` : ''}`);
+    }
     legend(e.roles);
     if (h.res.firings.length > 1) line('hint-more', `${h.idx + 1} of ${h.res.firings.length} steps of this rule; press Hint for the next.`);
   }

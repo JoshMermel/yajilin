@@ -104,7 +104,7 @@ function components(P, st) {
 }
 
 /** Apply [['c'|'e', index, value], ...]. Returns false if one disagrees with what is already known. */
-function applySets(st, sets) {
+export function applySets(st, sets) {
   for (const [kind, idx, v] of sets) {
     const arr = kind === 'c' ? st.cell : st.e;
     if (arr[idx] === v) continue;
