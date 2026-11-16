@@ -6,7 +6,7 @@ import { nextSteps, RULES } from './rating.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
 import { Board } from './board.js';
 import { clueStates } from './clues.js';
-import { nextMark } from './marks.js';
+import { nextMark, reconcile as reconcileDots, applyAutoDots } from './marks.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -70,41 +70,8 @@ function isPristine(m) {
   return true;
 }
 
-// ---- automatic dots, with their reasons
-// A cell has a reason to be a dot when it is next to a box ('s<cell>') or in the line of a clue that has all its boxes
-// ('c<clue>'). A dot is placed automatically when a cell gains a reason it did not have before, and an automatic dot goes
-// away when its last reason does (take the box off, and the dots it caused go too). Dots the player placed are never touched.
-
-/** Map: cell -> Set of reasons it should be a dot. */
-function reasonsOf(P, m) {
-  const out = new Map();
-  const add = (i, r) => { let s = out.get(i); if (!s) out.set(i, (s = new Set())); s.add(r); };
-  for (let i = 0; i < P.N; i++) {
-    if (m.cells[i] !== 1) continue;
-    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0) add(j, `s${i}`); }
-  }
-  P.clues.forEach((cl, k) => {
-    let shaded = 0;
-    for (const i of P.rays[k]) if (m.cells[i] === 1) shaded++;
-    if (shaded === cl.n) for (const i of P.rays[k]) add(i, `c${k}`);
-  });
-  return out;
-}
-
-/** Bring the automatic dots of `cur` in line with its reasons; `prev` is the position before the change (null: a fresh board, where every reason is new). */
-function reconcile(P, prev, cur) {
-  const before = prev ? reasonsOf(P, prev) : new Map(), now = reasonsOf(P, cur);
-  for (let i = 0; i < P.N; i++) {
-    if (P.clueAt[i] >= 0 || P.boxIdx.includes(i)) continue;
-    const reasons = now.get(i);
-    if (cur.cells[i] === 2 && cur.auto[i]) {
-      if (!reasons) { cur.cells[i] = 0; cur.auto[i] = 0; }          // its reasons are gone
-    } else if (cur.cells[i] === 0 && reasons && settings.autoDots) {
-      const old = before.get(i);
-      for (const r of reasons) if (!old || !old.has(r)) { cur.cells[i] = 2; cur.auto[i] = 1; break; } // a new reason
-    }
-  }
-}
+// ---- automatic dots: the rules live in js/marks.js (reasonsOf, reconcile, applyAutoDots); `settings.autoDots` says whether they are on.
+const reconcile = (P, prev, cur) => reconcileDots(P, prev, cur, settings.autoDots);
 
 /** The empty board (with automatic dots for reasons that exist from the start: pre-placed boxes, clues of 0). */
 function freshMarks(P) {
@@ -268,6 +235,7 @@ function load(P) {
   } catch { m = null; /* corrupt save: start fresh */ }
   if (!m) return freshMarks(P);
   for (const i of P.boxIdx) m.cells[i] = 1;
+  if (!settings.autoDots) applyAutoDots(P, m, false);      // a save made with automatic dots on shows none while they are off
   return m;
 }
 
@@ -750,6 +718,11 @@ for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_co
     store.set(store_key, el.checked ? '1' : '0');
     board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
     fitBoard();
+    if (key === 'autoDots' && state.P) {      // on: dots for everything already on the board; off: the automatic ones go (yours stay). One undo step.
+      const before = snapshot();
+      applyAutoDots(state.P, state.marks, settings.autoDots);
+      if (!sameMarks(before, state.marks)) { state.undo.push(before); state.redo = []; save(); refresh(); }
+    }
   });
 }
 clearBtn.addEventListener('click', () => {
