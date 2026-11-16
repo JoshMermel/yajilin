@@ -431,6 +431,81 @@ export function rangeDeduce(P, st, cells, kmin, kmax) {
 }
 
 /**
+ * rangeDeduce for any set of cells (a region of a regional puzzle), where the cells touch in two dimensions instead of in a line:
+ * every way to put between kmin and kmax shaded cells in `cells`, no two touching, and what is the same in all of them. The cells that
+ * can still be shaded split into groups that touch each other; each group's independent sets are listed (regions are small) and counted
+ * by size, and the groups are combined by size. Gives up (returns nothing) on a group too big to list.
+ */
+const REGION_CAP = 400000;
+export function regionDeduce(P, st, cells, kmin, kmax) {
+  let s = 0;
+  const elig = [];
+  for (const i of cells) {
+    if (st.cell[i] === SHADED) s++;
+    else if (st.cell[i] === UNKNOWN && !touchesShaded(P, st, i)) elig.push(i);
+  }
+  const lo = Math.max(0, kmin - s), hi = Math.min(kmax - s, elig.length);
+  if (kmax - s < 0 || lo > hi || !elig.length) return [];
+  // groups of eligible cells that touch each other
+  const at = new Map(elig.map((i, q) => [i, q]));
+  const groupOf = new Int32Array(elig.length).fill(-1);
+  const groups = [];
+  for (let q0 = 0; q0 < elig.length; q0++) {
+    if (groupOf[q0] >= 0) continue;
+    const g = groups.length, members = [q0];
+    groupOf[q0] = g;
+    for (let h = 0; h < members.length; h++) {
+      for (let d = 0; d < 4; d++) {
+        const j = P.nb[elig[members[h]] * 4 + d];
+        const q = j >= 0 ? at.get(j) : undefined;
+        if (q !== undefined && groupOf[q] < 0) { groupOf[q] = g; members.push(q); }
+      }
+    }
+    if (members.length > 30) return [];
+    groups.push(members);
+  }
+  let nodes = 0;
+  const sizes = [], withCell = [];                         // per group: placements by size, and per cell the placements it is in by size
+  for (const members of groups) {
+    const m = members.length;
+    const local = new Map(members.map((q, x) => [elig[q], x]));
+    const nbMask = members.map((q) => { let mask = 0; for (let d = 0; d < 4; d++) { const x = local.get(P.nb[elig[q] * 4 + d]); if (x !== undefined) mask |= 1 << x; } return mask; });
+    const cnt = new Float64Array(m + 1), wc = Array.from({ length: m }, () => new Float64Array(m + 1));
+    let over = false;
+    const rec = (x, chosen, size) => {
+      if (over) return;
+      if (x === m) {
+        if (++nodes > REGION_CAP) { over = true; return; }
+        cnt[size]++;
+        for (let b = 0; b < m; b++) if (chosen & (1 << b)) wc[b][size]++;
+        return;
+      }
+      rec(x + 1, chosen, size);
+      if (!(nbMask[x] & chosen)) rec(x + 1, chosen | (1 << x), size + 1);
+    };
+    rec(0, 0, 0);
+    if (over) return [];
+    sizes.push(cnt); withCell.push(wc);
+  }
+  const times = (a, b) => { const out = new Float64Array(a.length + b.length - 1); for (let x = 0; x < a.length; x++) if (a[x]) for (let y = 0; y < b.length; y++) out[x + y] += a[x] * b[y]; return out; };
+  const product = (skip) => { let acc = Float64Array.of(1); sizes.forEach((c, g) => { if (g !== skip) acc = times(acc, c); }); return acc; };
+  const validSum = (poly, shift) => { let t = 0; for (let c = lo; c <= hi; c++) { const k = c - shift; if (k >= 0 && k < poly.length) t += poly[k]; } return t; };
+  const total = validSum(product(-1), 0);
+  if (!total) return [];
+  const sets = [];
+  groups.forEach((members, g) => {
+    const others = product(g);
+    members.forEach((q, x) => {
+      let w = 0;
+      for (let size = 1; size < withCell[g][x].length; size++) if (withCell[g][x][size]) w += withCell[g][x][size] * validSum(others, size);
+      if (w === total) sets.push(setCell(elig[q], SHADED));
+      else if (w === 0) sets.push(setCell(elig[q], LOOP));
+    });
+  });
+  return sets;
+}
+
+/**
  * The special case of cluePlacements a person sees at a glance: a clue that still needs r >= 2 boxes whose open cells (not touching a box,
  * not a dot or a clue) form runs that can hold exactly r boxes between them, every run an odd length 2m-1 (it holds m boxes only on its
  * every other cell). Boxes cannot touch, so each run's boxes sit on its 1st, 3rd, ... cell and the cells between them are dots. With one run
@@ -439,7 +514,7 @@ export function rangeDeduce(P, st, cells, kmin, kmax) {
 function clueTight(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
-    if (cl.n < 2) return;                                 // (also skips voids)
+    if (cl.n < 2 || cl.region) return;                    // (also skips voids; a region is not a line, so it has no runs)
     let boxes = 0, run = [];
     const runs = [];
     for (const i of P.rays[k]) {
@@ -463,7 +538,7 @@ function cluePlacements(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
     if (cl.n < 0) return;
-    const sets = rangeDeduce(P, st, P.rays[k], cl.n, cl.n);
+    const sets = (cl.region ? regionDeduce : rangeDeduce)(P, st, P.rays[k], cl.n, cl.n);
     if (sets.length) out.push(firing(sets, { clue: k, cells: P.rays[k] }));
   });
   return out;
@@ -518,7 +593,7 @@ function placementDeadEnd(P, st) {
       if (++nodes > PLACEMENT_CAP) { gaveUp = true; return; }
       for (let q = from; q < elig.length; q++) {
         if (elig.length - q < need - chosen.length) break;
-        if (chosen.length && adjacent(P, chosen[chosen.length - 1], elig[q])) continue;
+        if (chosen.length && (cl.region ? touchesShaded(P, st, elig[q]) : adjacent(P, chosen[chosen.length - 1], elig[q]))) continue;   // (the chosen boxes are marked on st)
         chosen.push(elig[q]); mark(elig[q], true);
         go(q + 1);
         mark(elig[q], false); chosen.pop();
@@ -559,7 +634,7 @@ function arrowPairs(P) {
   const same = [], face = [];
   P.clues.forEach((A, a) => {
     P.clues.forEach((B, b) => {
-      if (a === b || A.n < 0 || B.n < 0) return;
+      if (a === b || A.n < 0 || B.n < 0 || A.region || B.region) return;
       const sameWay = A.d === B.d, facing = B.d === (A.d + 2) % 4;
       if (!sameWay && !facing) return;
       const ia = cellOfClue(P, A), ib = cellOfClue(P, B);

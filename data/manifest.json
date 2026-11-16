@@ -140,7 +140,16 @@
       "count": 36,
       "label": "Voids",
       "group": "Bonus",
-      "blurb": "Hatched cells are void: nothing goes there. The loop avoids them and arrows count straight through them."
+      "blurb": "Crossed-out blocks are void: nothing goes there. The loop avoids them and arrows count straight through them."
+    },
+    {
+      "id": "regional-corpus",
+      "name": "Experiment: regional corpus",
+      "file": "data/regional-corpus.csv",
+      "count": 48,
+      "label": "Regional corpus (experiment)",
+      "group": "Bonus",
+      "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."
     }
   ],
   "default": "bonus-intro"

@@ -23,7 +23,7 @@ export function clueStates(P, marks) {
     }
     if (boxes > cl.n || (open === 0 && boxes < cl.n)) return 'bad';
     if (boxes === cl.n) return 'ok';
-    return isCovered(P, marks, cl) ? 'ok' : '';
+    return cl.region ? '' : isCovered(P, marks, cl) ? 'ok' : '';       // (a region is not a line: no other number covers it)
   });
 }
 

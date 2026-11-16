@@ -42,10 +42,14 @@ export function rotateRaw(p, hashKey) {
   const at = (r, c) => cm[r * cols + c];
   const out = {
     name: p.name, rows: cols, cols: rows, rules: p.rules, tier: p.tier, score: p.score, hashKey, rotated: true,
-    clues: p.clues.map((cl) => { const i = at(cl.r, cl.c); return { r: Math.floor(i / rows), c: i % rows, d: (cl.d + 1) % 4, n: cl.n }; }),
+    clues: p.clues.map((cl) => { const i = at(cl.r, cl.c); return cl.region ? { r: Math.floor(i / rows), c: i % rows, d: 0, n: cl.n, region: true } : { r: Math.floor(i / rows), c: i % rows, d: (cl.d + 1) % 4, n: cl.n }; }),
     boxes: (p.boxes || []).map((b) => { const i = at(b.r, b.c); return { r: Math.floor(i / rows), c: i % rows }; }),
     solution: '',
   };
+  if (p.regions && p.regions.length) {                              // the regions turn with the board
+    out.regions = new Array(rows * cols);
+    for (let i = 0; i < rows * cols; i++) out.regions[cm[i]] = p.regions[i];
+  }
   if (p.solution) {
     const s = new Array(rows * cols);
     for (let i = 0; i < rows * cols; i++) {

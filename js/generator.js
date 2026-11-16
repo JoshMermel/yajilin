@@ -58,7 +58,7 @@ function gridNeighbours(rows, cols, i) {
  * cycle with local flips. `tryHoles(c1, c2)` then makes two cells of opposite chessboard color holes: it repairs the 2-factor
  * with augmenting paths, merges it back into one cycle, and rolls everything back (returning false) if either is impossible.
  */
-export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40 } = {}) {
+export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40, independent = false } = {}) {   // independent: no two holes touch (regional puzzles: every hole is a box)
   const N = rows * cols;
   const color = (i) => (((i / cols) | 0) + (i % cols)) & 1;
   const grid = Array.from({ length: N }, (_, i) => gridNeighbours(rows, cols, i)); // fixed
@@ -169,10 +169,10 @@ export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40 } = {}) {
     return mergeCycles();
   };
   // may this cell become a hole? (every neighbour keeps two neighbours; `clump` is the chance of refusing a hole next to a hole)
-  const okCell = (c, clump = 0) => !hole[c] && adj[c].every((w) => adj[w].length - 1 >= 2) && !(clump > 0 && grid[c].some((w) => hole[w]) && rng() < clump);
+  const okCell = (c, clump = 0) => !hole[c] && adj[c].every((w) => adj[w].length - 1 >= 2) && !(independent && grid[c].some((w) => hole[w])) && !(clump > 0 && grid[c].some((w) => hole[w]) && rng() < clump);
   /** Make c1 and c2 (opposite colors) holes, keeping one cycle through the rest. Returns false, changing nothing, if impossible. */
   const tryHoles = (c1, c2) => {
-    if (color(c1) === color(c2) || c1 === c2 || hole[c1] || hole[c2]) return false;
+    if (color(c1) === color(c2) || c1 === c2 || hole[c1] || hole[c2] || (independent && grid[c1].includes(c2))) return false;
     const touched = [...new Set([c1, c2, ...adj[c1], ...adj[c2]])];
     const savedPartners = partners.map((p) => p.slice());
     const savedAdj = touched.map((v) => adj[v].slice());
@@ -214,8 +214,8 @@ export function makeLoopBuilder(rows, cols, rng, { mergeRounds = 40 } = {}) {
 }
 
 /** A random loop: { holes: Uint8Array (1 = a cell the loop does not visit), edges: Int8Array (numEdges, 1 = loop segment) }, or null. */
-export function randomLoop(rows, cols, rng, { density = 0.3, clump = 0.7, attemptsPerHole = 150, mergeRounds = 40, info = null } = {}) {
-  const b = makeLoopBuilder(rows, cols, rng, { mergeRounds });
+export function randomLoop(rows, cols, rng, { density = 0.3, clump = 0.7, attemptsPerHole = 150, mergeRounds = 40, info = null, independent = false } = {}) {
+  const b = makeLoopBuilder(rows, cols, rng, { mergeRounds, independent });
   const N = rows * cols;
   if (!b.init()) { if (info) info.fail = 'merge0'; return null; }
   const target = Math.round((N * density) / 2) * 2;
@@ -309,10 +309,10 @@ export function plantTightArrows(rows, cols, rng, count, { sizes = [[2, 0.45], [
  * the move only if the number of crossings goes down (or stays level, now and then, to cross plateaus). Returns
  * { holes, edges, stats } or null. Random loops almost never pass at 14x14 and above; this is what scales.
  */
-export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, maxIters = Infinity, clump = 0.5, check = true, preset = null } = {}) {
+export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, maxIters = Infinity, clump = 0.5, check = true, preset = null, independent = false } = {}) {
   const t0 = Date.now();
   const N = rows * cols;
-  const b = makeLoopBuilder(rows, cols, rng);
+  const b = makeLoopBuilder(rows, cols, rng, { independent });
   if (!b.init()) return null;
   const near = (a, c, dist) => Math.abs(((a / cols) | 0) - ((c / cols) | 0)) + Math.abs((a % cols) - (c % cols)) <= dist;
   const target = Math.round((N * startDensity) / 2) * 2;
@@ -661,4 +661,203 @@ function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budg
     else { clueDir.set(i, d); isClue[i] = 1; }
   }
   return P;
+}
+
+// ------------------------------------------------------------ regional puzzles (experiment)
+//
+// A regional puzzle has no arrows and no clue cells: the board is cut into regions and a number in a region says how many of its cells
+// are shaded (a region may have no number). So the clues are the PARTITION and which regions carry a number; the solution's boxes are
+// an independent set (no two touching) and the loop runs through all the other cells. As for arrows, the loop must be the only loop
+// through the cells the boxes leave (the numbers can never change that), so the first step is a random loop with a unique routing; the
+// climb then reshapes the regions until the rules solve the puzzle, and the pruning drops numbers while they still do.
+
+/** The label cell of each region: its first cell in reading order (where the number is printed). */
+function regionCellLists(owner) {
+  let R = 0;
+  for (const g of owner) if (g + 1 > R) R = g + 1;
+  const cells = Array.from({ length: R }, () => []);
+  owner.forEach((g, i) => cells[g].push(i));
+  return cells;
+}
+
+/** The compiled regional puzzle (and its solution string) from a loop, the region of every cell and which regions carry a number. */
+export function buildRegionalPuzzle(rows, cols, loop, owner, numbered, name = 'gen') {
+  const N = rows * cols;
+  const cells = regionCellLists(owner);
+  const clues = [];
+  cells.forEach((list, g) => {
+    if (!numbered[g]) return;
+    const i = list[0];
+    clues.push({ r: (i / cols) | 0, c: i % cols, d: 0, n: list.filter((j) => loop.holes[j]).length, region: true });
+  });
+  clues.sort((a, b) => a.r - b.r || a.c - b.c);
+  const P = compile({ name, rows, cols, clues, regions: Array.from(owner) });
+  const st = initialState(P);
+  for (let i = 0; i < N; i++) st.cell[i] = loop.holes[i] ? SHADED : LOOP;
+  for (let x = 0; x < 2 * N; x++) st.e[x] = loop.edges[x] ? E_ON : E_OFF;
+  P.solution = encodeSolution(P, st);
+  return P;
+}
+
+/** Cut the board into `count` connected regions by growing them from random seeds (no region gets more than maxSize cells). */
+export function growRegions(rows, cols, rng, count, maxSize = Infinity) {
+  const N = rows * cols;
+  const owner = new Int16Array(N).fill(-1);
+  const size = new Int16Array(count);
+  const seeds = shuffle([...Array(N).keys()], rng).slice(0, count);
+  seeds.forEach((i, g) => { owner[i] = g; size[g] = 1; });
+  let active = seeds.map((_, g) => g);
+  let left = N - count;
+  while (left > 0) {
+    if (!active.length) {                                            // every region is full or walled in: the rest joins its smallest neighbour
+      for (let i = 0; i < N; i++) {
+        if (owner[i] >= 0) continue;
+        const near = gridNeighbours(rows, cols, i).map((j) => owner[j]).filter((g) => g >= 0);
+        if (!near.length) continue;
+        const g = near.reduce((a, b) => (size[a] <= size[b] ? a : b));
+        owner[i] = g; size[g]++; left--;
+      }
+      continue;
+    }
+    const q = (rng() * active.length) | 0, g = active[q];
+    const free = [];
+    for (let i = 0; i < N; i++) if (owner[i] === g) for (const j of gridNeighbours(rows, cols, i)) if (owner[j] < 0) free.push(j);
+    if (!free.length || size[g] >= maxSize) { active.splice(q, 1); continue; }
+    const j = free[(rng() * free.length) | 0];
+    owner[j] = g; size[g]++; left--;
+  }
+  return owner;
+}
+
+/** Regions that are straight bars: every row (or every column, when `vertical`) cut into pieces 2 to maxSize cells long. */
+export function growBars(rows, cols, rng, vertical, maxSize = 5) {
+  const owner = new Int16Array(rows * cols);
+  const lines = vertical ? cols : rows, len = vertical ? rows : cols;
+  let g = 0;
+  for (let l = 0; l < lines; l++) {
+    let pos = 0;
+    while (pos < len) {
+      let size = 2 + ((rng() * (maxSize - 1)) | 0);
+      if (len - pos - size === 1) size++;                            // never leave a single cell at the end
+      size = Math.min(size, len - pos);
+      for (let k = 0; k < size; k++) owner[vertical ? (pos + k) * cols + l : l * cols + pos + k] = g;
+      g++; pos += size;
+    }
+  }
+  return owner;
+}
+
+/** Would region g stay in one piece if cell x left it? (cells of the other regions do not count) */
+function staysConnected(rows, cols, owner, g, x) {
+  const members = [];
+  for (let i = 0; i < owner.length; i++) if (owner[i] === g && i !== x) members.push(i);
+  if (members.length <= 1) return members.length === 1;
+  const seen = new Set([members[0]]), stack = [members[0]];
+  while (stack.length) {
+    const i = stack.pop();
+    for (const j of gridNeighbours(rows, cols, i)) if (j !== x && owner[j] === g && !seen.has(j)) { seen.add(j); stack.push(j); }
+  }
+  return seen.size === members.length;
+}
+
+/**
+ * One try at a regional puzzle: a loop with a unique routing and independent boxes, regions grown at random, then a climb (move a border
+ * cell to the neighbouring region) until the rules leave at most `acceptU` cells undecided and the exhaustive search finishes it uniquely,
+ * then pruning. Returns { puzzle, stats } or null.
+ * options: density (share of cells that are boxes), avgSize (average region size), maxSize, shape ('blob': grown at random; 'rows' / 'cols':
+ * straight bars along every row / column, whose border cells only slide along the bar), stuck (after the climb keep removing numbers while the puzzle stays unique
+ * by exhaustive search, until the rules no longer finish it but leave at most acceptU cells open: positions that need a technique the rules lack), prune, upto, maxIter, acceptU, budgetMs.
+ */
+function attemptRegional(rows, cols, rng, { density = 0.2, avgSize = 5, maxSize = 9, shape = 'blob', stuck = false, prune = true, upto, maxIter = 3000, acceptU = 12, name = 'gen', budgetMs = 60000, verbose = false } = {}) {
+  const t0 = Date.now();
+  const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
+  const N = rows * cols;
+  let loop = null, looked = 0;
+  while (!loop && Date.now() - t0 < budgetMs * 0.5 && looked < 20000) {
+    looked++;
+    const cand = randomLoop(rows, cols, rng, { density, clump: 1, independent: true });
+    if (cand && loopIsUnique(rows, cols, cand.holes)) loop = cand;
+  }
+  if (!loop) { say(`no loop with a unique routing among ${looked} candidates`); return null; }
+  say(`loop with a unique routing after ${looked} candidate(s), ${Date.now() - t0} ms`);
+  const bars = shape === 'rows' || shape === 'cols';
+  const owner = bars ? growBars(rows, cols, rng, shape === 'cols', maxSize) : growRegions(rows, cols, rng, Math.max(2, Math.round(N / avgSize)), maxSize);
+  const numbered = new Uint8Array(N).fill(1);                          // by region id
+  const size = new Int16Array(N);
+  for (const g of owner) size[g]++;
+  const evaluate = () => {
+    const P = buildRegionalPuzzle(rows, cols, loop, owner, numbered, name);
+    const r = solvedByRules(P, upto);
+    return { P, r, u: r.solved ? 0 : undecidedScore(P, r.state) + 0.001 };
+  };
+  let cur = evaluate(), checks = 1, iter = 0;
+  const triedUnique = new Set();
+  const acceptable = () => {
+    if (cur.u === 0) return true;
+    if (cur.u > acceptU) return false;
+    const key = Array.from(owner).join('.');
+    if (triedUnique.has(key)) return false;
+    triedUnique.add(key);
+    const r = solve(cur.P, { limit: 2, state: cur.r.state, maxNodes: 20000 });
+    return r.count === 1 && !r.exceeded;
+  };
+  const dist = (a, b) => Math.abs(((a / cols) | 0) - ((b / cols) | 0)) + Math.abs((a % cols) - (b % cols));
+  for (; iter < maxIter && !acceptable() && Date.now() - t0 < budgetMs; iter++) {
+    const temp = 0.6 * (1 - iter / maxIter) + 0.05;
+    const und = [];
+    for (let i = 0; i < N; i++) if (cur.r.state.cell[i] === UNKNOWN || cur.r.state.cell[i] === LOOP) und.push(i);
+    const target = und.length ? und[(rng() * und.length) | 0] : (rng() * N) | 0;
+    const moves = [];
+    for (let radius = 2; radius <= 6 && !moves.length; radius++) {
+      for (let i = 0; i < N; i++) {
+        if (dist(i, target) > radius || size[owner[i]] < 2) continue;
+        for (const j of gridNeighbours(rows, cols, i)) {
+          if (owner[j] === owner[i] || size[owner[j]] >= maxSize) continue;
+          if (bars && (shape === 'rows' ? ((i / cols) | 0) !== ((j / cols) | 0) : i % cols !== j % cols)) continue;      // a bar's end cell only slides along the bar
+          moves.push([i, owner[j]]);
+        }
+      }
+    }
+    if (!moves.length) break;
+    const [x, to] = moves[(rng() * moves.length) | 0];
+    const from = owner[x];
+    if (!staysConnected(rows, cols, owner, from, x)) continue;
+    owner[x] = to; size[from]--; size[to]++;
+    const next = evaluate(); checks++;
+    if (next.u <= cur.u || rng() < Math.exp(-(next.u - cur.u) / temp)) cur = next;
+    else { owner[x] = from; size[from]++; size[to]--; }
+  }
+  say(`${iter} iterations, ${checks} checks, undecided score ${cur.u.toFixed(1)}, ${Date.now() - t0} ms`);
+  if (!acceptable()) return null;
+  let puzzle = cur.P;
+  if ((prune || stuck) && cur.u === 0) {
+    const order = shuffle([...Array(N).keys()].filter((g) => size[g] > 0), rng);
+    for (const g of order) {
+      if (Date.now() - t0 > budgetMs) break;
+      numbered[g] = 0;
+      const Q = buildRegionalPuzzle(rows, cols, loop, owner, numbered, name);
+      checks++;
+      const r = solvedByRules(Q, upto);
+      let keep = r.solved;
+      if (!keep && stuck && undecidedScore(Q, r.state) <= acceptU) {          // the rules stop short: fine if the search still finds exactly one answer
+        const found = solve(Q, { limit: 2, state: r.state, maxNodes: 20000 });
+        keep = found.count === 1 && !found.exceeded;
+      }
+      if (keep) puzzle = Q; else numbered[g] = 1;
+    }
+    if (stuck && solvedByRules(puzzle, upto).solved) return null;               // nothing could be removed: not a stuck puzzle
+  }
+  return { puzzle, stats: { iterations: iter, checks, ms: Date.now() - t0 } };
+}
+
+/** Generate a regional puzzle, starting over with a fresh loop whenever a climb stalls. Returns { puzzle, stats } or null. */
+export function generateRegional(rows, cols, rng, options = {}) {
+  const { restarts = 20, budgetMs = 120000, verbose = false } = options;
+  const t0 = Date.now();
+  for (let k = 0; k < restarts && Date.now() - t0 < budgetMs; k++) {
+    const r = attemptRegional(rows, cols, rng, { ...options, budgetMs: budgetMs - (Date.now() - t0) });
+    if (r) { r.stats.restarts = k; r.stats.ms = Date.now() - t0; return r; }
+    if (verbose) console.error(`  gen: restart ${k + 1}`);
+  }
+  return null;
 }

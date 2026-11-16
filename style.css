@@ -21,6 +21,7 @@
   --clue-bg: #e9ecef;
   --clue-ink: #111;
   --clue-ok-bg: #d7ecd9;
+  --clue-ok-ink: #2e7d32;
   --clue-bad-bg: #f6c9c6;
   --shaded: #111;
   --shaded-bad: #c62828;
@@ -58,6 +59,7 @@
   --clue-bg: #343a40;
   --clue-ink: #eee;
   --clue-ok-bg: #28452c;
+  --clue-ok-ink: #81c784;
   --clue-bad-bg: #5a2623;
   --shaded: #c9d1d9;   /* light on the dark board: black squares vanish against #222 */
   --shaded-bad: #ef5350;
@@ -119,6 +121,10 @@ button.ghost { background: transparent; }
 .void-x { stroke: var(--cell-bg); stroke-width: 3; stroke-linecap: round; fill: none; pointer-events: none; }
 .clue-bg.ok { fill: var(--clue-ok-bg); }
 .clue-bg.bad { fill: var(--clue-bad-bg); }
+.region-line { fill: none; stroke: var(--frame); stroke-width: 3; stroke-linecap: square; pointer-events: none; }
+.region-num { fill: var(--clue-ink); font-weight: 700; paint-order: stroke; stroke: var(--cell-bg); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.region-num.ok { fill: var(--clue-ok-ink); }
+.region-num.bad { fill: var(--shaded-bad); }
 .clue-text { fill: var(--clue-ink); font-weight: 700; text-anchor: middle; dominant-baseline: central; }
 .shaded { fill: var(--shaded); }
 .shaded.bad { fill: var(--shaded-bad); }

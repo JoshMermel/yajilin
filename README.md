@@ -56,6 +56,12 @@ name,rows,cols,clues,solution,rules,tier,score
   `row:col:V:-1` (a clue with no arrow and no number): nothing goes there. It is not shaded and not on the loop, arrows skip over it when they
   count (as they skip clue cells), and a shaded cell may touch it. Everything (solver, rules, hints, GUI, print, generator) supports voids;
   the rest of the code simply treats them as clues with `n < 0`, which have no line and no count.
+- **Regional puzzles** (experiment, branch `experiment/regional`): no arrows and no clue cells. A tenth CSV column, `regions`, gives each cell's
+  region id (ids joined by `.`, row-major), and a region's number is written `row:col:G:n` (the number sits in that cell and counts the
+  cell's whole region; a region may have no number). `compile` turns a region clue into an ordinary clue whose line is the region
+  (`P.regional`, `P.regionOf`, `P.regionCells`, `P.labelAt`), so the exhaustive solver and most rules work unchanged; `regionDeduce`
+  (rating.js) is the placement rule for a two-dimensional line. Generator: `generateRegional` (a unique loop with independent boxes,
+  random regions, a climb that moves border cells, then number pruning); tool: `node tools/generate.mjs --regional --size 8x8 --avg-size 4`.
 - `solution`: one char per cell, row-major: `#` clue cell, `x` shaded, otherwise a hex digit of the loop cell's exits
   (U=1, R=2, D=4, L=8; so `6` is a corner joining right and down, `a` a horizontal straight, `5` a vertical one).
 - `rules`, `tier`, `score`: difficulty from the human-style solver (`tools/generate.mjs` fills them in).

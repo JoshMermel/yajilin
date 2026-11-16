@@ -101,6 +101,7 @@ export function boardSvg(P, sol = null) {
   let g = `<rect x="0" y="0" width="${cols}" height="${rows}" fill="#fff"/>`;
   for (const cl of P.clues) {
     const x = cl.c, y = cl.r, horiz = cl.d === 1 || cl.d === 3;
+    if (cl.region) continue;              // regional: the numbers are drawn on top of the board below
     if (cl.n < 0) {                       // a void cell: darker grey crossed out, so it reads on a black-and-white printer too
       g += `<rect class="void" x="${x}" y="${y}" width="1" height="1" fill="${VOID_BG}"/>`;
       g += `<path class="void-x" d="M${x + 0.12} ${y + 0.12}L${x + 0.88} ${y + 0.88}M${x + 0.88} ${y + 0.12}L${x + 0.12} ${y + 0.88}" stroke="${INK}" stroke-width="0.06" stroke-linecap="round" opacity="0.55"/>`;
@@ -127,6 +128,16 @@ export function boardSvg(P, sol = null) {
       const a = x >> 1, b = (x & 1) ? a + cols : a + 1;
       g += `<line class="loop" x1="${(a % cols) + 0.5}" y1="${((a / cols) | 0) + 0.5}" x2="${(b % cols) + 0.5}" y2="${((b / cols) | 0) + 0.5}" stroke="${INK}" stroke-width="0.14" stroke-linecap="round"/>`;
     }
+  }
+  if (P.regional) {                       // regions: heavy borders, and each number in the corner of one of its cells (on a white halo, over any box)
+    let d = '';
+    for (let i = 0; i < P.N; i++) {
+      const r = (i / cols) | 0, c = i % cols;
+      if (c + 1 < cols && P.regionOf[i] !== P.regionOf[i + 1]) d += `M${c + 1} ${r}v1`;
+      if (r + 1 < rows && P.regionOf[i] !== P.regionOf[i + cols]) d += `M${c} ${r + 1}h1`;
+    }
+    if (d) g += `<path class="region-line" d="${d}" fill="none" stroke="${INK}" stroke-width="0.07" stroke-linecap="square"/>`;
+    for (const cl of P.clues) g += `<text class="num" x="${f(cl.c + 0.09)}" y="${f(cl.r + 0.36)}" font-size="0.32" font-weight="700" font-family="Helvetica, Arial, sans-serif" fill="${INK}" stroke="#fff" stroke-width="0.07" paint-order="stroke" stroke-linejoin="round">${cl.n}</text>`;
   }
   g += `<rect x="0" y="0" width="${cols}" height="${rows}" fill="none" stroke="${INK}" stroke-width="0.08"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" class="print-board" viewBox="${-pad} ${-pad} ${cols + 2 * pad} ${rows + 2 * pad}">${g}</svg>`;

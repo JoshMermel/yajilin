@@ -121,6 +121,16 @@ export class Board {
     }
     for (let r = 0; r <= P.rows; r++) g += `<line class="grid-line" x1="${PAD}" y1="${PAD + r * S}" x2="${PAD + P.cols * S}" y2="${PAD + r * S}"/>`;
     for (let c = 0; c <= P.cols; c++) g += `<line class="grid-line" x1="${PAD + c * S}" y1="${PAD}" x2="${PAD + c * S}" y2="${PAD + P.rows * S}"/>`;
+    // regional puzzles: the regions' borders, heavier than the grid (one path for all of them)
+    if (P.regional) {
+      let d = '';
+      for (let i = 0; i < P.N; i++) {
+        const r = (i / P.cols) | 0, c = i % P.cols;
+        if (c + 1 < P.cols && P.regionOf[i] !== P.regionOf[i + 1]) d += `M${PAD + (c + 1) * S} ${PAD + r * S}v${S}`;
+        if (r + 1 < P.rows && P.regionOf[i] !== P.regionOf[i + P.cols]) d += `M${PAD + c * S} ${PAD + (r + 1) * S}h${S}`;
+      }
+      if (d) g += `<path class="region-line" d="${d}"/>`;
+    }
     // a cell with three or four segments is an error
     for (let i = 0; i < P.N; i++) if (deg[i] > 2) g += `<rect class="over" x="${cellX(i) + 2}" y="${cellY(i) + 2}" width="${S - 4}" height="${S - 4}" rx="6"/>`;
     // shaded cells and dots
@@ -141,6 +151,13 @@ export class Board {
       const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
       const style = this.opts.colorLines ? ` style="stroke:var(--path-${colorOf.get(find(a))})"` : '';
       g += `<line class="seg"${style} stroke-width="${S * 0.13}" x1="${cx(a % P.cols)}" y1="${cy((a / P.cols) | 0)}" x2="${cx(b % P.cols)}" y2="${cy((b / P.cols) | 0)}"/>`;
+    }
+    // regional puzzles: each region's number sits in a corner of one of its cells (that cell is an ordinary cell: a box or a dot can go there too)
+    if (P.regional) {
+      P.clues.forEach((cl, k) => {
+        const i = cl.r * P.cols + cl.c, st = info.clueState[k];
+        g += `<text class="region-num ${st === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : st || ''}" x="${cellX(i) + 5}" y="${cellY(i) + 16}" font-size="15">${cl.n}</text>`;
+      });
     }
     if (hint) {
       const seg = (x) => { const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1; return [cx(a % P.cols), cy((a / P.cols) | 0), cx(b % P.cols), cy((b / P.cols) | 0)]; };

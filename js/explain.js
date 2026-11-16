@@ -6,7 +6,9 @@ import { ruleLabel, followLines } from './rating.js';
 const ARROWS = ['↑', '→', '↓', '←'];
 /** A cell's name like a spreadsheet's: column letter, then row number (E3). */
 const cellName = (P, i) => `${colName(i % P.cols)}${((i / P.cols) | 0) + 1}`;
-const clueName = (P, k) => `${P.clues[k].n}${ARROWS[P.clues[k].d]} clue at ${cellName(P, P.clues[k].r * P.cols + P.clues[k].c)}`;
+const clueName = (P, k) => (P.clues[k].region
+  ? `region numbered ${P.clues[k].n} (at ${cellName(P, P.clues[k].r * P.cols + P.clues[k].c)})`            // regional puzzles: the number counts its region
+  : `${P.clues[k].n}${ARROWS[P.clues[k].d]} clue at ${cellName(P, P.clues[k].r * P.cols + P.clues[k].c)}`);
 const clueCell = (P, k) => P.clues[k].r * P.cols + P.clues[k].c;
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 
@@ -76,7 +78,8 @@ export function explainStep(P, step, st = null) {
   switch (rule) {
     case 'clueDone': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', P.rays[k]);
-      text = P.clues[k].n === 0 ? `The ${clueName(P, k)} needs no boxes: its whole line gets dots.` : `The ${clueName(P, k)} has all ${plural(P.clues[k].n, 'box', 'boxes')}: the rest of its line gets dots.`;
+      const line = P.clues[k].region ? 'region' : 'line';
+      text = P.clues[k].n === 0 ? `The ${clueName(P, k)} needs no boxes: its whole ${line} gets dots.` : `The ${clueName(P, k)} has all ${plural(P.clues[k].n, 'box', 'boxes')}: the rest of its ${line} gets dots.`;
       break;
     }
     case 'clueFull': {

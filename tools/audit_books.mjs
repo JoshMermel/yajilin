@@ -43,6 +43,14 @@ if (process.argv.includes('--worker')) {
     let P;
     try { P = compile(raw); } catch (e) { return fail(`does not compile: ${e.message}`); }
     for (const c of raw.clues) if (c.n > P.rays[raw.clues.indexOf(c)].length) return fail('a clue number is larger than its line');
+    if (P.regional) {                                                      // regions: every cell in one, and each region in one piece
+      for (const [g, cells] of P.regionCells.entries()) {
+        if (!cells.length) return fail(`region ${g} is empty`);
+        const seenCells = new Set([cells[0]]), stack = [cells[0]];
+        while (stack.length) { const i = stack.pop(); for (const j of [i - P.cols, i + P.cols, i % P.cols ? i - 1 : -1, (i + 1) % P.cols ? i + 1 : -1]) if (j >= 0 && j < P.N && P.regionOf[j] === g && !seenCells.has(j)) { seenCells.add(j); stack.push(j); } }
+        if (seenCells.size !== cells.length) return fail(`region ${g} is not in one piece`);
+      }
+    }
     if (!raw.solution || raw.solution.length !== P.N) return fail('no stored solution of the right length');
     // the stored solution is valid
     const sol = decodeSolution(P, raw.solution);

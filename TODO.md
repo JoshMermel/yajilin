@@ -201,3 +201,30 @@ All five done on 2026-11-15:
 Done: the tightLoop iteration cap (14x14 generation 30x faster), faster rating and exhaustive-solver internals, one-rect board background. Open: the
 `--cross-check-nodes` policy for generate.mjs, pruning `placementDeadEnd` (changes ratings), path-based segment drawing and lazy book compile in the GUI,
 an incremental `followLines`. Also built: the "Voids" bonus book (36 puzzles; `tools/make_voids_pools.sh`).
+
+## Variants (researched 2026-11-16; Josh's picks)
+
+Survey of Yajilin variants is in the conversation of 2026-11-16 (puzzles.wiki, the WPC wiki, Cross+A, GM Puzzles' Yajilin archive).
+Josh is excited by these four; **Regional** is in progress on the branch `experiment/regional` (see its notes below).
+
+- **Regional** (experiment branch): done so far: format (`regions` column, `r:c:G:n`), compile, solver, rules (`regionDeduce`, the placement
+  rules work on regions), generator (`generateRegional`), board/print/hint text, rotation, the test corpus (`experiments/regional/CORPUS.md`). Next: tune the difficulty
+  ladder (all-Hard at 10x10+ because regions of 5 need `shadeForcesLines`), bigger boards (12x12 takes 20-40 s; `tightLoop` with
+  `independent: true` stalls, random loops + `loopIsUnique` is what works), region-specific rules a person would use (two regions that
+  differ by one cell; a region that must hold a box in each of two disjoint groups), unnumbered regions that are only visible as
+  borders (how many should a puzzle keep?), pre-placed boxes, symmetric region layouts, a Beginner tour.
+- **Diagonal arrows**: arrows along diagonals. A ray is a diagonal line; boxes on a diagonal may touch at corners (allowed). `compile`
+  rays, `posAlong`/`sameLine` and the pair rules (`rangeSame`, `rangeFacing`) need diagonal versions (the DP in `rangeDeduce` already
+  works on any ordered list of cells where only consecutive cells can touch: along a diagonal NO two cells touch, so the DP becomes
+  "choose any n of the open cells", which is simpler); eight arrow glyphs and a direction set of eight in the generator
+  (`pickDirection`, `rayOf`, `plantTightArrows`), rotation turns arrows by 2 of 8 steps, CSV `dir` letters need diagonals (`UR`? `Q E Z C`?).
+  Strict Transparent Yajilin (diagonal arrows, transparent clue cells) is a later extension.
+- **Double Yajilin**: shade 1x2 dominoes instead of single cells; clues count dominoes in the arrow's direction (a domino counts when
+  it lies in the line; check the exact rule on GM Puzzles' posts before building). A box becomes two cells, so adjacency (dominoes may not
+  touch each other), the loop's free cells, the solver (domino placement is a new decision variable), rules, generator and drawing all change:
+  the biggest of the four.
+- **Two loops**: draw exactly two disjoint loops instead of one (every free cell is on one of them). Solver: the "one loop only" rule
+  becomes "exactly two cycles" (a cycle may close while ANOTHER loop cell is outside it, but only once, and a final check for two); the
+  loop generator builds a 2-factor with exactly two cycles (the merge step stops one cycle early); rules `noEarlyClose`, `closingCell`,
+  `sameSegmentExits`, `pairedEnds`, `parityForces`, `crossingParity` all assume one loop and need a "how many loops remain" parameter;
+  GUI colours the two loops differently (path colours already exist); uniqueness is harder to make (two cycles can swap parts).

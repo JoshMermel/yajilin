@@ -6,6 +6,9 @@
 //   * the loop is one closed cycle, through every cell that is neither a clue nor shaded.
 //   * a VOID cell (a clue with n < 0, no arrow) is outside the puzzle: not shaded, not on the loop, not counted by any arrow (arrows skip
 //     over it like a clue cell), and a box may touch it.
+//   * REGIONAL puzzles (experiment): the board is cut into regions (`p.regions`, one region id per cell) and there are no arrows and no
+//     clue cells. A region clue ({r, c, n, region: true}) counts the shaded cells of the region its cell lies in; the cell itself is an
+//     ordinary cell (it can be shaded or on the loop). A region without a clue may hold any number of shaded cells.
 //
 // Coordinates: cell (r, c) has index r*cols + c. Directions are 0=U 1=R 2=D 3=L (DR/DC below).
 // Edges (loop segments between orthogonal neighbours): edge index 2*i is cell i's right edge (i - i+1),
@@ -32,10 +35,24 @@ export function compile(p) {
   const { rows, cols } = p;
   const N = rows * cols;
   const clueAt = new Int16Array(N).fill(-1);
+  const labelAt = new Int16Array(N).fill(-1);                         // regional: the region clue whose number is drawn in this cell
   p.clues.forEach((cl, k) => {
+    if (cl.region) {
+      if (labelAt[cl.r * cols + cl.c] >= 0) throw new Error(`two region clues on cell ${cl.r},${cl.c}`);
+      labelAt[cl.r * cols + cl.c] = k;
+      return;                                                         // an ordinary cell, not a clue cell
+    }
     if (clueAt[cl.r * cols + cl.c] >= 0) throw new Error(`two clues on cell ${cl.r},${cl.c}`);
     clueAt[cl.r * cols + cl.c] = k;
   });
+  // regions (regional puzzles): the cells of each region, and the region of each cell
+  let regionOf = null, regionCells = [];
+  if (p.regions && p.regions.length) {
+    if (p.regions.length !== N) throw new Error(`regions has ${p.regions.length} entries for ${N} cells`);
+    regionOf = Int16Array.from(p.regions);
+    regionCells = Array.from({ length: Math.max(...regionOf) + 1 }, () => []);
+    for (let i = 0; i < N; i++) regionCells[regionOf[i]].push(i);
+  } else if (p.clues.some((cl) => cl.region)) throw new Error('a region clue needs regions');
   // nb[i*4+d]: neighbour cell in direction d if both are non-clue cells, else -1. ed: the edge between them.
   const nb = new Int16Array(N * 4).fill(-1);
   const ed = new Int16Array(N * 4).fill(-1);
@@ -57,6 +74,7 @@ export function compile(p) {
   for (const i of boxIdx) if (clueAt[i] >= 0) throw new Error(`a box and a clue share cell ${i}`);
   const rays = p.clues.map((cl) => {
     const cells = [];
+    if (cl.region) return regionCells[regionOf[cl.r * cols + cl.c]].slice();     // a region clue counts its whole region
     if (cl.n < 0) return cells;                   // a void cell has no line
     let r = cl.r + DR[cl.d], c = cl.c + DC[cl.d];
     while (r >= 0 && c >= 0 && r < rows && c < cols) {
@@ -71,7 +89,12 @@ export function compile(p) {
   rays.forEach((cells, k) => cells.forEach((i) => cluesOf[i].push(k)));
   // void cells: nothing goes there (not a box, not on the loop, no arrow); a clue with n < 0 (see the top of this file)
   const voidIdx = p.clues.filter((cl) => cl.n < 0).map((cl) => cl.r * cols + cl.c);
-  return Object.assign(p, { N, clueAt, nb, ed, rays, cluesOf, numEdges: 2 * N, boxIdx, voidIdx });
+  const regional = regionOf !== null;
+  if (regional) {                                                       // two numbers in one region would be two clues for the same cells
+    const seen = new Set();
+    for (const cl of p.clues) { const g = regionOf[cl.r * cols + cl.c]; if (seen.has(g)) throw new Error(`two clues in region ${g}`); seen.add(g); }
+  }
+  return Object.assign(p, { N, clueAt, labelAt, nb, ed, rays, cluesOf, numEdges: 2 * N, boxIdx, voidIdx, regional, regionOf, regionCells });
 }
 
 export function initialState(P) {
@@ -329,16 +352,19 @@ export function checkSolved(P, shaded, edges) {
 // ---------------------------------------------------------------- CSV
 
 export const CSV_HEADER = 'name,rows,cols,clues,solution,rules,tier,score,boxes';
+export const CSV_HEADER_REGIONAL = CSV_HEADER + ',regions';
 
-/** A void cell is written r:c:V:-1 (a clue with n < 0 and no direction; the old r:c:U:-1 form reads the same). */
+/** A void cell is written r:c:V:-1 (a clue with n < 0 and no direction; the old r:c:U:-1 form reads the same).
+ *  A region clue is written r:c:G:n (the number n sits in cell r,c and counts that cell's region). */
 export function cluesToString(clues) {
-  return clues.map((c) => (c.n < 0 ? `${c.r}:${c.c}:V:-1` : `${c.r}:${c.c}:${DIR_LETTERS[c.d]}:${c.n}`)).join(';');
+  return clues.map((c) => (c.region ? `${c.r}:${c.c}:G:${c.n}` : c.n < 0 ? `${c.r}:${c.c}:V:-1` : `${c.r}:${c.c}:${DIR_LETTERS[c.d]}:${c.n}`)).join(';');
 }
 
 export function cluesFromString(s) {
   if (!s) return [];
   return s.split(';').map((t) => {
     const [r, c, d, n] = t.split(':');
+    if (d === 'G') return { r: +r, c: +c, d: 0, n: +n, region: true };
     return +n < 0 ? { r: +r, c: +c, d: 0, n: -1 } : { r: +r, c: +c, d: DIR_LETTERS.indexOf(d), n: +n };
   });
 }
@@ -346,12 +372,19 @@ export function cluesFromString(s) {
 export const boxesToString = (boxes) => (boxes || []).map((b) => `${b.r}:${b.c}`).join(';');
 export const boxesFromString = (s) => (s ? s.split(';').map((t) => { const [r, c] = t.split(':'); return { r: +r, c: +c }; }) : []);
 
+/** A regional puzzle's regions: one region id per cell, joined by '.' (a ninth column only regional puzzles have). */
+export const regionsToString = (regions) => (regions && regions.length ? Array.from(regions).join('.') : '');
+export const regionsFromString = (s) => (s ? s.split('.').map(Number) : []);
+
 export function toCsvRow(p) {
-  return [p.name, p.rows, p.cols, cluesToString(p.clues), p.solution || '', p.rules || '', p.tier || '', p.score ?? '', boxesToString(p.boxes)].join(',');
+  const row = [p.name, p.rows, p.cols, cluesToString(p.clues), p.solution || '', p.rules || '', p.tier || '', p.score ?? '', boxesToString(p.boxes)];
+  if (p.regions && p.regions.length) row.push(regionsToString(p.regions));
+  return row.join(',');
 }
 
 export function toCsv(puzzles) {
-  return [CSV_HEADER, ...puzzles.map(toCsvRow)].join('\n') + '\n';
+  const regional = puzzles.some((p) => p.regions && p.regions.length);
+  return [regional ? CSV_HEADER_REGIONAL : CSV_HEADER, ...puzzles.map((p) => (regional && !(p.regions && p.regions.length) ? toCsvRow(p) + ',' : toCsvRow(p)))].join('\n') + '\n';
 }
 
 export function parseCsv(text) {
@@ -359,11 +392,13 @@ export function parseCsv(text) {
   for (const line of text.split(/\r?\n/)) {
     const t = line.trim();
     if (!t || t.startsWith('#') || t.startsWith('name,')) continue;
-    const [name, rows, cols, clues, solution, rules, tier, score, boxes] = t.split(',');
-    out.push({
+    const [name, rows, cols, clues, solution, rules, tier, score, boxes, regions] = t.split(',');
+    const p = {
       name, rows: +rows, cols: +cols, clues: cluesFromString(clues), boxes: boxesFromString(boxes),
       solution: solution || '', rules: rules || '', tier: tier || '', score: score === undefined || score === '' ? null : +score,
-    });
+    };
+    if (regions) p.regions = regionsFromString(regions);
+    out.push(p);
   }
   return out;
 }
@@ -371,7 +406,8 @@ export function parseCsv(text) {
 /** A short stable hash of a puzzle's identity (size + clues), for save keys that survive renumbering. */
 export function puzzleHash(p) {
   if (p.hashKey) return p.hashKey;   // a rotated twin of a puzzle (js/rotate.js) keeps the original's identity
-  const s = `${p.rows}x${p.cols}|${cluesToString(p.clues)}` + (p.boxes && p.boxes.length ? `|${boxesToString(p.boxes)}` : '');
+  const s = `${p.rows}x${p.cols}|${cluesToString(p.clues)}` + (p.boxes && p.boxes.length ? `|${boxesToString(p.boxes)}` : '')
+    + (p.regions && p.regions.length ? `|g${regionsToString(p.regions)}` : '');
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
   return h.toString(36);
