@@ -98,7 +98,10 @@ export class Board {
         const x = PAD + c * S, y = PAD + r * S;
         const k = P.clueAt[i];
         if (k >= 0 && P.clues[k].n < 0) {
-          g += `<rect class="void-bg" x="${x}" y="${y}" width="${S}" height="${S}" fill="url(#void-hatch)"/>`;     // a void cell: nothing goes here
+          // a void cell: nothing goes here. Drawn like the player's boxes (same color, same inset) but square-cornered and
+          // crossed out, so it reads as "a box that is not yours to remove"
+          g += `<rect class="void-box" x="${x + 3}" y="${y + 3}" width="${S - 6}" height="${S - 6}"/>`
+            + `<path class="void-x" d="M${x + 14} ${y + 14}L${x + S - 14} ${y + S - 14}M${x + S - 14} ${y + 14}L${x + 14} ${y + S - 14}"/>`;
         } else if (k >= 0) {
           const cl = P.clues[k];
           g += `<rect class="clue-bg ${info.clueState[k] === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : info.clueState[k] || ''}" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
@@ -170,7 +173,7 @@ export class Board {
       for (let r = 0; r < P.rows; r++) g += `<text class="axis-label side" x="${PAD - 6}" y="${cy(r)}">${r + 1}</text>`;
     }
     const defs = '<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" class="hatch-bg"/><line x1="0" y1="0" x2="0" y2="8" class="hatch-line" stroke-width="4"/></pattern>'
-      + '<pattern id="void-hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="9" class="void-fill"/><line x1="0" y1="0" x2="0" y2="9" class="void-line" stroke-width="3"/></pattern></defs>';
+      + '</defs>';
     this.el.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img">${defs}<g transform="translate(${OFF} ${OFF})">${g}</g></svg>`;
   }
 
