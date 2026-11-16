@@ -151,6 +151,18 @@ export function explainStep(P, step, st = null) {
       text = `${N(a)} and ${N(b)} are the two ends of one path. A segment between them would close the loop early, so there is none.`;
       break;
     }
+    case 'colorBalance': {
+      role('range', info.cells);
+      const boxes = (a) => (a[0] === a[1] ? `${a[0]}` : `${a[0]} to ${a[1]}`);
+      const allBoxes = step.sets.every((x) => x[2] === SHADED), allDots = step.sets.every((x) => x[2] !== SHADED);
+      text = `Colour the board like a chessboard: the loop alternates colours, so the boxes leave light and dark cells ${info.diff === 0 ? 'level' : `${Math.abs(info.diff)} apart`}, and with the numbers that fixes how many boxes each colour holds (light ${boxes([info.range[0] + info.diff, info.range[1] + info.diff])}, dark ${boxes(info.range)}). That settles the marked cells: ${allBoxes ? (info.cells.length === 1 ? 'it is a box' : 'all are boxes') : allDots ? (info.cells.length === 1 ? 'it is a dot' : 'all are dots') : 'some are boxes, the others dots'}.`;
+      break;
+    }
+    case 'regionPairs': {
+      role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
+      text = `Place the boxes of the ${clueName(P, info.clue)} and the ${clueName(P, info.other)} together, without touching: each marked cell is a box in every placement of the pair, or in none.`;
+      break;
+    }
     case 'cluePlacements': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', info.cells);
       text = `Place the boxes of the ${clueName(P, k)} without touching: each marked cell is a box in every placement, or in none.`;

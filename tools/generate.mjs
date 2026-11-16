@@ -27,9 +27,11 @@ const tightRate = +arg('tight-rate', 0);                          // tight arrow
 const cheapFirst = arg('cheap', '') === '' ? null : arg('cheap') === '1';   // climb with the cheap rules first (default: boards of 150+ cells)
 const crossNodes = +arg('cross-check-nodes', 5000000);                // node cap of the from-scratch uniqueness cross-check on boards of up to 150 cells (0: skip it); a lower cap trades the tail of slow checks for coverage
 const voids = +arg('voids', 0);                                   // this many void cells (not box, not loop, no arrow) in every puzzle
+const without = arg('rules-without', '') ? arg('rules-without').split(',') : null;   // experiments: generate as if these rules did not exist (their ids, comma separated)
 const maxTier = arg('max-tier', '');   // 'medium': only the rules up to Medium (no shadeForcesLines etc.)
 const regional = process.argv.includes('--regional');             // regional puzzles (no arrows: numbered regions)
 const avgSize = +arg('avg-size', 5);                              // regional: average region size
+const spread = +arg('spread', 0), minNumbered = +arg('min-numbered', 0);   // regional: log-normal spread of the region sizes; keep at least this share of the regions numbered
 const maxSize = +arg('max-size', 9), shape = arg('shape', 'blob');   // regional: biggest region; 'blob' | 'rows' | 'cols' (bars along rows / columns)
 const out = arg('out', `${root}tools/library/${regional ? 'reg' : 'y'}_${cols}x${rows}_s${seed}.csv`);
 fs.mkdirSync(new URL('../tools/library/', import.meta.url).pathname, { recursive: true });
@@ -40,9 +42,10 @@ let made = 0;
 for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const t0 = Date.now();
   const name = `${regional ? 'G' : 'Y'}${cols}x${rows}_s${seed}_${made + 1}`;
-  const upto = maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
+  const firstLookahead = RULES.findIndex((r) => r.lookahead);
+  const upto = without ? RULES.slice(0, firstLookahead).map((r) => r.id).filter((id) => !without.includes(id)) : maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
   const r = regional
-    ? generateRegional(rows, cols, rng, { name, density: arg('density', '') === '' ? 0.2 : density, avgSize, maxSize, shape, stuck: process.argv.includes('--stuck'), upto, acceptU: arg('accept', '') === '' ? 12 : acceptU, prune: arg('prune', '1') !== '0', budgetMs: budget * 1000 })
+    ? generateRegional(rows, cols, rng, { name, density: arg('density', '') === '' ? 0.2 : density, avgSize, maxSize, shape, spread, minNumbered, stuck: process.argv.includes('--stuck'), upto, acceptU: arg('accept', '') === '' ? 12 : acceptU, prune: arg('prune', '1') !== '0', budgetMs: budget * 1000 })
     : generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, boxRange, cheapFirst, tightArrows: Math.round(tightRate * cols * rows / 100), prune: arg('prune', '1') !== '0', voids, loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
   if (!r) { console.log(`${name}: no puzzle within ${budget} s`); continue; }
   const P = r.puzzle;

@@ -143,3 +143,41 @@ test('hints and printing know regions', () => {
   assert.equal((svg.match(/class="num"/g) || []).length, P.clues.length, 'one number per numbered region');
   assert.ok(!svg.includes('class="clue"'), 'no grey clue cells');
 });
+
+import { colorBalanceFirings, regionPairs } from '../js/rating.js';
+
+test('the regional rules (regionDeduce, colour balance, region pairs) never contradict the solution, on random partly filled boards', () => {
+  const rng = makeRng(11);
+  let fired = 0;
+  for (const P of book()) {
+    const sol = decodeSolution(P, P.solution);
+    for (let t = 0; t < 40; t++) {
+      const st = initialState(P);
+      const reveal = rng() * 0.8;                                           // how much of the solution is already filled in
+      for (let i = 0; i < P.N; i++) if (rng() < reveal) st.cell[i] = sol.cell[i] === SHADED ? SHADED : LOOP;
+      for (const find of [colorBalanceFirings, regionPairs]) {
+        for (const f of find(P, st)) for (const [, i, v] of f.sets) {
+          fired++;
+          assert.equal(v === SHADED, sol.cell[i] === SHADED, `${P.name}: a cell the rule decides is wrong`);
+        }
+      }
+    }
+  }
+  assert.ok(fired > 100, `the rules fired ${fired} times`);
+});
+
+test('colour balance fixes a board that is level: a 2x2 puzzle-sized example', () => {
+  // 4x4 board, no numbers, so only the chessboard speaks: 8 light and 8 dark cells, so light boxes = dark boxes. With 2 light boxes known
+  // and every other light cell a dot, no dark cell may be a box beyond 2.
+  const P = compile({ name: 'b', rows: 4, cols: 4, clues: [], regions: new Array(16).fill(0) });
+  const st = initialState(P);
+  const light = [], dark = [];
+  for (let i = 0; i < 16; i++) ((((i / 4) | 0) + (i % 4)) & 1 ? dark : light).push(i);
+  st.cell[light[0]] = SHADED; st.cell[light[3]] = SHADED;
+  for (const i of light.slice(1)) if (i !== light[3]) st.cell[i] = LOOP;
+  const sets = colorBalanceFirings(P, st).flatMap((f) => f.sets);
+  assert.equal(sets.length, 0, 'two dark boxes are still needed: nothing forced while any dark cell is open');
+  for (const i of dark.slice(0, 2)) st.cell[i] = SHADED;
+  const done = colorBalanceFirings(P, st).flatMap((f) => f.sets);
+  assert.deepEqual(done.map(([, i, v]) => [i, v]).sort((a, b) => a[0] - b[0]), dark.slice(2).map((i) => [i, LOOP]).sort((a, b) => a[0] - b[0]), 'the remaining dark cells are dots');
+});

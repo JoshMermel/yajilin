@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
 
 const root = new URL('..', import.meta.url).pathname;
-const RECIPES = ['gentle', 'beginner', 'medium', 'hard', 'big', 'rows', 'cols', 'stuck'];
+const RECIPES = ['gentle', 'beginner', 'medium', 'hard', 'big', 'rows', 'cols', 'classical', 'stuck'];
 const dir = root + 'tools/library/';
 const seen = new Set(), out = [];
 for (const rec of RECIPES) {

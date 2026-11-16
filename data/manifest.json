@@ -146,7 +146,7 @@
       "id": "regional-corpus",
       "name": "Experiment: regional corpus",
       "file": "data/regional-corpus.csv",
-      "count": 48,
+      "count": 54,
       "label": "Regional corpus (experiment)",
       "group": "Bonus",
       "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."

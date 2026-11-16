@@ -200,6 +200,7 @@ export function contradiction(P, st) {
     for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) u++; }
     if (s > P.clues[k].n || s + u < P.clues[k].n) return true;
   }
+  if (P.regional && balanceBroken(P, st)) return true;
   const { find, cycleRoot } = components(P, st);
   if (cycleRoot >= 0) {
     // a closed loop is only allowed if nothing else is on the loop
@@ -1180,6 +1181,123 @@ function crossingParity(P, st) {
   return [...found.values()].map((f) => firing([setEdge(f.edge, f.value)], f));
 }
 
+
+/**
+ * Chessboard balance (regional puzzles; needs the whole board in mind). Colour the cells like a chessboard: the loop alternates colours, so it
+ * visits as many light cells as dark ones, and the boxes (the only cells off the loop) must leave the colours level: light boxes minus
+ * dark boxes = (light cells) - (dark cells). With the numbers it goes further: the boxes in numbered regions are known, and an unnumbered
+ * region holds between what is already there and all its open cells, so the total number of boxes lies in a range, and with the difference
+ * fixed that pins how many boxes sit on each colour. When that number is as low (or high) as it can be, every open cell of the colour is a
+ * dot (or a box). Also exported as `colorBalanceFirings` so tools can ask about arrow puzzles (where clue cells are off the loop too, and
+ * only the first, loop-only, form applies).
+ */
+function balanceState(P, st) {
+  const { cols, N } = P;
+  const kind = [{ cells: [], box: 0, total: 0 }, { cells: [], box: 0, total: 0 }];     // by colour: open cells, boxes so far, cells on the board
+  for (let i = 0; i < N; i++) {
+    if (st.cell[i] === CLUE) continue;
+    const c = kind[(((i / cols) | 0) + (i % cols)) & 1];
+    c.total++;
+    if (st.cell[i] === SHADED) c.box++; else if (st.cell[i] === UNKNOWN) c.cells.push(i);
+  }
+  const D = kind[0].total - kind[1].total;                          // light boxes - dark boxes must equal this
+  let tLo = 0, tHi = N;                                              // the total number of boxes, as far as the numbers say
+  if (P.regional) {
+    let numbered = 0, sure = 0, open = 0;
+    const has = new Uint8Array(P.regionCells.length);
+    P.clues.forEach((cl, k) => { has[P.regionOf[cl.r * cols + cl.c]] = 1; numbered += cl.n; });
+    P.regionCells.forEach((cells, g) => { if (has[g]) return; for (const i of cells) { if (st.cell[i] === SHADED) sure++; else if (st.cell[i] === UNKNOWN) open++; } });
+    tLo = numbered + sure; tHi = numbered + sure + open;
+  }
+  // dark boxes bb: light boxes = bb + D, total = 2 bb + D
+  const lo = Math.max(kind[1].box, kind[0].box - D, Math.ceil((tLo - D) / 2));
+  const hi = Math.min(kind[1].box + kind[1].cells.length, kind[0].box + kind[0].cells.length - D, Math.floor((tHi - D) / 2));
+  return { light: kind[0], dark: kind[1], D, lo, hi };
+}
+/** The chessboard balance cannot be met (a regional puzzle): part of the contradiction check, so trial and error knows it too. */
+const balanceBroken = (P, st) => { const b = balanceState(P, st); return b.lo > b.hi; };
+
+export function colorBalanceFirings(P, st) {
+  const { light, dark, D, lo, hi } = balanceState(P, st);
+  if (lo > hi) return [];                                           // no way to balance: the contradiction check's business
+  const out = [], sets = [];
+  const force = (cells, value) => { for (const i of cells) sets.push(setCell(i, value)); };
+  if (lo === hi) {
+    if (hi === dark.box && dark.cells.length) force(dark.cells, LOOP);
+    else if (hi === dark.box + dark.cells.length && dark.cells.length) force(dark.cells, SHADED);
+    if (hi + D === light.box && light.cells.length) force(light.cells, LOOP);
+    else if (hi + D === light.box + light.cells.length && light.cells.length) force(light.cells, SHADED);
+  } else {                                                          // a range: only an end of it can still force a whole colour
+    if (hi === dark.box && dark.cells.length) force(dark.cells, LOOP);
+    if (lo === dark.box + dark.cells.length && dark.cells.length) force(dark.cells, SHADED);
+    if (hi + D === light.box && light.cells.length) force(light.cells, LOOP);
+    if (lo + D === light.box + light.cells.length && light.cells.length) force(light.cells, SHADED);
+  }
+  if (sets.length) out.push(firing(sets, { cells: sets.map((x) => x[1]), light: [light.box, light.box + light.cells.length], dark: [dark.box, dark.box + dark.cells.length], diff: D, range: [lo, hi] }));
+  return out;
+}
+const colorBalance = (P, st) => (P.regional ? colorBalanceFirings(P, st) : []);
+
+
+/**
+ * Two neighbouring numbered regions at once (regional puzzles). Boxes cannot touch, so a box on one side of a border rules out boxes on the
+ * other, and a region's own placements may look fine alone while the pair has fewer ways: list every way to put the two numbers of boxes
+ * in the two regions' open cells, none touching, and a cell that is a box in all of them (or in none) is decided. Pairs whose open cells
+ * are too many to list are skipped.
+ */
+const PAIR_CAP = 200000, PAIR_CELLS = 26;
+export function regionPairs(P, st) {
+  if (!P.regional) return [];
+  const out = [];
+  const clueOf = new Map(P.clues.map((cl, k) => [P.regionOf[cl.r * P.cols + cl.c], k]));
+  const pairs = new Set();
+  for (let i = 0; i < P.N; i++) {
+    const a = P.regionOf[i];
+    if (!clueOf.has(a)) continue;
+    for (const j of [i + 1, i + P.cols]) {
+      if (j >= P.N || (j === i + 1 && j % P.cols === 0)) continue;
+      const b = P.regionOf[j];
+      if (a !== b && clueOf.has(b)) pairs.add(a < b ? `${a},${b}` : `${b},${a}`);
+    }
+  }
+  for (const key of pairs) {
+    const [a, b] = key.split(',').map(Number);
+    const need = [P.clues[clueOf.get(a)].n, P.clues[clueOf.get(b)].n], have = [0, 0];
+    const elig = [], reg = [];
+    [a, b].forEach((g, q) => {
+      for (const i of P.regionCells[g]) {
+        if (st.cell[i] === SHADED) have[q]++;
+        else if (st.cell[i] === UNKNOWN && !touchesShaded(P, st, i)) { elig.push(i); reg.push(q); }
+      }
+    });
+    const want = [need[0] - have[0], need[1] - have[1]];
+    if (want[0] < 0 || want[1] < 0 || elig.length > PAIR_CELLS || want[0] + want[1] === 0 && !elig.length) continue;
+    if (want[0] > elig.filter((_, q) => reg[q] === 0).length || want[1] > elig.filter((_, q) => reg[q] === 1).length) continue;
+    const m = elig.length, at = new Map(elig.map((i, q) => [i, q]));
+    const nbMask = elig.map((i) => { let mask = 0; for (let d = 0; d < 4; d++) { const q = at.get(P.nb[i * 4 + d]); if (q !== undefined) mask |= 1 << q; } return mask; });
+    const hits = new Float64Array(m); let total = 0, nodes = 0, over = false;
+    const rec = (x, chosen, c0, c1) => {
+      if (over) return;
+      if (c0 > want[0] || c1 > want[1]) return;
+      if (x === m) {
+        if (c0 !== want[0] || c1 !== want[1]) return;
+        if (++nodes > PAIR_CAP) { over = true; return; }
+        total++; for (let q = 0; q < m; q++) if (chosen & (1 << q)) hits[q]++;
+        return;
+      }
+      if (++nodes > PAIR_CAP) { over = true; return; }
+      rec(x + 1, chosen, c0, c1);
+      if (!(nbMask[x] & chosen)) rec(x + 1, chosen | (1 << x), c0 + (reg[x] === 0 ? 1 : 0), c1 + (reg[x] === 1 ? 1 : 0));
+    };
+    rec(0, 0, 0, 0);
+    if (over || !total) continue;
+    const sets = [];
+    for (let q = 0; q < m; q++) { if (hits[q] === total) sets.push(setCell(elig[q], SHADED)); else if (hits[q] === 0) sets.push(setCell(elig[q], LOOP)); }
+    if (sets.length) out.push(firing(sets, { clue: clueOf.get(a), other: clueOf.get(b), cells: elig }));
+  }
+  return out;
+}
+
 function noEarlyClose(P, st) {
   const { find } = components(P, st);
   const loopRoots = new Set();
@@ -1282,6 +1400,8 @@ export const RULES = [
   { id: 'rangeSame', tier: 'Medium', weight: 24, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
   { id: 'rangeFacingKnown', tier: 'Medium', weight: 28, find: rangeFacingKnown, label: 'two clues point at each other and one part of the line has a known number of boxes: that fixes the other two parts' },
   { id: 'crossingParity', tier: 'Hard', weight: 115, find: crossingParity, label: 'the loop crosses the border of a rectangle an even number of times' },
+  { id: 'colorBalance', tier: 'Hard', weight: 50, find: colorBalance, label: 'the loop alternates colours, so the boxes leave light and dark cells level: that fixes how many boxes each colour holds' },
+  { id: 'regionPairs', tier: 'Hard', weight: 45, find: regionPairs, label: 'two neighbouring numbered regions together: every way to place both numbers of boxes without touching includes (or leaves out) this cell' },
   { id: 'pairedEnds', tier: 'Hard', weight: 60, find: pairedEnds, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
   { id: 'shadeForcesLines', tier: 'Hard', weight: 70, find: shadeForcesLines, label: 'a box here would force lines that leave a cell with three lines or too few ways out: this cell is a dot' },
   { id: 'shadeClosesLoop', tier: 'Hard', weight: 75, find: shadeClosesLoop, label: 'a box here would force lines that close the loop early: this cell is a dot' },

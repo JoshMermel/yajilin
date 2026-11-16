@@ -699,11 +699,22 @@ export function buildRegionalPuzzle(rows, cols, loop, owner, numbered, name = 'g
   return P;
 }
 
-/** Cut the board into `count` connected regions by growing them from random seeds (no region gets more than maxSize cells). */
-export function growRegions(rows, cols, rng, count, maxSize = Infinity) {
+/**
+ * Cut the board into `count` connected regions by growing them from random seeds (no region gets more than maxSize cells).
+ * With `spread` > 0 every region gets its own target size, drawn log-normally around N / count (spread is the log's standard deviation,
+ * so 0.6 gives some regions of 2 or 3 cells and some three or four times the average, like a setter's), and grows toward it.
+ */
+export function growRegions(rows, cols, rng, count, maxSize = Infinity, spread = 0) {
   const N = rows * cols;
   const owner = new Int16Array(N).fill(-1);
   const size = new Int16Array(count);
+  let target = null;
+  if (spread > 0) {
+    const normal = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
+    const raw = Array.from({ length: count }, () => Math.exp(spread * normal()));
+    const scale = N / raw.reduce((a, b) => a + b, 0);
+    target = raw.map((x) => Math.max(2, Math.min(maxSize, Math.round(x * scale))));
+  }
   const seeds = shuffle([...Array(N).keys()], rng).slice(0, count);
   seeds.forEach((i, g) => { owner[i] = g; size[g] = 1; });
   let active = seeds.map((_, g) => g);
@@ -722,7 +733,7 @@ export function growRegions(rows, cols, rng, count, maxSize = Infinity) {
     const q = (rng() * active.length) | 0, g = active[q];
     const free = [];
     for (let i = 0; i < N; i++) if (owner[i] === g) for (const j of gridNeighbours(rows, cols, i)) if (owner[j] < 0) free.push(j);
-    if (!free.length || size[g] >= maxSize) { active.splice(q, 1); continue; }
+    if (!free.length || size[g] >= maxSize || (target && size[g] >= target[g])) { active.splice(q, 1); continue; }
     const j = free[(rng() * free.length) | 0];
     owner[j] = g; size[g]++; left--;
   }
@@ -764,11 +775,12 @@ function staysConnected(rows, cols, owner, g, x) {
  * One try at a regional puzzle: a loop with a unique routing and independent boxes, regions grown at random, then a climb (move a border
  * cell to the neighbouring region) until the rules leave at most `acceptU` cells undecided and the exhaustive search finishes it uniquely,
  * then pruning. Returns { puzzle, stats } or null.
- * options: density (share of cells that are boxes), avgSize (average region size), maxSize, shape ('blob': grown at random; 'rows' / 'cols':
+ * options: density (share of cells that are boxes), avgSize (average region size), spread (log-normal spread of the sizes: 0 = grown without
+ * targets), minNumbered (pruning keeps at least this share of the regions numbered), maxSize, shape ('blob': grown at random; 'rows' / 'cols':
  * straight bars along every row / column, whose border cells only slide along the bar), stuck (after the climb keep removing numbers while the puzzle stays unique
  * by exhaustive search, until the rules no longer finish it but leave at most acceptU cells open: positions that need a technique the rules lack), prune, upto, maxIter, acceptU, budgetMs.
  */
-function attemptRegional(rows, cols, rng, { density = 0.2, avgSize = 5, maxSize = 9, shape = 'blob', stuck = false, prune = true, upto, maxIter = 3000, acceptU = 12, name = 'gen', budgetMs = 60000, verbose = false } = {}) {
+function attemptRegional(rows, cols, rng, { density = 0.2, avgSize = 5, maxSize = 9, shape = 'blob', spread = 0, minNumbered = 0, stuck = false, prune = true, upto, maxIter = 3000, acceptU = 12, name = 'gen', budgetMs = 60000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const N = rows * cols;
@@ -781,7 +793,7 @@ function attemptRegional(rows, cols, rng, { density = 0.2, avgSize = 5, maxSize 
   if (!loop) { say(`no loop with a unique routing among ${looked} candidates`); return null; }
   say(`loop with a unique routing after ${looked} candidate(s), ${Date.now() - t0} ms`);
   const bars = shape === 'rows' || shape === 'cols';
-  const owner = bars ? growBars(rows, cols, rng, shape === 'cols', maxSize) : growRegions(rows, cols, rng, Math.max(2, Math.round(N / avgSize)), maxSize);
+  const owner = bars ? growBars(rows, cols, rng, shape === 'cols', maxSize) : growRegions(rows, cols, rng, Math.max(2, Math.round(N / avgSize)), maxSize, spread);
   const numbered = new Uint8Array(N).fill(1);                          // by region id
   const size = new Int16Array(N);
   for (const g of owner) size[g]++;
@@ -832,8 +844,10 @@ function attemptRegional(rows, cols, rng, { density = 0.2, avgSize = 5, maxSize 
   let puzzle = cur.P;
   if ((prune || stuck) && cur.u === 0) {
     const order = shuffle([...Array(N).keys()].filter((g) => size[g] > 0), rng);
+    let left = order.length;                                                       // regions still numbered
     for (const g of order) {
       if (Date.now() - t0 > budgetMs) break;
+      if (left <= minNumbered * order.length) break;
       numbered[g] = 0;
       const Q = buildRegionalPuzzle(rows, cols, loop, owner, numbered, name);
       checks++;
@@ -843,7 +857,7 @@ function attemptRegional(rows, cols, rng, { density = 0.2, avgSize = 5, maxSize 
         const found = solve(Q, { limit: 2, state: r.state, maxNodes: 20000 });
         keep = found.count === 1 && !found.exceeded;
       }
-      if (keep) puzzle = Q; else numbered[g] = 1;
+      if (keep) { puzzle = Q; left--; } else numbered[g] = 1;
     }
     if (stuck && solvedByRules(puzzle, upto).solved) return null;               // nothing could be removed: not a stuck puzzle
   }

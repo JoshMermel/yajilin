@@ -9,15 +9,16 @@
 #   hard        regions of about 5, numbers pruned, all rules
 #   big         big regions (about 8, up to 14), numbers pruned, all rules
 #   rows, cols  every region a straight bar along a row / a column (2-5 cells), numbers pruned, all rules
+#   classical   regions like a setter's (see experiments/regional/CLASSICAL.md): sizes spread widely around 7, small numbers (about 16% boxes), most regions numbered
 #   stuck       the rules do not finish it but it is unique (found by search): positions that need a technique we do not have yet
-# (ONLY=stuck runs just that recipe; the seeds stay the same)
+# (ONLY=stuck runs just that recipe and SIZES="8x8 10x10" just those sizes; the seeds stay the same for a given recipe and size)
 # (a job line never ends in a blank: xargs -L would join it to the next line; zsh does not split $vars, so this is a /bin/sh script)
 mkdir -p tools/library
 JOBS=$(mktemp)
 seed=7000
-for size in 6x6 8x8 10x10; do
-  case $size in 6x6) B=40;; 8x8) B=80;; 10x10) B=160;; esac
-  for rec in gentle beginner medium hard big rows cols stuck; do
+for size in ${SIZES:-6x6 8x8 10x10}; do
+  case $size in 6x6) B=40;; 8x8) B=80;; 10x10) B=160;; 12x12) B=400;; esac
+  for rec in gentle beginner medium hard big rows cols stuck classical; do
     case $rec in
       gentle) F="--max-tier beginner --accept 0 --avg-size 3 --max-size 4 --prune 0";;
       beginner) F="--max-tier beginner --accept 0 --avg-size 3 --max-size 5";;
@@ -26,6 +27,7 @@ for size in 6x6 8x8 10x10; do
       big) F="--accept 12 --avg-size 8 --max-size 14";;
       rows) F="--accept 12 --shape rows --max-size 5";;
       cols) F="--accept 12 --shape cols --max-size 5";;
+      classical) F="--density 0.16 --avg-size 7 --spread 0.6 --max-size 30 --min-numbered 0.7 --accept 12";;
       stuck) F="--stuck --accept 25 --avg-size 5 --max-size 9";;
     esac
     seed=$((seed + 1))

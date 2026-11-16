@@ -1,6 +1,6 @@
 # Regional test corpus
 
-`data/regional-corpus.csv`, in the app as **Regional corpus (experiment)** in the Bonus group. 48 puzzles named `<recipe>-<size>-<n>`
+`data/regional-corpus.csv`, in the app as **Regional corpus (experiment)** in the Bonus group. 54 puzzles named `<recipe>-<size>-<n>`
 (so "rows-8x8-2 needed X" is enough to find the puzzle again). Every puzzle is unique (checked by the rules and, on these sizes, by
 the exhaustive solver from scratch), and `node tools/audit_books.mjs --book regional-corpus --rate` passes.
 
@@ -15,9 +15,10 @@ cannot, write down the puzzle name and the cells: those become the regional rule
 | `hard` | regions of about 5, pruned, all rules | where you start guessing: these need the trial rules (`shadeForcesLines` and friends) |
 | `big` | regions of about 8 (up to 14 cells) | counting inside a large region; "pairs of regions" arguments |
 | `rows`, `cols` | every region a straight bar along a row / column (2-5 cells) | the bars behave like short arrows, with the number in the bar's first cell: does the arrow vocabulary (a k-bar with room for k boxes, two bars side by side) carry over? |
+| `classical` | regions like a setter's: sizes spread widely around 7, small numbers, about 16% boxes, most regions numbered (8x8, 10x10 and 12x12; see `CLASSICAL.md`) | how a real puzzle feels: big regions say little, the loop does the work |
 | `stuck` | numbers removed until every rule except trial and error (`tryCell`) is stuck, while the puzzle stays unique (at most 25 cells left open at the stall) | positions with a deduction we have no rule for yet: the most useful ones for defining new rules (the rating says `tryCell`; the Hint button runs out of steps) |
 
-Sizes are 6x6, 8x8 and 10x10, two of each per recipe, easiest first within a size (by rule score).
+Sizes are 6x6, 8x8 and 10x10 (and 12x12 for `classical`), two of each per recipe, easiest first within a size (by rule score).
 
 How to rebuild: `WORKERS=6 ./tools/make_regional_corpus.sh` (pools in `tools/library/regc_*`), then
 `node tools/build_regional_corpus.mjs`. `ONLY=stuck` reruns one recipe.
