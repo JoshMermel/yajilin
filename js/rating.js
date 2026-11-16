@@ -82,6 +82,27 @@ function exits(P, st, i, ignore = -1) {
   return n;
 }
 
+/** Segments on at every cell, as an array (for the rules that ask about many cells while the segments stay as they are). */
+function segmentCounts(P, st) {
+  const onc = new Int8Array(P.N);
+  for (let x = 0; x < P.numEdges; x++) if (st.e[x] === E_ON) { const a = x >> 1; onc[a]++; onc[(x & 1) ? a + P.cols : a + 1]++; }
+  return onc;
+}
+
+/** exits() with the segment counts handed in (`onc` from segmentCounts: valid while no segment is added or removed). */
+function exitsWith(P, st, i, onc) {
+  let n = 0;
+  for (let d = 0; d < 4; d++) {
+    const x = P.ed[i * 4 + d];
+    if (x < 0) continue;
+    const j = P.nb[i * 4 + d];
+    if (st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
+    if (st.e[x] !== E_ON && onc[j] >= 2) continue;          // a full cell takes no more segments
+    n++;
+  }
+  return n;
+}
+
 function onCount(P, st, i) {
   let n = 0;
   for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && st.e[x] === E_ON) n++; }
@@ -96,7 +117,7 @@ function components(P, st) {
   let cycleRoot = -1;
   for (let x = 0; x < P.numEdges; x++) {
     if (st.e[x] !== E_ON) continue;
-    const [a, b] = edgeCells(P, x);
+    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
     const ra = find(a), rb = find(b);
     if (ra === rb) cycleRoot = ra; else parent[ra] = rb;
   }
@@ -213,7 +234,7 @@ function bookkeepingEdgeEnds(P, st) {
   const sets = [];
   for (let x = 0; x < P.numEdges; x++) {
     if (st.e[x] !== E_ON) continue;
-    for (const c of edgeCells(P, x)) if (st.cell[c] === UNKNOWN) sets.push(setCell(c, LOOP));
+    { const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1; if (st.cell[a] === UNKNOWN) sets.push(setCell(a, LOOP)); if (st.cell[b] === UNKNOWN) sets.push(setCell(b, LOOP)); }
   }
   return sets.length ? [firing(sets, {})] : [];
 }
@@ -457,6 +478,23 @@ function cluePlacements(P, st) {
 const PLACEMENT_CAP = 3000;
 function placementDeadEnd(P, st) {
   const out = [];
+  const onc = segmentCounts(P, st);                         // the boxes tried below are only cells: the segments stay as they are
+  // A placement is rejected when some neighbour of one of its boxes is left with fewer than two exits. That is kept up to date as boxes
+  // are put down and taken back (adjCnt: how many chosen boxes touch a cell; viol: it is such a neighbour and has too few exits; bad: how
+  // many cells violate), so a leaf of the search is judged in constant time instead of re-checking every box (the search itself, the leaves
+  // it visits and the node cap are exactly as before). The boxes are marked on `st` while the search is below them.
+  const adjCnt = new Int8Array(P.N), viol = new Uint8Array(P.N);
+  let bad = 0;
+  const refresh = (u) => {
+    const v = adjCnt[u] > 0 && st.cell[u] !== SHADED && exitsWith(P, st, u, onc) < 2 ? 1 : 0;
+    if (v !== viol[u]) { bad += v - viol[u]; viol[u] = v; }
+  };
+  const mark = (i, on) => {
+    st.cell[i] = on ? SHADED : UNKNOWN;
+    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0) adjCnt[j] += on ? 1 : -1; }
+    refresh(i);
+    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0) refresh(j); }
+  };
   P.clues.forEach((cl, k) => {
     if (cl.n < 0) return;
     const ray = P.rays[k];
@@ -471,30 +509,19 @@ function placementDeadEnd(P, st) {
     const chosen = [];
     const hits = new Map(elig.map((i) => [i, 0]));          // in how many surviving placements each cell is a box
     let total = 0, nodes = 0, gaveUp = false;
-    const ok = () => {
-      for (const i of chosen) st.cell[i] = SHADED;
-      let good = true;
-      for (const i of chosen) {
-        for (let d = 0; d < 4 && good; d++) {
-          const j = P.nb[i * 4 + d];
-          if (j >= 0 && st.cell[j] !== SHADED && exits(P, st, j) < 2) good = false;
-        }
-        if (!good) break;
-      }
-      for (const i of chosen) st.cell[i] = UNKNOWN;
-      return good;
-    };
     const go = (from) => {
       if (gaveUp) return;
       if (chosen.length === need) {
-        if (ok()) { total++; for (const i of chosen) hits.set(i, hits.get(i) + 1); }
+        if (bad === 0) { total++; for (const i of chosen) hits.set(i, hits.get(i) + 1); }
         return;
       }
       if (++nodes > PLACEMENT_CAP) { gaveUp = true; return; }
       for (let q = from; q < elig.length; q++) {
         if (elig.length - q < need - chosen.length) break;
         if (chosen.length && adjacent(P, chosen[chosen.length - 1], elig[q])) continue;
-        chosen.push(elig[q]); go(q + 1); chosen.pop();
+        chosen.push(elig[q]); mark(elig[q], true);
+        go(q + 1);
+        mark(elig[q], false); chosen.pop();
       }
     };
     go(0);
@@ -512,20 +539,45 @@ function placementDeadEnd(P, st) {
  */
 function sameDirection(P, st, one) {
   const out = [];
+  for (const { a, b, count, between } of arrowPairs(P).same) {
+    if ((between.length === 1) !== one) continue;
+    const sets = rangeDeduce(P, st, between, count, count);
+    if (sets.length) out.push(firing(sets, { clue: a, other: b, count, cells: between }));
+  }
+  return out;
+}
+
+/**
+ * The pairs of arrows the two line rules below look at. They depend only on the puzzle, so they are worked out once and remembered on it
+ * (the rules run on every step of every rating, and used to redo this for every pair of clues each time: 15% of rating a 20x36 board).
+ *   same: B is further along A's line and points the same way (A's number is at least B's); between = A's cells before B
+ *   face: B is further along A's line and points back at A; M between them, R beyond B in A's line, L beyond A in B's line
+ * Both lists keep the order the nested loops over the clues used to produce.
+ */
+function arrowPairs(P) {
+  if (P._arrowPairs) return P._arrowPairs;
+  const same = [], face = [];
   P.clues.forEach((A, a) => {
     P.clues.forEach((B, b) => {
-      if (a === b || A.n < 0 || B.n < 0 || A.d !== B.d) return;
+      if (a === b || A.n < 0 || B.n < 0) return;
+      const sameWay = A.d === B.d, facing = B.d === (A.d + 2) % 4;
+      if (!sameWay && !facing) return;
       const ia = cellOfClue(P, A), ib = cellOfClue(P, B);
       if (!sameLine(P, A.d, ia, ib) || posAlong(P, A.d, ib) <= posAlong(P, A.d, ia)) return;
-      const count = A.n - B.n;
-      if (count < 0) return;
-      const between = P.rays[a].filter((i) => posAlong(P, A.d, i) < posAlong(P, A.d, ib));
-      if ((between.length === 1) !== one) return;
-      const sets = rangeDeduce(P, st, between, count, count);
-      if (sets.length) out.push(firing(sets, { clue: a, other: b, count, cells: between }));
+      if (sameWay) {
+        const count = A.n - B.n;
+        if (count < 0) return;
+        same.push({ a, b, count, between: P.rays[a].filter((i) => posAlong(P, A.d, i) < posAlong(P, A.d, ib)) });
+      } else {
+        const pa = posAlong(P, A.d, ia), pb = posAlong(P, A.d, ib);
+        face.push({ a, b, A, B,
+          M: P.rays[a].filter((i) => posAlong(P, A.d, i) < pb),
+          R: P.rays[a].filter((i) => posAlong(P, A.d, i) > pb),
+          L: P.rays[b].filter((i) => posAlong(P, A.d, i) < pa) });
+      }
     });
   });
-  return out;
+  return (P._arrowPairs = { same, face });
 }
 const rangeSameOne = (P, st) => sameDirection(P, st, true);     // a single cell between them: box or dot by the difference of the numbers
 const rangeSame = (P, st) => sameDirection(P, st, false);
@@ -540,32 +592,23 @@ const rangeSame = (P, st) => sameDirection(P, st, false);
  */
 function facing(P, st, known) {
   const out = [];
-  P.clues.forEach((A, a) => {
-    P.clues.forEach((B, b) => {
-      if (a === b || A.n < 0 || B.n < 0 || B.d !== (A.d + 2) % 4) return;
-      const ia = cellOfClue(P, A), ib = cellOfClue(P, B);
-      if (!sameLine(P, A.d, ia, ib) || posAlong(P, A.d, ib) <= posAlong(P, A.d, ia)) return;
-      const pa = posAlong(P, A.d, ia), pb = posAlong(P, A.d, ib);
-      const M = P.rays[a].filter((i) => posAlong(P, A.d, i) < pb);
-      const R = P.rays[a].filter((i) => posAlong(P, A.d, i) > pb);
-      const L = P.rays[b].filter((i) => posAlong(P, A.d, i) < pa);
-      const [mnM, mxM] = rangeBounds(P, st, M), [mnR, mxR] = rangeBounds(P, st, R), [mnL, mxL] = rangeBounds(P, st, L);
-      const lo = Math.max(mnM, A.n - mxR, B.n - mxL), hi = Math.min(mxM, A.n - mnR, B.n - mnL);
-      if (lo > hi) return;
-      const exact = ['R', 'L', 'M'].find((k) => ({ M: mnM === mxM, R: mnR === mxR, L: mnL === mxL })[k]);
-      const isKnown = exact !== undefined && lo === hi;
-      if (isKnown !== known) return;
-      const sets = [
-        ...rangeDeduce(P, st, M, lo, hi),
-        ...rangeDeduce(P, st, R, A.n - hi, A.n - lo),
-        ...rangeDeduce(P, st, L, B.n - hi, B.n - lo),
-      ];
-      if (!sets.length) return;
-      const info = { clue: a, other: b, between: [lo, hi], cells: [...M, ...R, ...L], bounds: { M: [mnM, mxM], R: [mnR, mxR], L: [mnL, mxL] } };
-      if (isKnown) { info.known = exact; info.counts = { M: lo, R: A.n - lo, L: B.n - lo }; }
-      out.push(firing(sets, info));
-    });
-  });
+  for (const { a, b, A, B, M, R, L } of arrowPairs(P).face) {
+    const [mnM, mxM] = rangeBounds(P, st, M), [mnR, mxR] = rangeBounds(P, st, R), [mnL, mxL] = rangeBounds(P, st, L);
+    const lo = Math.max(mnM, A.n - mxR, B.n - mxL), hi = Math.min(mxM, A.n - mnR, B.n - mnL);
+    if (lo > hi) continue;
+    const exact = ['R', 'L', 'M'].find((k) => ({ M: mnM === mxM, R: mnR === mxR, L: mnL === mxL })[k]);
+    const isKnown = exact !== undefined && lo === hi;
+    if (isKnown !== known) continue;
+    const sets = [
+      ...rangeDeduce(P, st, M, lo, hi),
+      ...rangeDeduce(P, st, R, A.n - hi, A.n - lo),
+      ...rangeDeduce(P, st, L, B.n - hi, B.n - lo),
+    ];
+    if (!sets.length) continue;
+    const info = { clue: a, other: b, between: [lo, hi], cells: [...M, ...R, ...L], bounds: { M: [mnM, mxM], R: [mnR, mxR], L: [mnL, mxL] } };
+    if (isKnown) { info.known = exact; info.counts = { M: lo, R: A.n - lo, L: B.n - lo }; }
+    out.push(firing(sets, info));
+  }
   return out;
 }
 const rangeFacingKnown = (P, st) => facing(P, st, true);
@@ -577,37 +620,57 @@ const rangeFacing = (P, st) => facing(P, st, false);
  * three lines or with too few exits, or a cell of a cycle that closes the loop too early (and sets st.closedEarly), or -1. Mutates `st`.
  */
 export function followLines(P, st) {
+  const { N, ed, nb } = P, cols = P.cols;
+  // the number of segments on at each cell, kept up to date as segments are added (this used to be recounted from the four edges of a cell
+  // and of each neighbour, many times per cell on every pass: the largest cost of the lookahead rules)
+  const onc = new Int8Array(N);
+  for (let x = 0; x < P.numEdges; x++) if (st.e[x] === E_ON) { const a = x >> 1; onc[a]++; onc[(x & 1) ? a + cols : a + 1]++; }
+  let changed = false;
+  const putCell = (idx, v) => { if (st.cell[idx] === 0) { st.cell[idx] = v; changed = true; } };
+  const putEdge = (x, v) => {
+    if (st.e[x] !== 0) return;
+    st.e[x] = v; changed = true;
+    if (v === E_ON) { const a = x >> 1; onc[a]++; onc[(x & 1) ? a + cols : a + 1]++; }
+  };
   for (let guard = 0; guard < 500; guard++) {
-    let changed = false;
-    const put = (arr, idx, v) => { if (arr[idx] === 0) { arr[idx] = v; changed = true; } };
-    for (let i = 0; i < P.N; i++) {
+    changed = false;
+    for (let i = 0; i < N; i++) {
       const s = st.cell[i];
       if (s === CLUE) continue;
       if (s === SHADED) {
         for (let d = 0; d < 4; d++) {
-          const x = P.ed[i * 4 + d];
+          const x = ed[i * 4 + d];
           if (x < 0) continue;
-          put(st.e, x, E_OFF);
-          put(st.cell, P.nb[i * 4 + d], LOOP);
+          putEdge(x, E_OFF);
+          putCell(nb[i * 4 + d], LOOP);
         }
         continue;
       }
-      const on = onCount(P, st, i);
-      if (on > 0 && s === UNKNOWN) put(st.cell, i, LOOP);
-      const ex = exits(P, st, i);
+      const on = onc[i];
+      if (on > 0 && s === UNKNOWN) putCell(i, LOOP);
+      let ex = 0;                                                   // exits(): neighbours it could still connect to
+      for (let d = 0; d < 4; d++) {
+        const x = ed[i * 4 + d];
+        if (x < 0) continue;
+        const j = nb[i * 4 + d];
+        if (st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
+        if (st.e[x] !== E_ON && onc[j] >= 2) continue;              // a full cell takes no more segments
+        ex++;
+      }
       if ((s === LOOP || on > 0) && (on > 2 || ex < 2)) return i;
       if (s === LOOP || on > 0) {
         for (let d = 0; d < 4; d++) {
-          const x = P.ed[i * 4 + d];
-          if (x < 0 || st.e[x] !== E_UNKNOWN || st.cell[P.nb[i * 4 + d]] === SHADED) continue;
-          if (on === 2) put(st.e, x, E_OFF);
-          else if (ex === 2 && onCount(P, st, P.nb[i * 4 + d]) < 2) put(st.e, x, E_ON); // a full neighbour is not one of the two ways out
+          const x = ed[i * 4 + d];
+          if (x < 0 || st.e[x] !== E_UNKNOWN || st.cell[nb[i * 4 + d]] === SHADED) continue;
+          if (on === 2) putEdge(x, E_OFF);
+          else if (ex === 2 && onc[nb[i * 4 + d]] < 2) putEdge(x, E_ON); // a full neighbour is not one of the two ways out
         }
       }
     }
     for (let x = 0; x < P.numEdges; x++) {
       if (st.e[x] !== E_ON) continue;
-      for (const c of edgeCells(P, x)) put(st.cell, c, LOOP);
+      const a = x >> 1;
+      putCell(a, LOOP); putCell((x & 1) ? a + cols : a + 1, LOOP);
     }
     if (!changed) {
       const c = closedEarly(P, st);
@@ -654,7 +717,7 @@ function segmentForces(P, st, closes) {
   const out = [];
   for (let x = 0; x < P.numEdges; x++) {
     if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
-    const [a, b] = edgeCells(P, x);
+    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
     if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
     if (st.cell[a] !== LOOP && st.cell[b] !== LOOP && !onCount(P, st, a) && !onCount(P, st, b)) continue; // next to the known loop only
     for (const v of [E_OFF, E_ON]) {
@@ -934,7 +997,7 @@ function uniqueRoute(P, st) {
     const xs = [];
     for (let x = 0; x < P.numEdges; x++) {
       if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
-      const [a, b] = edgeCells(P, x);
+      const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
       if (inGroup.has(a) && inGroup.has(b)) xs.push(x);
     }
     if (xs.length > 18) continue;
@@ -957,7 +1020,7 @@ function uniqueRoute(P, st) {
     const byPairing = new Map();
     for (const sol of solutions) {
       const adj = new Map(cells.map((i) => [i, []]));
-      for (const x of sol) { const [a, b] = edgeCells(P, x); adj.get(a).push(b); adj.get(b).push(a); }
+      for (const x of sol) { const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1; adj.get(a).push(b); adj.get(b).push(a); }
       const seen = new Set(), pairs = [];
       for (const u of endsHere) {
         if (seen.has(u)) continue;
@@ -1051,7 +1114,7 @@ function noEarlyClose(P, st) {
   const out = [];
   for (let x = 0; x < P.numEdges; x++) {
     if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
-    const [a, b] = edgeCells(P, x);
+    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
     if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
     if (find(a) === find(b)) out.push(firing([setEdge(x, E_OFF)], { edge: x }));
   }
@@ -1074,7 +1137,7 @@ function parityForces(P, st) {
   }
   for (let x = 0; x < P.numEdges; x++) {
     if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
-    const [a, b] = edgeCells(P, x);
+    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
     if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
     const off = cloneState(st); off.e[x] = E_OFF;
     const endsOff = oddOpenEnds(P, off);
@@ -1106,7 +1169,7 @@ function lookahead(kind) {
     } else {
       for (let x = 0; x < P.numEdges; x++) {
         if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
-        const [a, b] = edgeCells(P, x);
+        const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
         if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
         attempt([setEdge(x, E_ON)], [setEdge(x, E_OFF)], { edge: x, assumed: 'on' });
         attempt([setEdge(x, E_OFF)], [setEdge(x, E_ON)], { edge: x, assumed: 'off' });

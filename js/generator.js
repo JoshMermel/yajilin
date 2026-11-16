@@ -309,7 +309,7 @@ export function plantTightArrows(rows, cols, rng, count, { sizes = [[2, 0.45], [
  * the move only if the number of crossings goes down (or stays level, now and then, to cross plateaus). Returns
  * { holes, edges, stats } or null. Random loops almost never pass at 14x14 and above; this is what scales.
  */
-export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, clump = 0.5, check = true, preset = null } = {}) {
+export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, maxIters = Infinity, clump = 0.5, check = true, preset = null } = {}) {
   const t0 = Date.now();
   const N = rows * cols;
   const b = makeLoopBuilder(rows, cols, rng);
@@ -341,10 +341,11 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
   const evaluate = () => { const { pos, length } = b.positions(); return crossingChords(rows, cols, b.hole, pos, length); };
   let cur = evaluate(), moves = 0, accepted = 0, plateau = 0;
   const maxHoles = Math.round(N * maxDensity);
-  while (Date.now() - t0 < budgetMs && holes < maxHoles) {
+  let iters = 0;
+  while (Date.now() - t0 < budgetMs && holes < maxHoles && iters++ < maxIters) {
     if (cur.crossings === 0) {
       if (!check || loopIsUnique(rows, cols, b.hole)) {
-        return { holes: b.hole, edges: b.edges(), stats: { holePct: (100 * holes / N).toFixed(1), moves, accepted, ms: Date.now() - t0 } };
+        return { holes: b.hole, edges: b.edges(), stats: { holePct: (100 * holes / N).toFixed(1), moves, accepted, iters, ms: Date.now() - t0 } };
       }
       // no local alternative but still not unique (a longer alternating cycle): add a random pair and look again
       for (let k = 0; k < 400; k++) { const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0; if (okc(c1, clump) && okc(c2, clump) && near(c1, c2, 3) && b.tryHoles(c1, c2)) { holes += 2; break; } }
@@ -502,7 +503,11 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
     // build a loop that is unique by repair (tightLoop); the climb then only has to fix which holes are boxes and which are clues
     for (let tries = 0; tries < 50 && !loop && Date.now() - t0 < budgetMs; tries++) {
       const plan = tightArrows > 0 ? plantTightArrows(rows, cols, rng, tightArrows) : null;
-      const cand = tightLoop(rows, cols, rng, { startDensity: Math.min(density, 0.24), clump, preset: plan, budgetMs: Math.min(30000, budgetMs - (Date.now() - t0)) });
+      // An attempt either finishes within about 2.5 * N iterations or never does (measured on ~130 attempts from 10x10 to 20x36: at most 106,
+      // 233, 892 and 1018 iterations at 10x10, 14x14, 20x20 and 20x36; the failures ran to the 30 s cap), so give up early and start over:
+      // loop construction at 14x14 went from about 3.6 s to 0.2 s per loop. Counted in iterations, not milliseconds, so a seed gives the
+      // same puzzle on a slow or a fast machine.
+      const cand = tightLoop(rows, cols, rng, { startDensity: Math.min(density, 0.24), clump, preset: plan, maxIters: (plan ? 8 : 4) * rows * cols + (plan ? 400 : 200), budgetMs: Math.min(30000, budgetMs - (Date.now() - t0)) });
       if (cand) cand.plan = plan;
       looked++;
       if (cand) loop = cand;

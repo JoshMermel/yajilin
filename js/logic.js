@@ -95,6 +95,7 @@ export function edgeCells(P, e) {
  * Apply the basic deductions until nothing changes. Returns false on a contradiction.
  * This is the "machine" solver's propagation (it does not model a human); the human-style rules live in rating.js.
  */
+let scratchParent = new Int16Array(0), scratchSize = new Int32Array(0);       // reused by every propagate call (it never calls itself)
 export function propagate(P, st) {
   const { N, nb, ed, rays, clueAt } = P;
   const cell = st.cell, e = st.e;
@@ -110,7 +111,8 @@ export function propagate(P, st) {
     if (e[x] !== E_UNKNOWN) { ok = false; return; }
     e[x] = v; changed = true;
   };
-  const parent = new Int16Array(N);
+  if (scratchParent.length < N) { scratchParent = new Int16Array(N); scratchSize = new Int32Array(N); }
+  const parent = scratchParent, size = scratchSize;
   const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
 
   while (changed && ok) {
@@ -145,7 +147,7 @@ export function propagate(P, st) {
     // An edge that is on makes both its cells loop cells. An edge touching a shaded cell is off (done above).
     for (let x = 0; x < P.numEdges && ok; x++) {
       if (e[x] !== E_ON) continue;
-      const [a, b] = edgeCells(P, x);
+      const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
       setCell(a, LOOP); setCell(b, LOOP);
     }
     // Clues.
@@ -166,7 +168,7 @@ export function propagate(P, st) {
     let cycleRoot = -1;
     for (let x = 0; x < P.numEdges; x++) {
       if (e[x] !== E_ON) continue;
-      const [a, b] = edgeCells(P, x);
+      const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
       const ra = find(a), rb = find(b);
       if (ra === rb) cycleRoot = ra; else parent[ra] = rb;
     }
@@ -182,13 +184,14 @@ export function propagate(P, st) {
       st.cycle = true;
     } else {
       st.cycle = false;
-      const size = new Map();
-      for (let i = 0; i < N; i++) if (cell[i] === LOOP) { const r = find(i); size.set(r, (size.get(r) || 0) + 1); }
+      size.fill(-1, 0, N);                                    // -1: no loop cell in this component (the old Map had no entry: "undefined < n" is false)
+      for (let i = 0; i < N; i++) if (cell[i] === LOOP) { const r = find(i); size[r] = (size[r] < 0 ? 0 : size[r]) + 1; }
       for (let x = 0; x < P.numEdges; x++) {
         if (e[x] !== E_UNKNOWN) continue;
-        const [a, b] = edgeCells(P, x);
+        const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
         if (cell[a] === CLUE || cell[b] === CLUE) continue;
-        if (find(a) === find(b) && size.get(find(a)) < loopCount) setEdge(x, E_OFF);
+        const ra = find(a);
+        if (ra === find(b) && size[ra] >= 0 && size[ra] < loopCount) setEdge(x, E_OFF);
       }
     }
   }
@@ -298,7 +301,7 @@ export function checkSolved(P, shaded, edges) {
   let loopCells = 0, start = -1;
   for (let x = 0; x < P.numEdges; x++) {
     if (edges[x] !== E_ON) continue;
-    const [a, b] = edgeCells(P, x);
+    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
     if (b >= N || (!(x & 1) && (b % cols === 0)) ) return false; // edge off the board
     if (P.clueAt[a] >= 0 || P.clueAt[b] >= 0 || shaded[a] || shaded[b]) return false;
     deg[a]++; deg[b]++;

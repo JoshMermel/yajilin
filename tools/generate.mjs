@@ -24,6 +24,7 @@ const boxRange = arg('boxes', '') ? arg('boxes').split(',').map(Number) : null; 
 const minMean = +arg('min-mean', 2.0);                            // with --numbers big: required mean clue number
 const tightRate = +arg('tight-rate', 0);                          // tight arrows per 100 cells (Nikoli's own puzzles: about 0.65)
 const cheapFirst = arg('cheap', '') === '' ? null : arg('cheap') === '1';   // climb with the cheap rules first (default: boards of 150+ cells)
+const crossNodes = +arg('cross-check-nodes', 5000000);                // node cap of the from-scratch uniqueness cross-check on boards of up to 150 cells (0: skip it); a lower cap trades the tail of slow checks for coverage
 const voids = +arg('voids', 0);                                   // this many void cells (not box, not loop, no arrow) in every puzzle
 const maxTier = arg('max-tier', '');   // 'medium': only the rules up to Medium (no shadeForcesLines etc.)
 const out = arg('out', `${root}tools/library/y_${cols}x${rows}_s${seed}.csv`);
@@ -51,8 +52,8 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   let unique;
   if (byRules.solved) unique = { count: 1, exceeded: false };
   else unique = solve(P, { limit: 2, maxNodes: 5000000, state: byRules.state });
-  if (P.N <= 150) {
-    const scratch = solve(P, { limit: 2, maxNodes: 5000000 });
+  if (P.N <= 150 && crossNodes > 0) {
+    const scratch = solve(P, { limit: 2, maxNodes: crossNodes });
     if (!scratch.exceeded && scratch.count !== 1) throw new Error(`${name}: the rules and the exhaustive search disagree (${scratch.count} solutions from scratch)`);
   }
   if (unique.exceeded) { console.log(`${name}: exhaustive check did not finish, skipping`); continue; }
