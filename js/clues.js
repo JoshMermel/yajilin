@@ -1,9 +1,13 @@
 // How each clue looks to the player: 'ok' (its boxes are all there), 'bad' (too many boxes, or every cell it points at is filled in and
 // the count is still wrong) or '' (not decided yet). A cell counts as filled in if it is a clue, has a box or a dot, or a segment passes
 // through it. Pure (no DOM) so it can be tested.
+//
+// With { covered: true } an arrow also counts as 'ok' when another arrow already covers it: a K-arrow with a (K - X)-arrow further along
+// its line pointing the SAME way, and X boxes standing between the two. Then the K-arrow's total is guaranteed by the other arrow, so it
+// has nothing more to tell the player (its line beyond the second arrow is that arrow's line, and the cells between hold their X boxes).
 
 /** marks = { cells: 0 blank / 1 box / 2 dot, edges: 1 = segment drawn }. Returns an array of states, one per clue. */
-export function clueStates(P, marks) {
+export function clueStates(P, marks, { covered = false } = {}) {
   const seg = new Uint8Array(P.N);
   for (let x = 0; x < P.numEdges; x++) {
     if (!marks.edges[x]) continue;
@@ -18,6 +22,22 @@ export function clueStates(P, marks) {
       else if (marks.cells[i] === 0 && !seg[i] && P.clueAt[i] < 0) open++;
     }
     if (boxes > cl.n || (open === 0 && boxes < cl.n)) return 'bad';
-    return boxes === cl.n ? 'ok' : '';
+    if (boxes === cl.n) return 'ok';
+    return covered && isCovered(P, marks, cl) ? 'ok' : '';
   });
+}
+
+const DR = [-1, 0, 1, 0], DC = [0, 1, 0, -1];       // directions 0 up, 1 right, 2 down, 3 left
+
+/** Is the arrow `cl` covered (see the top of the file)? Walks its line; at every arrow pointing the same way it checks the count so far. */
+function isCovered(P, marks, cl) {
+  let boxes = 0;                                       // boxes in the cells between cl and the arrow being looked at
+  for (let r = cl.r + DR[cl.d], c = cl.c + DC[cl.d]; r >= 0 && c >= 0 && r < P.rows && c < P.cols; r += DR[cl.d], c += DC[cl.d]) {
+    const i = r * P.cols + c, k = P.clueAt[i];
+    if (k >= 0) {
+      const other = P.clues[k];
+      if (other.d === cl.d && other.n >= 0 && other.n <= cl.n && boxes === cl.n - other.n) return true;
+    } else if (marks.cells[i] === 1) boxes++;
+  }
+  return false;
 }

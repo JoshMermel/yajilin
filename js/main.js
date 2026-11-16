@@ -37,6 +37,7 @@ const settings = {
   labels: store.get('yj_labels') === '1',         // number the rows and columns
   autoDots: store.get('yj_autoDots') === '1',     // automatic dots: next to a box, and along a satisfied clue
   autoRotate: store.get('yj_autoRotate') !== '0', // show a tall board sideways when that fits the window better (js/rotate.js)
+  finishedArrows: store.get('yj_finishedArrows') !== '0', // on by default: an arrow another arrow already covers turns green too (js/clues.js)
 };
 
 const board = new Board($('board'), {
@@ -162,7 +163,7 @@ function reset() {
 
 function analyse() {
   const P = state.P, m = state.marks;
-  const clueState = clueStates(P, m);
+  const clueState = clueStates(P, m, { covered: settings.finishedArrows });
   const badShaded = new Set();
   for (let i = 0; i < P.N; i++) {
     if (m.cells[i] !== 1) continue;
@@ -716,7 +717,7 @@ $('setting-dark-mode').addEventListener('change', (e) => {
 $('setting-auto-rotate').checked = settings.autoRotate;
 $('setting-auto-rotate').addEventListener('change', (e) => { settings.autoRotate = e.target.checked; store.set('yj_autoRotate', e.target.checked ? '1' : '0'); reorient(); });
 $('rotate-btn').addEventListener('click', () => { state.flip = !state.flip; reorient(); });
-for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_colorLines'], ['setting-labels', 'labels', 'yj_labels'], ['setting-auto-dots', 'autoDots', 'yj_autoDots']]) {
+for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_colorLines'], ['setting-labels', 'labels', 'yj_labels'], ['setting-auto-dots', 'autoDots', 'yj_autoDots'], ['setting-finished-arrows', 'finishedArrows', 'yj_finishedArrows']]) {
   const el = $(id);
   el.checked = settings[key];
   el.addEventListener('change', () => {
@@ -724,6 +725,7 @@ for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_co
     store.set(store_key, el.checked ? '1' : '0');
     board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
     fitBoard();
+    if (key === 'finishedArrows' && state.P) refresh();      // the arrows' colors change at once
     if (key === 'autoDots' && state.P) {      // on: dots for everything already on the board; off: the automatic ones go (yours stay)
       const before = snapshot();
       applyAutoDots(state.P, state.marks, settings.autoDots);
