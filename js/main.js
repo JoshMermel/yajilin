@@ -718,10 +718,12 @@ for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_co
     store.set(store_key, el.checked ? '1' : '0');
     board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
     fitBoard();
-    if (key === 'autoDots' && state.P) {      // on: dots for everything already on the board; off: the automatic ones go (yours stay). One undo step.
+    if (key === 'autoDots' && state.P) {      // on: dots for everything already on the board; off: the automatic ones go (yours stay)
       const before = snapshot();
       applyAutoDots(state.P, state.marks, settings.autoDots);
-      if (!sameMarks(before, state.marks)) { state.undo.push(before); state.redo = []; save(); refresh(); }
+      // not an undo step of its own; the history is brought in line instead, so Undo never brings back dots the switch has turned off
+      for (const m of [...state.undo, ...state.redo]) applyAutoDots(state.P, m, settings.autoDots);
+      if (!sameMarks(before, state.marks)) { save(); refresh(); }
     }
   });
 }

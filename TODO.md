@@ -101,7 +101,7 @@ Rating each takes about 0.1 s, so large puzzles are fine for the human-style sol
 ## Auto-dots
 
 Done: dots for satisfied clues, and each auto-dot's reasons (shaded neighbour 's<cell>', satisfied clue 'c<clue>') so it disappears with its last reason.
-Done 2026-11-15: flipping the switch acts on the board: ON puts dots for every reason already there, OFF removes the automatic dots (yours stay), one undo step; a save made with dots on shows none while the switch is off. The logic is pure, in `js/marks.js` (`reasonsOf`, `reconcile`, `applyAutoDots`), tested in `tests/marks.test.mjs`.
+Done 2026-11-15: flipping the switch acts on the board: ON puts dots for every reason already there, OFF removes the automatic dots (yours stay); it is not an undo step (Josh: that is excessive), but the undo/redo history is converted the same way so Undo never brings back dots the switch turned off; a save made with dots on shows none while the switch is off. The logic is pure, in `js/marks.js` (`reasonsOf`, `reconcile`, `applyAutoDots`), tested in `tests/marks.test.mjs`.
 
 ## Hint to think about (from play, 2026-11-14)
 
