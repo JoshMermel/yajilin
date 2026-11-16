@@ -2,12 +2,12 @@
 // the count is still wrong) or '' (not decided yet). A cell counts as filled in if it is a clue, has a box or a dot, or a segment passes
 // through it. Pure (no DOM) so it can be tested.
 //
-// With { covered: true } an arrow also counts as 'ok' when another arrow already covers it: a K-arrow with a (K - X)-arrow further along
+// An arrow also counts as 'ok' when another arrow already covers it: a K-arrow with a (K - X)-arrow further along
 // its line pointing the SAME way, and X boxes standing between the two. Then the K-arrow's total is guaranteed by the other arrow, so it
 // has nothing more to tell the player (its line beyond the second arrow is that arrow's line, and the cells between hold their X boxes).
 
 /** marks = { cells: 0 blank / 1 box / 2 dot, edges: 1 = segment drawn }. Returns an array of states, one per clue. */
-export function clueStates(P, marks, { covered = false } = {}) {
+export function clueStates(P, marks) {
   const seg = new Uint8Array(P.N);
   for (let x = 0; x < P.numEdges; x++) {
     if (!marks.edges[x]) continue;
@@ -23,7 +23,7 @@ export function clueStates(P, marks, { covered = false } = {}) {
     }
     if (boxes > cl.n || (open === 0 && boxes < cl.n)) return 'bad';
     if (boxes === cl.n) return 'ok';
-    return covered && isCovered(P, marks, cl) ? 'ok' : '';
+    return isCovered(P, marks, cl) ? 'ok' : '';
   });
 }
 
