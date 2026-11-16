@@ -6,7 +6,7 @@
 // Everything except buildPrintRoot is pure (no DOM), so the layout and the drawing can be tested in node.
 import { SHADED, E_ON } from './logic.js';
 
-const INK = '#111', GRID = '#9a9a9a', CLUE_BG = '#dcdcdc';
+const INK = '#111', GRID = '#9a9a9a', CLUE_BG = '#dcdcdc', VOID_BG = '#b4b4b4';
 export const MAX_PRINT = 500;
 /** Linked from the header of every page, so a PDF leads back to the puzzles (and a paper copy shows where they came from). */
 export const SITE_URL = 'https://joshmermelstein.com/yajilin/';
@@ -101,8 +101,13 @@ export function boardSvg(P, sol = null) {
   let g = `<rect x="0" y="0" width="${cols}" height="${rows}" fill="#fff"/>`;
   for (const cl of P.clues) {
     const x = cl.c, y = cl.r, horiz = cl.d === 1 || cl.d === 3;
+    if (cl.n < 0) {                       // a void cell: darker grey crossed out, so it reads on a black-and-white printer too
+      g += `<rect class="void" x="${x}" y="${y}" width="1" height="1" fill="${VOID_BG}"/>`;
+      g += `<path class="void-x" d="M${x + 0.12} ${y + 0.12}L${x + 0.88} ${y + 0.88}M${x + 0.88} ${y + 0.12}L${x + 0.12} ${y + 0.88}" stroke="${INK}" stroke-width="0.06" stroke-linecap="round" opacity="0.55"/>`;
+      continue;
+    }
     g += `<rect class="clue" x="${x}" y="${y}" width="1" height="1" fill="${CLUE_BG}"/>`;
-    if (cl.n >= 0) {                      // (a clue without a number is a blocked cell: nothing but the grey)
+    {
       // number and arrow stack for sideways arrows and sit side by side for vertical ones, as on screen
       const nx = x + 0.5 - (horiz ? 0 : 0.17), ny = y + 0.5 + (horiz ? -0.2 : 0);
       const ax = x + 0.5 + (horiz ? 0 : 0.26), ay = y + 0.5 + (horiz ? 0.25 : 0);

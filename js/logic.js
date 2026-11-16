@@ -4,6 +4,8 @@
 //   * shaded cells never touch each other orthogonally,
 //   * a clue's number is how many shaded cells lie in its arrow's direction (to the board's edge),
 //   * the loop is one closed cycle, through every cell that is neither a clue nor shaded.
+//   * a VOID cell (a clue with n < 0, no arrow) is outside the puzzle: not shaded, not on the loop, not counted by any arrow (arrows skip
+//     over it like a clue cell), and a box may touch it.
 //
 // Coordinates: cell (r, c) has index r*cols + c. Directions are 0=U 1=R 2=D 3=L (DR/DC below).
 // Edges (loop segments between orthogonal neighbours): edge index 2*i is cell i's right edge (i - i+1),
@@ -55,6 +57,7 @@ export function compile(p) {
   for (const i of boxIdx) if (clueAt[i] >= 0) throw new Error(`a box and a clue share cell ${i}`);
   const rays = p.clues.map((cl) => {
     const cells = [];
+    if (cl.n < 0) return cells;                   // a void cell has no line
     let r = cl.r + DR[cl.d], c = cl.c + DC[cl.d];
     while (r >= 0 && c >= 0 && r < rows && c < cols) {
       const i = r * cols + c;
@@ -66,7 +69,9 @@ export function compile(p) {
   // The cells that count toward each cell's clues, for incremental use.
   const cluesOf = Array.from({ length: N }, () => []);
   rays.forEach((cells, k) => cells.forEach((i) => cluesOf[i].push(k)));
-  return Object.assign(p, { N, clueAt, nb, ed, rays, cluesOf, numEdges: 2 * N, boxIdx });
+  // void cells: nothing goes there (not a box, not on the loop, no arrow); a clue with n < 0 (see the top of this file)
+  const voidIdx = p.clues.filter((cl) => cl.n < 0).map((cl) => cl.r * cols + cl.c);
+  return Object.assign(p, { N, clueAt, nb, ed, rays, cluesOf, numEdges: 2 * N, boxIdx, voidIdx });
 }
 
 export function initialState(P) {
@@ -322,15 +327,16 @@ export function checkSolved(P, shaded, edges) {
 
 export const CSV_HEADER = 'name,rows,cols,clues,solution,rules,tier,score,boxes';
 
+/** A void cell is written r:c:V:-1 (a clue with n < 0 and no direction; the old r:c:U:-1 form reads the same). */
 export function cluesToString(clues) {
-  return clues.map((c) => `${c.r}:${c.c}:${DIR_LETTERS[c.d]}:${c.n}`).join(';');
+  return clues.map((c) => (c.n < 0 ? `${c.r}:${c.c}:V:-1` : `${c.r}:${c.c}:${DIR_LETTERS[c.d]}:${c.n}`)).join(';');
 }
 
 export function cluesFromString(s) {
   if (!s) return [];
   return s.split(';').map((t) => {
     const [r, c, d, n] = t.split(':');
-    return { r: +r, c: +c, d: DIR_LETTERS.indexOf(d), n: +n };
+    return +n < 0 ? { r: +r, c: +c, d: 0, n: -1 } : { r: +r, c: +c, d: DIR_LETTERS.indexOf(d), n: +n };
   });
 }
 

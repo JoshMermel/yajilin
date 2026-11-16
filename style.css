@@ -19,6 +19,8 @@
   --cell-bg: #fff;
   --cell-border: #ccc;
   --clue-bg: #e9ecef;
+  --void-bg: #d3d7db;
+  --void-line: #a9afb5;
   --clue-ink: #111;
   --clue-ok-bg: #d7ecd9;
   --clue-bad-bg: #f6c9c6;
@@ -56,6 +58,8 @@
   --cell-bg: #222;
   --cell-border: #444;
   --clue-bg: #343a40;
+  --void-bg: #15171a;
+  --void-line: #444b52;
   --clue-ink: #eee;
   --clue-ok-bg: #28452c;
   --clue-bad-bg: #5a2623;
@@ -115,6 +119,8 @@ button.ghost { background: transparent; }
 .grid-line { stroke: var(--cell-border); stroke-width: 1; }
 .frame { fill: none; stroke: var(--frame); stroke-width: 3; }
 .clue-bg { fill: var(--clue-bg); }
+.void-fill { fill: var(--void-bg); }
+.void-line { stroke: var(--void-line); }
 .clue-bg.ok { fill: var(--clue-ok-bg); }
 .clue-bg.bad { fill: var(--clue-bad-bg); }
 .clue-text { fill: var(--clue-ink); font-weight: 700; text-anchor: middle; dominant-baseline: central; }

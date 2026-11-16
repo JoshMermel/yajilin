@@ -174,6 +174,7 @@ export function contradiction(P, st) {
     if ((s === LOOP || on > 0) && exits(P, st, i) < 2) return true;
   }
   for (let k = 0; k < P.clues.length; k++) {
+    if (P.clues[k].n < 0) continue;                      // a void cell has no count
     let s = 0, u = 0;
     for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) u++; }
     if (s > P.clues[k].n || s + u < P.clues[k].n) return true;
@@ -235,6 +236,7 @@ function clueCounts(P, st, k) {
 function clueDone(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
+    if (cl.n < 0) return;
     const { s, unk } = clueCounts(P, st, k);
     if (s === cl.n && unk.length) out.push(firing(unk.map((i) => setCell(i, LOOP)), { clue: k, cells: unk }));
   });
@@ -244,6 +246,7 @@ function clueDone(P, st) {
 function clueFull(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
+    if (cl.n < 0) return;
     const { s, unk } = clueCounts(P, st, k);
     if (unk.length && cl.n - s === unk.length) out.push(firing(unk.map((i) => setCell(i, SHADED)), { clue: k, cells: unk }));
   });
@@ -415,7 +418,7 @@ export function rangeDeduce(P, st, cells, kmin, kmax) {
 function clueTight(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
-    if (cl.n < 2) return;
+    if (cl.n < 2) return;                                 // (also skips voids)
     let boxes = 0, run = [];
     const runs = [];
     for (const i of P.rays[k]) {
@@ -438,6 +441,7 @@ function clueTight(P, st) {
 function cluePlacements(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
+    if (cl.n < 0) return;
     const sets = rangeDeduce(P, st, P.rays[k], cl.n, cl.n);
     if (sets.length) out.push(firing(sets, { clue: k, cells: P.rays[k] }));
   });
@@ -454,6 +458,7 @@ const PLACEMENT_CAP = 3000;
 function placementDeadEnd(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
+    if (cl.n < 0) return;
     const ray = P.rays[k];
     let have = 0;
     const elig = [];
@@ -509,7 +514,7 @@ function sameDirection(P, st, one) {
   const out = [];
   P.clues.forEach((A, a) => {
     P.clues.forEach((B, b) => {
-      if (a === b || A.d !== B.d) return;
+      if (a === b || A.n < 0 || B.n < 0 || A.d !== B.d) return;
       const ia = cellOfClue(P, A), ib = cellOfClue(P, B);
       if (!sameLine(P, A.d, ia, ib) || posAlong(P, A.d, ib) <= posAlong(P, A.d, ia)) return;
       const count = A.n - B.n;
@@ -537,7 +542,7 @@ function facing(P, st, known) {
   const out = [];
   P.clues.forEach((A, a) => {
     P.clues.forEach((B, b) => {
-      if (a === b || B.d !== (A.d + 2) % 4) return;
+      if (a === b || A.n < 0 || B.n < 0 || B.d !== (A.d + 2) % 4) return;
       const ia = cellOfClue(P, A), ib = cellOfClue(P, B);
       if (!sameLine(P, A.d, ia, ib) || posAlong(P, A.d, ib) <= posAlong(P, A.d, ia)) return;
       const pa = posAlong(P, A.d, ia), pb = posAlong(P, A.d, ib);

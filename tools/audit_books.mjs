@@ -37,6 +37,7 @@ if (process.argv.includes('--worker')) {
       const cell = c.r * raw.cols + c.c;
       if (seen.has(cell)) return fail('two clues on one cell');
       seen.add(cell);
+      if (c.n === -1) continue;                                            // a void cell: no arrow, no number
       if (!(c.d >= 0 && c.d <= 3) || !(c.n >= 0)) return fail('bad clue direction or number');
     }
     let P;

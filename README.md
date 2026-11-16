@@ -40,7 +40,7 @@ node tools/generate.mjs --size 12x12 --count 3 --seed 1 --budget 600   # COLSxRO
 node tools/build_book.mjs --id bonus-intro --name "Bonus: gentle intro" --glob intro3_   # pools -> data/<id>.csv; a rebuilt book keeps its place, group and blurb in manifest.json
 sh tools/make_bonus_standard.sh   # tops up the pools of the bonus books at their standard sizes (flags per book are in the script; ONLY="skinny" SEED=5000 limits it to some books)
 node tools/build_book.mjs --id bonus-bignum --name "Bonus: big numbers" --glob bignum,twos_ --sizes 10x10,12x12,14x14 --limit 100   # an even share of 100 from each size
-node tools/generate.mjs --size 10x10 --numbers zeros       # style options: --numbers big|small|zeros|twos, --boxes LO,HI (share of boxes among the non-loop cells), --one-dir, --edge-bias q
+node tools/generate.mjs --size 10x10 --numbers zeros       # style options: --voids K (K void cells), --numbers big|small|zeros|twos, --boxes LO,HI (share of boxes among the non-loop cells), --one-dir, --edge-bias q
 ```
 
 `generate.mjs` re-checks every puzzle (stored solution valid; exactly one solution by a *complete* exhaustive search) and rates it
@@ -52,7 +52,10 @@ before storing. A search that hit its node limit is reported by `solve()` as `ex
 name,rows,cols,clues,solution,rules,tier,score
 ```
 
-- `clues`: items joined by `;`, each `row:col:dir:n` with `dir` one of `U R D L` (0-based row and column).
+- `clues`: items joined by `;`, each `row:col:dir:n` with `dir` one of `U R D L` (0-based row and column). A **void** cell is written
+  `row:col:V:-1` (a clue with no arrow and no number): nothing goes there. It is not shaded and not on the loop, arrows skip over it when they
+  count (as they skip clue cells), and a shaded cell may touch it. Everything (solver, rules, hints, GUI, print, generator) supports voids;
+  the rest of the code simply treats them as clues with `n < 0`, which have no line and no count.
 - `solution`: one char per cell, row-major: `#` clue cell, `x` shaded, otherwise a hex digit of the loop cell's exits
   (U=1, R=2, D=4, L=8; so `6` is a corner joining right and down, `a` a horizontal straight, `5` a vertical one).
 - `rules`, `tier`, `score`: difficulty from the human-style solver (`tools/generate.mjs` fills them in).

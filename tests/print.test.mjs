@@ -82,3 +82,13 @@ test('pre-placed boxes are drawn on the puzzle itself, not only in the answer', 
   const P = compile({ name: 'x', rows: 4, cols: 4, clues: [{ r: 0, c: 0, d: 1, n: 0 }], boxes: [{ r: 2, c: 2 }] });
   assert.equal((boardSvg(P).match(/class="box"/g) || []).length, 1);
 });
+
+test('a void cell prints as a darker cell with a cross, no number and no arrow, and it is not counted as a clue', () => {
+  const P = compile({ name: 'v', rows: 3, cols: 4, clues: [{ r: 0, c: 0, d: 1, n: 1 }, { r: 1, c: 2, d: 0, n: -1 }] });
+  const svg = boardSvg(P);
+  assert.equal((svg.match(/class="void"/g) || []).length, 1);
+  assert.equal((svg.match(/class="void-x"/g) || []).length, 1);
+  assert.equal((svg.match(/class="clue"/g) || []).length, 1, 'only the real arrow is a clue cell');
+  assert.equal((svg.match(/class="num"/g) || []).length, 1);
+  assert.equal((svg.match(/class="arrow"/g) || []).length, 1);
+});

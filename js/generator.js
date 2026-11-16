@@ -391,6 +391,7 @@ export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen') {
   for (const i of clueDir.keys()) isClue[i] = 1;
   const clues = [];
   for (const [i, d] of [...clueDir.entries()].sort((x, y) => x[0] - y[0])) {
+    if (d < 0) { clues.push({ r: (i / cols) | 0, c: i % cols, d: 0, n: -1 }); continue; }     // a void cell (direction -1): no arrow, no number
     const n = rayOf(rows, cols, i, d, isClue).filter((j) => loop.holes[j] && !isClue[j]).length;
     clues.push({ r: (i / cols) | 0, c: i % cols, d, n });
   }
@@ -451,14 +452,14 @@ export function styleGap(P, numbers, minMean = 2.0, boxRange = null) {
   if (boxRange && P.solution) {        // the share of the solution's non-loop cells (boxes and clues) that are boxes, wanted in [lo, hi]
     let boxes = 0;
     for (const ch of P.solution) if (ch === 'x') boxes++;
-    const share = boxes / Math.max(1, boxes + P.clues.length);
+    const share = boxes / Math.max(1, boxes + P.clues.filter((c) => c.n >= 0).length);       // (a void is neither)
     gap += (Math.max(0, boxRange[0] - share) + Math.max(0, share - boxRange[1])) * 8;
   }
   return gap + numberGap(P, numbers, minMean);
 }
 function numberGap(P, numbers, minMean) {
-  if (!numbers || !P.clues.length) return 0;
-  const n = P.clues.map((c) => c.n);
+  const n = P.clues.map((c) => c.n).filter((v) => v >= 0);                // the arrows' numbers (voids have none)
+  if (!numbers || !n.length) return 0;
   const mean = n.reduce((a, b) => a + b, 0) / n.length;
   if (numbers === 'zeros') return n.filter((v) => v > 0).length / n.length * 6;
   if (numbers === 'twos') return n.filter((v) => v < 2).length / n.length * 6;
@@ -491,7 +492,7 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, boxRange = null, cheapFirst = null, fullBelow = null, prune = true, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, boxRange = null, cheapFirst = null, fullBelow = null, prune = true, voids = 0, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
@@ -530,6 +531,11 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
   if (loop.plan) {
     for (const [c, d] of loop.plan.clues) { setClue(c, d); fixed[c] = 1; }
     for (const bx of loop.plan.boxes) { keep[bx] = 1; fixed[bx] = 1; kept++; }
+  }
+  if (voids > 0) {                                                   // void cells: some of the holes are neither a box nor an arrow (fixed, never changed)
+    const spare = shuffle(holes.filter((q) => !fixed[q]), rng);
+    if (spare.length < voids + 2) return null;
+    for (const i of spare.slice(0, voids)) { setClue(i, -1); fixed[i] = 1; }
   }
   for (const i of shuffle(holes.filter((q) => !fixed[q]), rng)) {
     if (kept >= holes.length * shadeShare) break;

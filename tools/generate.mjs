@@ -24,6 +24,7 @@ const boxRange = arg('boxes', '') ? arg('boxes').split(',').map(Number) : null; 
 const minMean = +arg('min-mean', 2.0);                            // with --numbers big: required mean clue number
 const tightRate = +arg('tight-rate', 0);                          // tight arrows per 100 cells (Nikoli's own puzzles: about 0.65)
 const cheapFirst = arg('cheap', '') === '' ? null : arg('cheap') === '1';   // climb with the cheap rules first (default: boards of 150+ cells)
+const voids = +arg('voids', 0);                                   // this many void cells (not box, not loop, no arrow) in every puzzle
 const maxTier = arg('max-tier', '');   // 'medium': only the rules up to Medium (no shadeForcesLines etc.)
 const out = arg('out', `${root}tools/library/y_${cols}x${rows}_s${seed}.csv`);
 fs.mkdirSync(new URL('../tools/library/', import.meta.url).pathname, { recursive: true });
@@ -35,7 +36,7 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const t0 = Date.now();
   const name = `Y${cols}x${rows}_s${seed}_${made + 1}`;
   const upto = maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
-  const r = generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, boxRange, cheapFirst, tightArrows: Math.round(tightRate * cols * rows / 100), prune: arg('prune', '1') !== '0', loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
+  const r = generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, boxRange, cheapFirst, tightArrows: Math.round(tightRate * cols * rows / 100), prune: arg('prune', '1') !== '0', voids, loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
   if (!r) { console.log(`${name}: no puzzle within ${budget} s`); continue; }
   const P = r.puzzle;
   // check: the stored solution is valid and the exhaustive solver agrees it is the only one
@@ -60,6 +61,6 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const rating = ratePuzzle(P);
   fs.appendFileSync(out, toCsvRow(P) + '\n');
   made++;
-  console.log(`${name}: ${cols}x${rows}, ${P.clues.length} clues, ${P.tier} (${P.rules}, score ${P.score}), generated in ${((t1 - t0) / 1000).toFixed(1)} s, rated in ${((Date.now() - t1) / 1000).toFixed(1)} s, solved by rules: ${rating.solved}`);
+  console.log(`${name}: ${cols}x${rows}, ${P.clues.filter((c) => c.n >= 0).length} clues${voids ? `, ${P.clues.filter((c) => c.n < 0).length} voids` : ''}, ${P.tier} (${P.rules}, score ${P.score}), generated in ${((t1 - t0) / 1000).toFixed(1)} s, rated in ${((Date.now() - t1) / 1000).toFixed(1)} s, solved by rules: ${rating.solved}`);
 }
 console.log(`done: ${made} puzzle(s) in ${out}`);
