@@ -1,5 +1,6 @@
 // App controller: books and puzzle selection, marks, undo/redo, persistence, checks, settings.
 import { rotated, turnMarks, realEdges } from './rotate.js';
+import { parseSelection, planPrint, buildPrintRoot } from './print.js';
 import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, initialState, E_ON, SHADED, LOOP, UNKNOWN } from './logic.js';
 import { nextSteps, RULES } from './rating.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
@@ -607,6 +608,54 @@ const settingsModal = setupModal('settings-modal', 'settings-btn', () => {
 const helpModal = setupModal('help-modal', 'help-btn');
 // the very first visit opens the rules, then remembers it was seen (like polyomino-panel and star battle)
 if (!store.get('yj_seenHelp')) { store.set('yj_seenHelp', '1'); helpModal.open(); }
+
+// --- Print puzzles (Settings -> Print puzzles): pick a range of the current book, build a print-only page (js/print.js) and open the
+// browser's print dialog ("Save as PDF" there). The booklet styles apply only while a booklet is being printed, so Ctrl+P on the
+// game still prints the page as usual.
+const endBookletPrint = () => document.body.classList.remove('printing-booklet');
+window.addEventListener('afterprint', endBookletPrint);
+matchMedia('print').addEventListener?.('change', (e) => { if (!e.matches) endBookletPrint(); });   // iOS skips afterprint
+const printSolution = (P) => (P.solution ? solutionOf(P) : null);       // only stored solutions: solving a whole book here would freeze the page
+function setupPrint() {
+  const sel = $('print-selection'), sizeSel = $('print-size'), keyBox = $('print-answer-key');
+  const err = $('print-error'), summary = $('print-summary'), go = $('print-go-btn');
+  const savedSize = store.get('yj_printSize');
+  if ([...sizeSel.options].some((o) => o.value === savedSize)) sizeSel.value = savedSize;
+  keyBox.checked = store.get('yj_printKey') !== '0';
+  const update = () => {
+    const puzzles = state.book ? state.book.puzzles : [];
+    const { ids, error } = parseSelection(sel.value, puzzles.length);
+    err.hidden = !error; err.textContent = error ?? ''; go.disabled = Boolean(error);
+    if (error) { summary.textContent = ''; return null; }
+    const size = sizeSel.value;
+    const keyIds = keyBox.checked ? ids.filter((id) => printSolution(puzzles[id - 1])) : [];
+    const plan = planPrint({ puzzles, ids, keyIds, size });
+    const pages = (n) => `${n} page${n === 1 ? '' : 's'}`;
+    summary.textContent = `${ids.length} puzzle${ids.length === 1 ? '' : 's'}, ${plan.perPage} per page: ${pages(plan.puzzlePages)}`
+      + (plan.keyPages ? ` + ${pages(plan.keyPages)} of answers (${plan.keyPerPage} per page).` : '.');
+    return { ids, puzzles, size };
+  };
+  setupModal('print-modal', 'print-btn', () => {
+    settingsModal.close();
+    const total = state.book ? state.book.puzzles.length : 0;
+    $('print-book-name').textContent = state.book ? state.book.name : '';
+    $('print-book-total').textContent = total;
+    sel.value = total <= 1 ? '1' : `${state.idx + 1}-${Math.min(total, state.idx + 10)}`;      // ten puzzles from the one you are on
+    update();
+    if (matchMedia('(pointer: fine)').matches) setTimeout(() => { sel.focus(); sel.select(); }, 0);   // not on a phone: it would pop the keyboard up
+  });
+  sel.addEventListener('input', update);
+  sizeSel.addEventListener('change', () => { store.set('yj_printSize', sizeSel.value); update(); });
+  keyBox.addEventListener('change', () => { store.set('yj_printKey', keyBox.checked ? '1' : '0'); update(); });
+  go.addEventListener('click', () => {
+    const r = update();
+    if (!r) return;
+    buildPrintRoot({ book: { title: state.book.name }, puzzles: r.puzzles, ids: r.ids, size: r.size, includeKey: keyBox.checked, solutionOf: printSolution });
+    document.body.classList.add('printing-booklet');      // style.css prints only the booklet while this is set
+    window.print();
+  });
+}
+setupPrint();
 
 // --- Book picker: a button showing the current book opens a modal of every book, in sections, each with what it holds and how many of
 // its puzzles are solved (the same idea as polyomino-panel's). Books and sections come from data/manifest.json.
