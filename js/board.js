@@ -119,10 +119,10 @@ export class Board {
       const roles = hint.roles || {};
       for (const role of ['range', 'clue', 'path', 'problem', 'focus']) for (const i of roles[role] || []) g += rect(i, `hint-${role}`);
     }
-    // hovering an arrow tints every cell it counts in
+    // hovering an arrow tints every cell it counts in: the open ones (no box, dot or line yet) strongest, since that is where its boxes can still go
     if (this.hoverCell >= 0 && !this.gesture) {
       const k = P.clueAt[this.hoverCell];
-      if (k >= 0 && P.clues[k].n >= 0 && !P.clues[k].region) for (const i of P.rays[k]) g += `<rect class="hover-ray" x="${cellX(i)}" y="${cellY(i)}" width="${S}" height="${S}"/>`;
+      if (k >= 0 && P.clues[k].n >= 0 && !P.clues[k].region) for (const i of P.rays[k]) g += `<rect class="hover-ray${marks.cells[i] === 0 && deg[i] === 0 ? '' : ' decided'}" x="${cellX(i)}" y="${cellY(i)}" width="${S}" height="${S}"/>`;
     }
     for (let r = 0; r <= P.rows; r++) g += `<line class="grid-line" x1="${PAD}" y1="${PAD + r * S}" x2="${PAD + P.cols * S}" y2="${PAD + r * S}"/>`;
     for (let c = 0; c <= P.cols; c++) g += `<line class="grid-line" x1="${PAD + c * S}" y1="${PAD}" x2="${PAD + c * S}" y2="${PAD + P.rows * S}"/>`;

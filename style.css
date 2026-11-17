@@ -136,7 +136,8 @@ button.ghost { background: transparent; }
 /* ---- hint overlay: each role its own color or texture ---- */
 .hint-undecided { fill: rgba(244, 236, 156, 0.4); pointer-events: none; }
 .hint-range { fill: var(--hint-range); pointer-events: none; }
-.hover-ray { fill: var(--hint-clue); pointer-events: none; }
+.hover-ray { fill: var(--hint-clue); opacity: 0.6; pointer-events: none; }    /* an open cell: where a box could still go */
+.hover-ray.decided { fill: var(--hint-range); opacity: 0.45; }              /* a box, a dot or a line is already there */
 .hint-clue { fill: var(--hint-clue); pointer-events: none; }
 .hint-path { fill: var(--hint-path); pointer-events: none; }
 .hint-focus { fill: var(--hint-focus); pointer-events: none; }
