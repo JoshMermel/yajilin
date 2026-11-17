@@ -1,51 +1,59 @@
-// Assemble the diagonal test corpus from the pools made by tools/make_diagonal_corpus.sh into the books data/diagonal-{all,half,quarter}.csv and register them (group Diagonal).
+// Assemble the DIAGONAL books from the pools made by tools/make_diagonal_corpus.sh and register them (group Diagonal, one sub-category per size):
 //
-//   node tools/build_diagonal_corpus.mjs
+//   node tools/build_diagonal_corpus.mjs [--limit 250] [--sizes 8x8,12x12,16x16,20x20,20x36]
 //
-// Puzzles are named <recipe>-<size>-<n> (so a player can say "half-8x8-2 needs ..."), ordered by recipe, then size, then score.
+// For every size, two books: `diagonal-all-<size>` (every arrow diagonal: pools dg_all_*, and the older diag_beginner/medium/hard_*) and
+// `diagonal-mixed-<size>` (some arrows diagonal and some orthogonal, in any mix: pools dg_mix*, and the older diag_half/quarter_*). Each takes
+// --limit puzzles, thinned evenly by rated score (tools/quota.mjs), so a book runs from easy to hard as far as the pool allows (the small boards
+// have few Hard puzzles). Puzzles are named DIAGONAL-ALL-6X6-001 etc.
 import fs from 'node:fs';
 import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
+import { pickBySize, sizesArg } from './quota.mjs';
+
 
 const root = new URL('..', import.meta.url).pathname;
-const RECIPES = ['beginner', 'medium', 'hard', 'half', 'quarter'];
+const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
+const limit = +arg('limit', 250);
+const sizes = sizesArg(process.argv) || ['8x8', '12x12', '16x16', '20x20', '20x36'];
 const dir = root + 'tools/library/';
-const seen = new Set(), out = [];
-for (const rec of RECIPES) {
-  const bySize = new Map();
-  for (const f of fs.readdirSync(dir).filter((f) => f.startsWith(`diag_${rec}_`) && f.endsWith('.csv')).sort()) {
-    for (const p of parseCsv(fs.readFileSync(dir + f, 'utf8'))) {
-      const h = puzzleHash(p);
-      if (seen.has(h)) continue;
-      seen.add(h);
-      const size = `${p.cols}x${p.rows}`;
-      if (!bySize.has(size)) bySize.set(size, []);
-      bySize.get(size).push(p);
-    }
-  }
-  const sizes = [...bySize.keys()].sort((a, b) => a.split('x')[0] * a.split('x')[1] - b.split('x')[0] * b.split('x')[1]);
-  for (const size of sizes) {
-    bySize.get(size).sort((a, b) => (a.score ?? 0) - (b.score ?? 0)).forEach((p, i) => { p.name = `${rec}-${size}-${i + 1}`; out.push(p); });
-  }
-}
-// three books: every arrow diagonal, half of them, a quarter of them
-const BOOKS = [
-  { id: 'diagonal-all', recipes: ['beginner', 'medium', 'hard'], label: 'All diagonal', blurb: 'Every arrow points along a diagonal, so a diagonal arrow counts the boxes on its diagonal to the edge. Beginner to Hard.' },
-  { id: 'diagonal-half', recipes: ['half'], label: 'Half diagonal', blurb: 'Half the arrows are diagonal, the rest point up, down, left or right.' },
-  { id: 'diagonal-quarter', recipes: ['quarter'], label: 'A quarter diagonal', blurb: 'Mostly ordinary arrows, with a quarter of them diagonal.' },
+const KINDS = [
+  { kind: 'all', label: (z) => `${z} diagonal`, pools: /^(dg_all_|diag_(beginner|medium|hard)_)/, keep: (cl) => cl.length > 0 && cl.every((c) => c.d >= 4),
+    blurb: 'Every arrow points along a diagonal and counts the boxes on its diagonal to the edge. Beginner to Hard.' },
+  { kind: 'mixed', label: (z) => `${z} mixed diagonal`, pools: /^(dg_mix|diag_(half|quarter)_)/, keep: (cl) => cl.some((c) => c.d >= 4) && cl.some((c) => c.d < 4),
+    blurb: 'Some arrows point along diagonals and some straight up, down, left or right, in every mix. Beginner to Hard.' },
 ];
 const manifestPath = root + 'data/manifest.json';
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-manifest.books = manifest.books.filter((b) => b.id !== 'diagonal-corpus');          // the single experiment book this replaced
-fs.rmSync(root + 'data/diagonal-corpus.csv', { force: true });
-for (const b of BOOKS) {
-  const puzzles = out.filter((p) => b.recipes.includes(p.name.split('-')[0]));
-  fs.writeFileSync(root + `data/${b.id}.csv`, toCsv(puzzles));
-  const entry = { id: b.id, name: `Diagonal: ${b.label.toLowerCase()}`, file: `data/${b.id}.csv`, count: puzzles.length, label: b.label, group: 'Diagonal', blurb: b.blurb };
-  const at = manifest.books.findIndex((x) => x.id === b.id);
-  if (at >= 0) manifest.books[at] = { ...manifest.books[at], ...entry }; else manifest.books.push(entry);
+const old = (id) => /^diagonal-(all|mixed|half|quarter|corpus)(-|$)/.test(id);               // every earlier version of these books
+for (const b of manifest.books.filter((b) => old(b.id) && b.file)) fs.rmSync(root + b.file, { force: true });
+manifest.books = manifest.books.filter((b) => !old(b.id));
+const diag = manifest.groups.find((g) => g.name === 'Diagonal');
+diag.subs = {};
+const pools = {};
+for (const k of KINDS) {
+  const seen = new Set();
+  pools[k.kind] = [];
+  for (const f of fs.readdirSync(dir).filter((f) => k.pools.test(f) && f.endsWith('.csv')).sort()) {
+    for (const p of parseCsv(fs.readFileSync(dir + f, 'utf8'))) {
+      const h = puzzleHash(p);
+      if (seen.has(h) || !k.keep(p.clues)) continue;
+      seen.add(h);
+      pools[k.kind].push(p);
+    }
+  }
+}
+for (const size of sizes) {
+  const z = size.replace('x', '×');
+  diag.subs[z] = { icon: '↗️' };
+  for (const k of KINDS) {
+    const puzzles = pickBySize(pools[k.kind], [size], limit);
+    const id = `diagonal-${k.kind}-${size}`;
+    puzzles.forEach((p, i) => { p.name = `${id.toUpperCase()}-${String(i + 1).padStart(3, '0')}`; });
+    fs.writeFileSync(`${root}data/${id}.csv`, toCsv(puzzles));
+    manifest.books.push({ id, name: `Diagonal: ${k.label(z)}`, file: `data/${id}.csv`, count: puzzles.length, label: k.label(z), group: 'Diagonal', sub: z, blurb: k.blurb });
+    const tiers = {};
+    for (const p of puzzles) tiers[p.tier] = (tiers[p.tier] || 0) + 1;
+    console.log(`${id}: ${puzzles.length} of ${pools[k.kind].filter((p) => `${Math.min(p.rows, p.cols)}x${Math.max(p.rows, p.cols)}` === size).length} candidates; ${JSON.stringify(tiers)}`);
+  }
 }
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-console.log(`${out.length} puzzles in ${BOOKS.map((b) => b.id).join(', ')}`);
-const tally = {};
-for (const p of out) { const rec = p.name.split('-')[0]; (tally[rec] = tally[rec] || []).push(`${p.cols}x${p.rows} ${p.tier || '?'}${p.rules ? `/${p.rules}` : ''}`); }
-for (const [rec, list] of Object.entries(tally)) console.log(`  ${rec}: ${list.join(', ')}`);

@@ -32,7 +32,24 @@
     {
       "name": "Diagonal",
       "icon": "↗️",
-      "blurb": "Arrows that point along diagonals and count the boxes on them."
+      "blurb": "Arrows that point along diagonals and count the boxes on them.",
+      "subs": {
+        "8×8": {
+          "icon": "↗️"
+        },
+        "12×12": {
+          "icon": "↗️"
+        },
+        "16×16": {
+          "icon": "↗️"
+        },
+        "20×20": {
+          "icon": "↗️"
+        },
+        "20×36": {
+          "icon": "↗️"
+        }
+      }
     },
     {
       "name": "Regional",
@@ -176,33 +193,6 @@
       "sub": "Odd boards"
     },
     {
-      "id": "diagonal-all",
-      "name": "Diagonal: all diagonal",
-      "file": "data/diagonal-all.csv",
-      "count": 24,
-      "label": "All diagonal",
-      "group": "Diagonal",
-      "blurb": "Every arrow points along a diagonal, so a diagonal arrow counts the boxes on its diagonal to the edge. Beginner to Hard."
-    },
-    {
-      "id": "diagonal-half",
-      "name": "Diagonal: half diagonal",
-      "file": "data/diagonal-half.csv",
-      "count": 24,
-      "label": "Half diagonal",
-      "group": "Diagonal",
-      "blurb": "Half the arrows are diagonal, the rest point up, down, left or right."
-    },
-    {
-      "id": "diagonal-quarter",
-      "name": "Diagonal: a quarter diagonal",
-      "file": "data/diagonal-quarter.csv",
-      "count": 24,
-      "label": "A quarter diagonal",
-      "group": "Diagonal",
-      "blurb": "Mostly ordinary arrows, with a quarter of them diagonal."
-    },
-    {
       "id": "regional-corpus",
       "name": "Experiment: regional corpus",
       "file": "data/regional-corpus.csv",
@@ -210,6 +200,106 @@
       "label": "Regional corpus (experiment)",
       "group": "Regional",
       "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."
+    },
+    {
+      "id": "diagonal-all-8x8",
+      "name": "Diagonal: 8×8 diagonal",
+      "file": "data/diagonal-all-8x8.csv",
+      "count": 250,
+      "label": "8×8 diagonal",
+      "group": "Diagonal",
+      "sub": "8×8",
+      "blurb": "Every arrow points along a diagonal and counts the boxes on its diagonal to the edge. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-mixed-8x8",
+      "name": "Diagonal: 8×8 mixed diagonal",
+      "file": "data/diagonal-mixed-8x8.csv",
+      "count": 250,
+      "label": "8×8 mixed diagonal",
+      "group": "Diagonal",
+      "sub": "8×8",
+      "blurb": "Some arrows point along diagonals and some straight up, down, left or right, in every mix. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-all-12x12",
+      "name": "Diagonal: 12×12 diagonal",
+      "file": "data/diagonal-all-12x12.csv",
+      "count": 250,
+      "label": "12×12 diagonal",
+      "group": "Diagonal",
+      "sub": "12×12",
+      "blurb": "Every arrow points along a diagonal and counts the boxes on its diagonal to the edge. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-mixed-12x12",
+      "name": "Diagonal: 12×12 mixed diagonal",
+      "file": "data/diagonal-mixed-12x12.csv",
+      "count": 250,
+      "label": "12×12 mixed diagonal",
+      "group": "Diagonal",
+      "sub": "12×12",
+      "blurb": "Some arrows point along diagonals and some straight up, down, left or right, in every mix. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-all-16x16",
+      "name": "Diagonal: 16×16 diagonal",
+      "file": "data/diagonal-all-16x16.csv",
+      "count": 250,
+      "label": "16×16 diagonal",
+      "group": "Diagonal",
+      "sub": "16×16",
+      "blurb": "Every arrow points along a diagonal and counts the boxes on its diagonal to the edge. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-mixed-16x16",
+      "name": "Diagonal: 16×16 mixed diagonal",
+      "file": "data/diagonal-mixed-16x16.csv",
+      "count": 250,
+      "label": "16×16 mixed diagonal",
+      "group": "Diagonal",
+      "sub": "16×16",
+      "blurb": "Some arrows point along diagonals and some straight up, down, left or right, in every mix. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-all-20x20",
+      "name": "Diagonal: 20×20 diagonal",
+      "file": "data/diagonal-all-20x20.csv",
+      "count": 250,
+      "label": "20×20 diagonal",
+      "group": "Diagonal",
+      "sub": "20×20",
+      "blurb": "Every arrow points along a diagonal and counts the boxes on its diagonal to the edge. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-mixed-20x20",
+      "name": "Diagonal: 20×20 mixed diagonal",
+      "file": "data/diagonal-mixed-20x20.csv",
+      "count": 250,
+      "label": "20×20 mixed diagonal",
+      "group": "Diagonal",
+      "sub": "20×20",
+      "blurb": "Some arrows point along diagonals and some straight up, down, left or right, in every mix. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-all-20x36",
+      "name": "Diagonal: 20×36 diagonal",
+      "file": "data/diagonal-all-20x36.csv",
+      "count": 250,
+      "label": "20×36 diagonal",
+      "group": "Diagonal",
+      "sub": "20×36",
+      "blurb": "Every arrow points along a diagonal and counts the boxes on its diagonal to the edge. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-mixed-20x36",
+      "name": "Diagonal: 20×36 mixed diagonal",
+      "file": "data/diagonal-mixed-20x36.csv",
+      "count": 250,
+      "label": "20×36 mixed diagonal",
+      "group": "Diagonal",
+      "sub": "20×36",
+      "blurb": "Some arrows point along diagonals and some straight up, down, left or right, in every mix. Beginner to Hard."
     }
   ],
   "default": "bonus-intro"
