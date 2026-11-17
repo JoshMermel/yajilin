@@ -10,7 +10,7 @@
 //     clue cells. A region clue ({r, c, n, region: true}) counts the shaded cells of the region its cell lies in; the cell itself is an
 //     ordinary cell (it can be shaded or on the loop). A region without a clue may hold any number of shaded cells.
 //
-// Coordinates: cell (r, c) has index r*cols + c. Directions are 0=U 1=R 2=D 3=L (DR/DC below).
+// Coordinates: cell (r, c) has index r*cols + c. Directions are 0=U 1=R 2=D 3=L and 4..7 the diagonals (DR/DC below).
 // Edges (loop segments between orthogonal neighbours): edge index 2*i is cell i's right edge (i - i+1),
 // 2*i+1 is its bottom edge (i - i+cols). Edge states: 0 unknown, 1 on (loop passes), 2 off.
 // Cell states: 0 unknown, 1 shaded, 2 loop, 3 clue.
@@ -22,9 +22,15 @@ export function colName(c) {
   return s;
 }
 
-export const DR = [-1, 0, 1, 0];
-export const DC = [0, 1, 0, -1];
-export const DIR_LETTERS = 'URDL';
+// Directions: 0 up, 1 right, 2 down, 3 left, then the diagonals 4 up-right, 5 down-right, 6 down-left, 7 up-left (a diagonal arrow counts the
+// cells along its diagonal to the board's edge; diagonal cells never touch orthogonally, so a whole diagonal may be shaded).
+export const DR = [-1, 0, 1, 0, -1, 1, 1, -1];
+export const DC = [0, 1, 0, -1, 1, 1, -1, -1];
+export const DIR_LETTERS = 'URDLECZQ';       // E, C, Z, Q: the keyboard's diagonal keys (up-right, down-right, down-left, up-left)
+export const isDiagonal = (d) => d >= 4;
+/** The direction a quarter turn clockwise gives, and the one pointing back. */
+export const turnDir = (d) => (d < 4 ? (d + 1) % 4 : 4 + ((d - 3) % 4));
+export const oppositeDir = (d) => (d < 4 ? (d + 2) % 4 : 4 + ((d - 2) % 4));
 
 export const UNKNOWN = 0, SHADED = 1, LOOP = 2, CLUE = 3;
 export const E_UNKNOWN = 0, E_ON = 1, E_OFF = 2;

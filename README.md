@@ -52,7 +52,7 @@ before storing. A search that hit its node limit is reported by `solve()` as `ex
 name,rows,cols,clues,solution,rules,tier,score
 ```
 
-- `clues`: items joined by `;`, each `row:col:dir:n` with `dir` one of `U R D L` (0-based row and column). A **void** cell is written
+- `clues`: items joined by `;`, each `row:col:dir:n` with `dir` one of `U R D L` or, for **diagonal arrows** (experiment, branch `experiment/diagonal`), `E C Z Q` = up-right, down-right, down-left, up-left, the keyboard's diagonal keys (0-based row and column). A diagonal arrow counts the shaded cells on its diagonal to the edge; directions 4 to 7 in the code; `turnDir`/`oppositeDir`/`isDiagonal` in logic.js. `node tools/generate.mjs --diagonal 1` makes every arrow diagonal, `--diagonal 0.5` half of them. A **void** cell is written
   `row:col:V:-1` (a clue with no arrow and no number): nothing goes there. It is not shaded and not on the loop, arrows skip over it when they
   count (as they skip clue cells), and a shaded cell may touch it. Everything (solver, rules, hints, GUI, print, generator) supports voids;
   the rest of the code simply treats them as clues with `n < 0`, which have no line and no count.

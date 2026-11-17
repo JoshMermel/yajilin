@@ -3,7 +3,7 @@
 // The rotated puzzle is a different board to the solver (rows and columns swap, arrows turn with it) but the same puzzle to the person:
 // it keeps the original's hash for saves, and progress is stored in the ORIGINAL orientation (cellMap/edgeMap convert), so saves,
 // solved marks and book counts do not care which way the board happens to be shown.
-import { compile } from './logic.js';
+import { compile, turnDir } from './logic.js';
 
 /** Cell i of a rows x cols board is at cellMap(rows, cols)[i] after a clockwise quarter turn: (r, c) goes to (c, rows - 1 - r). */
 export function cellMap(rows, cols) {
@@ -42,7 +42,7 @@ export function rotateRaw(p, hashKey) {
   const at = (r, c) => cm[r * cols + c];
   const out = {
     name: p.name, rows: cols, cols: rows, rules: p.rules, tier: p.tier, score: p.score, hashKey, rotated: true,
-    clues: p.clues.map((cl) => { const i = at(cl.r, cl.c); return cl.region ? { r: Math.floor(i / rows), c: i % rows, d: 0, n: cl.n, region: true } : { r: Math.floor(i / rows), c: i % rows, d: (cl.d + 1) % 4, n: cl.n }; }),
+    clues: p.clues.map((cl) => { const i = at(cl.r, cl.c); return cl.region ? { r: Math.floor(i / rows), c: i % rows, d: 0, n: cl.n, region: true } : { r: Math.floor(i / rows), c: i % rows, d: turnDir(cl.d), n: cl.n }; }),
     boxes: (p.boxes || []).map((b) => { const i = at(b.r, b.c); return { r: Math.floor(i / rows), c: i % rows }; }),
     solution: '',
   };

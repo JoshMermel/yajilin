@@ -150,6 +150,15 @@
       "label": "Regional corpus (experiment)",
       "group": "Bonus",
       "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."
+    },
+    {
+      "id": "diagonal-corpus",
+      "name": "Experiment: diagonal corpus",
+      "file": "data/diagonal-corpus.csv",
+      "count": 40,
+      "label": "Diagonal corpus (experiment)",
+      "group": "Bonus",
+      "blurb": "Arrows that point along diagonals: a diagonal arrow counts the boxes on its diagonal to the edge. A spread of styles for finding the techniques."
     }
   ],
   "default": "bonus-intro"

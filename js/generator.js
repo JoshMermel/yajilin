@@ -413,9 +413,10 @@ export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen') {
  *             solution's non-loop cells in the line that are not clues); 'zeros' wants every number 0, 'twos' wants every number
  *             at least 2 (both are hard requirements: the finished puzzle must have them)
  */
-function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null, numbers = null, holes = null) {
-  const lens = [0, 1, 2, 3].map((d) => rayOf(rows, cols, i, d, isClue).length);
-  const weights = [0, 0, 0, 0];
+function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null, numbers = null, holes = null, diagonal = 0) {
+  const withDiag = diagonal > 0 || (dirs && dirs.some((d) => d >= 4));
+  const lens = (withDiag ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 2, 3]).map((d) => rayOf(rows, cols, i, d, isClue).length);
+  const weights = [0, 0, 0, 0, 0, 0, 0, 0];
   if (edgeBias === null || edgeBias === undefined) {
     for (let d = 0; d < 4; d++) weights[d] = lens[d] === 0 ? 0 : lens[d] * lens[d];
   } else {
@@ -430,7 +431,8 @@ function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null,
       else if (ok[1]) weights[b] = 1;
     }
   }
-  for (let d = 0; d < 4; d++) {
+  if (withDiag) for (let d = 4; d < 8; d++) weights[d] = lens[d] === 0 ? 0 : lens[d] * lens[d];   // a diagonal is aimed like an arrow without an edge bias: long lines preferred
+  for (let d = 0; d < (withDiag ? 8 : 4); d++) {
     if (dirs && !dirs.includes(d)) { weights[d] = 0; continue; }
     if (numbers && holes && weights[d] > 0) {
       const est = rayOf(rows, cols, i, d, isClue).filter((j) => holes[j] && !isClue[j]).length;
@@ -440,10 +442,15 @@ function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null,
         : est <= 1 ? 1 : Math.exp(-1.2 * (est - 1));
     }
   }
+  if (diagonal > 0) {                                  // `diagonal` is the share of the arrows that point diagonally (1: all of them)
+    const so = weights.slice(0, 4).reduce((a, b) => a + b, 0), sd = weights.slice(4).reduce((a, b) => a + b, 0);
+    if (so > 0 && sd > 0) for (let d = 0; d < 8; d++) weights[d] *= d < 4 ? (1 - diagonal) / so : diagonal / sd;
+    else if (diagonal >= 1 && sd === 0) return -1;
+  }
   const total = weights.reduce((x, y) => x + y, 0);
   if (!total) return -1;
   let x = rng() * total;
-  for (let d = 0; d < 4; d++) { x -= weights[d]; if (x <= 0) return d; }
+  for (let d = 0; d < 8; d++) { x -= weights[d]; if (x <= 0) return d; }
   return 0;
 }
 
@@ -493,7 +500,7 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, boxRange = null, cheapFirst = null, fullBelow = null, prune = true, voids = 0, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, boxRange = null, cheapFirst = null, fullBelow = null, prune = true, voids = 0, diagonal = 0, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
   const t0 = Date.now();
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
@@ -546,9 +553,9 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
     if (kept >= holes.length * shadeShare) break;
     if (gridNeighbours(rows, cols, i).every((j) => !keep[j])) { keep[i] = 1; kept++; }
   }
-  for (const i of holes) if (!keep[i] && !fixed[i]) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d >= 0) setClue(i, d); else keep[i] = 1; }
+  for (const i of holes) if (!keep[i] && !fixed[i]) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes, diagonal); if (d >= 0) setClue(i, d); else keep[i] = 1; }
   // a "shaded" cell is a hole that is not a clue; make sure those do not touch (clue cells that failed to point anywhere were kept shaded)
-  for (const i of holes) if (!isClue[i] && gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j] && j < i)) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d < 0) return null; setClue(i, d); }
+  for (const i of holes) if (!isClue[i] && gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j] && j < i)) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes, diagonal); if (d < 0) return null; setClue(i, d); }
 
   // Two-phase check, because the Hard rules are expensive (on a stuck 20x36 board: 112 ms with them, 4 ms without). The climb
   // normally uses only the Beginner and Medium rules; when that leaves few cells undecided it asks the full rule set.
@@ -599,17 +606,17 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
     const [i, kind] = moves[(rng() * moves.length) | 0];
     const oldDir = clueDir.get(i);
     if (kind === 'aim') {
-      const cand = [0, 1, 2, 3].filter((d) => d !== oldDir && (!dirs || dirs.includes(d)) && rayOf(rows, cols, i, d, isClue).length > 0);
+      const cand = (diagonal > 0 || (dirs && dirs.some((q) => q >= 4)) ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 2, 3]).filter((d) => d !== oldDir && (diagonal === 0 || (diagonal >= 1 ? d >= 4 : true)) && (!dirs || dirs.includes(d)) && rayOf(rows, cols, i, d, isClue).length > 0);
       if (!cand.length) continue;
       let nd = cand[(rng() * cand.length) | 0];
       if (edgeBias !== null || numbers) { // keep the style: re-aim the way new clues are aimed
-        for (let tries = 0; tries < 6; tries++) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes); if (d >= 0 && d !== oldDir) { nd = d; break; } }
+        for (let tries = 0; tries < 6; tries++) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes, diagonal); if (d >= 0 && d !== oldDir) { nd = d; break; } }
       }
       clueDir.set(i, nd);
     } else if (kind === 'unclue') {
       dropClue(i);
     } else {
-      const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes);
+      const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes, diagonal);
       if (d < 0) continue;
       setClue(i, d);
     }

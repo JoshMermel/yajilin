@@ -3,7 +3,7 @@
 import { SHADED, LOOP, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
 import { ruleLabel, followLines } from './rating.js';
 
-const ARROWS = ['↑', '→', '↓', '←'];
+const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 /** A cell's name like a spreadsheet's: column letter, then row number (E3). */
 const cellName = (P, i) => `${colName(i % P.cols)}${((i / P.cols) | 0) + 1}`;
 const clueName = (P, k) => (P.clues[k].region

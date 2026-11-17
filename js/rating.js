@@ -49,7 +49,7 @@
 // Bookkeeping that is not counted as a step (weight 0): a segment touching a shaded cell is off, a segment makes its
 // two cells loop, a loop cell with two segments has no others.
 import {
-  UNKNOWN, SHADED, LOOP, CLUE, E_UNKNOWN, E_ON, E_OFF,
+  UNKNOWN, SHADED, LOOP, CLUE, E_UNKNOWN, E_ON, E_OFF, oppositeDir,
   initialState, cloneState, edgeCells, checkSolved,
 } from './logic.js';
 
@@ -349,9 +349,12 @@ const cellOfClue = (P, cl) => cl.r * P.cols + cl.c;
 /** Position of cell i along direction d (grows in the direction the arrow points). */
 function posAlong(P, d, i) {
   const r = (i / P.cols) | 0, c = i % P.cols;
-  return d === 0 ? -r : d === 1 ? c : d === 2 ? r : -c;
+  return d === 0 ? -r : d === 1 ? c : d === 2 ? r : d === 3 ? -c : d === 4 || d === 5 ? c : -c;       // (a diagonal grows with its column)
 }
-const sameLine = (P, d, i, j) => (d === 1 || d === 3 ? ((i / P.cols) | 0) === ((j / P.cols) | 0) : i % P.cols === j % P.cols);
+const sameLine = (P, d, i, j) => {
+  const ri = (i / P.cols) | 0, rj = (j / P.cols) | 0, ci = i % P.cols, cj = j % P.cols;
+  return d === 1 || d === 3 ? ri === rj : d === 0 || d === 2 ? ci === cj : d === 4 || d === 6 ? ri + ci === rj + cj : ri - ci === rj - cj;   // (diagonals: up-right/down-left share r + c, the others r - c)
+};
 const adjacent = (P, i, j) => (Math.abs(i - j) === 1 && ((i / P.cols) | 0) === ((j / P.cols) | 0)) || Math.abs(i - j) === P.cols;
 const touchesShaded = (P, st, i) => { for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && st.cell[j] === SHADED) return true; } return false; };
 
@@ -636,7 +639,7 @@ function arrowPairs(P) {
   P.clues.forEach((A, a) => {
     P.clues.forEach((B, b) => {
       if (a === b || A.n < 0 || B.n < 0 || A.region || B.region) return;
-      const sameWay = A.d === B.d, facing = B.d === (A.d + 2) % 4;
+      const sameWay = A.d === B.d, facing = B.d === oppositeDir(A.d);
       if (!sameWay && !facing) return;
       const ia = cellOfClue(P, A), ib = cellOfClue(P, B);
       if (!sameLine(P, A.d, ia, ib) || posAlong(P, A.d, ib) <= posAlong(P, A.d, ia)) return;

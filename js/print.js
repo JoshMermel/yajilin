@@ -81,7 +81,8 @@ export function planPrint({ puzzles, ids, keyIds = [], size = 'comfortable' }) {
 
 // --- Drawing -------------------------------------------------------------------------------------------------
 const f = (v) => +v.toFixed(3);
-const VEC = [[0, -1], [1, 0], [0, 1], [-1, 0]];     // arrow directions: 0 up, 1 right, 2 down, 3 left
+const H = Math.SQRT1_2;
+const VEC = [[0, -1], [1, 0], [0, 1], [-1, 0], [H, -H], [H, H], [-H, H], [-H, -H]];     // arrow directions: 0 up, 1 right, 2 down, 3 left, then up-right, down-right, down-left, up-left
 
 /** An arrow centred at (x, y), `len` long, pointing in direction d, as lines (no font needed, so it prints the same everywhere). */
 function arrowMarkup(x, y, d, len) {

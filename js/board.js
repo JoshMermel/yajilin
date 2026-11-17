@@ -13,7 +13,7 @@ const S = 44;     // cell size in SVG units
 const PAD = 4;    // room for the frame
 const LABEL = 16; // extra room at the top and left for row/column numbers
 const PATH_COLORS = 8;
-const ARROWS = ['↑', '→', '↓', '←'];
+const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 const BAD_DELAY_MS = 300; // how long a newly red arrow or box waits, so a double tap can finish first (see js/grace.js)
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

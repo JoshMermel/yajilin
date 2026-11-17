@@ -38,7 +38,7 @@ if (process.argv.includes('--worker')) {
       if (seen.has(cell)) return fail('two clues on one cell');
       seen.add(cell);
       if (c.n === -1) continue;                                            // a void cell: no arrow, no number
-      if (!(c.d >= 0 && c.d <= 3) || !(c.n >= 0)) return fail('bad clue direction or number');
+      if (!(c.d >= 0 && c.d <= 7) || !(c.n >= 0)) return fail('bad clue direction or number');
     }
     let P;
     try { P = compile(raw); } catch (e) { return fail(`does not compile: ${e.message}`); }

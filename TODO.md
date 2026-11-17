@@ -213,7 +213,7 @@ Josh is excited by these four; **Regional** is in progress on the branch `experi
   `independent: true` stalls, random loops + `loopIsUnique` is what works), region-specific rules a person would use (two regions that
   differ by one cell; a region that must hold a box in each of two disjoint groups), unnumbered regions that are only visible as
   borders (how many should a puzzle keep?), pre-placed boxes, symmetric region layouts, a Beginner tour.
-- **Diagonal arrows**: arrows along diagonals. A ray is a diagonal line; boxes on a diagonal may touch at corners (allowed). `compile`
+- **Diagonal arrows** (experiment branch `experiment/diagonal`: format `E C Z Q`, rays, pair rules, generator `--diagonal`, board/print/hints, rotation, a 40-puzzle corpus in `experiments/diagonal/CORPUS.md` are done; next: play the corpus, find diagonal-specific techniques, a `bignum` recipe that works, the notes below on a faster `rangeDeduce`): arrows along diagonals. A ray is a diagonal line; boxes on a diagonal may touch at corners (allowed). `compile`
   rays, `posAlong`/`sameLine` and the pair rules (`rangeSame`, `rangeFacing`) need diagonal versions (the DP in `rangeDeduce` already
   works on any ordered list of cells where only consecutive cells can touch: along a diagonal NO two cells touch, so the DP becomes
   "choose any n of the open cells", which is simpler); eight arrow glyphs and a direction set of eight in the generator

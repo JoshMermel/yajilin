@@ -27,7 +27,7 @@ export function clueStates(P, marks) {
   });
 }
 
-const DR = [-1, 0, 1, 0], DC = [0, 1, 0, -1];       // directions 0 up, 1 right, 2 down, 3 left
+import { DR, DC } from './logic.js';
 
 /** Is the arrow `cl` covered (see the top of the file)? Walks its line; at every arrow pointing the same way it checks the count so far. */
 function isCovered(P, marks, cl) {
