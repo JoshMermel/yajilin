@@ -8,7 +8,7 @@
 //      exactly one solution and needs no exhaustive search. If they get stuck, turn more shaded cells near the cells
 //      they could not decide into clues, and ask again.
 //   4. Optionally prune: turn clues back into shaded cells while the rules still solve it.
-import { compile, initialState, encodeSolution, solve, SHADED, LOOP, E_ON, E_OFF, DR, DC, UNKNOWN } from './logic.js';
+import { compile, initialState, encodeSolution, solve, mergeBlankRegions, SHADED, LOOP, E_ON, E_OFF, DR, DC, UNKNOWN } from './logic.js';
 import { solvedByRules, RULES } from './rating.js';
 
 /** Small deterministic PRNG (mulberry32) so a seed reproduces a puzzle. */
@@ -867,6 +867,17 @@ function attemptRegional(rows, cols, rng, { density = 0.2, avgSize = 5, maxSize 
       if (keep) { puzzle = Q; left--; } else numbered[g] = 1;
     }
     if (stuck && solvedByRules(puzzle, upto).solved) return null;               // nothing could be removed: not a stuck puzzle
+  }
+  {                                                                               // regions without a number that touch each other are merged (the border says nothing)
+    const m = mergeBlankRegions(rows, cols, owner, (id) => !!numbered[id]);
+    if (m.merged) {
+      const owner2 = Int16Array.from(m.regions), numbered2 = new Uint8Array(N);
+      numbered.forEach((x, g) => { if (x && size[g] > 0) numbered2[m.idOf(g)] = 1; });
+      const Q = buildRegionalPuzzle(rows, cols, loop, owner2, numbered2, name);
+      checks++;
+      // the rules weigh the borders a little (the colour balance counts the boxes a region can hold), so keep the merge only if they still solve it
+      if (stuck ? solve(Q, { limit: 2, maxNodes: 20000 }).count === 1 : solvedByRules(Q, upto).solved) puzzle = Q;
+    }
   }
   return { puzzle, stats: { iterations: iter, checks, ms: Date.now() - t0 } };
 }

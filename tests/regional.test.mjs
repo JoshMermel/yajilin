@@ -181,3 +181,36 @@ test('colour balance fixes a board that is level: a 2x2 puzzle-sized example', (
   const done = colorBalanceFirings(P, st).flatMap((f) => f.sets);
   assert.deepEqual(done.map(([, i, v]) => [i, v]).sort((a, b) => a[0] - b[0]), dark.slice(2).map((i) => [i, LOOP]).sort((a, b) => a[0] - b[0]), 'the remaining dark cells are dots');
 });
+
+import { mergeBlankRegions } from '../js/logic.js';
+
+test('mergeBlankRegions joins neighbouring regions that have no number and leaves the rest', () => {
+  // 2x4: regions 0 | 1 | 2 | 3 side by side; only 1 and 3 are numbered, so 0 stays alone (its neighbour 1 is numbered) and 2 stays alone too
+  const none = mergeBlankRegions(2, 4, [0, 1, 2, 3, 0, 1, 2, 3], (g) => g === 1 || g === 3);
+  assert.equal(none.merged, 0);
+  // numbered 3 only: 0, 1 and 2 touch in a row, so they become one region, 3 stays
+  const m = mergeBlankRegions(2, 4, [0, 1, 2, 3, 0, 1, 2, 3], (g) => g === 3);
+  assert.equal(m.merged, 2);
+  assert.deepEqual(m.regions, [0, 0, 0, 1, 0, 0, 0, 1]);
+  assert.equal(m.idOf(3), 1);
+  assert.equal(m.idOf(2), 0);
+});
+
+test('no two neighbouring regions are both without a number in the corpus, or in a generated puzzle', () => {
+  const clean = (p) => {
+    const numbered = new Set(p.clues.map((c) => p.regions[c.r * p.cols + c.c]));
+    for (let r = 0; r < p.rows; r++) for (let c = 0; c < p.cols; c++) {
+      const i = r * p.cols + c;
+      for (const j of [c + 1 < p.cols ? i + 1 : -1, r + 1 < p.rows ? i + p.cols : -1]) {
+        if (j < 0 || p.regions[i] === p.regions[j]) continue;
+        if (!numbered.has(p.regions[i]) && !numbered.has(p.regions[j])) return false;
+      }
+    }
+    return new Set(p.regions).size === Math.max(...p.regions) + 1;           // and the ids have no gaps
+  };
+  const corpus = parseCsv(fs.readFileSync(new URL('../data/regional-corpus.csv', import.meta.url), 'utf8'));
+  for (const p of corpus) assert.ok(clean(p), `${p.name} has two neighbouring regions without a number`);
+  const made = generateRegional(6, 6, makeRng(5), { name: 'm', density: 0.2, avgSize: 4, maxSize: 9, spread: 0.6, minNumbered: 0.4, budgetMs: 60000 });
+  assert.ok(made, 'a puzzle was generated');
+  assert.ok(clean(made.puzzle), 'the generated puzzle has no two neighbouring regions without a number');
+});

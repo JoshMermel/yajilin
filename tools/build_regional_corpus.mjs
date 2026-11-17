@@ -4,22 +4,36 @@
 //
 // Puzzles are named <recipe>-<size>-<n> (so a player can say "stuck-8x8-2 needs ..."), ordered by recipe, then size, then score.
 import fs from 'node:fs';
-import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
+import { parseCsv, toCsv, puzzleHash, mergeBlankRegions, compile } from '../js/logic.js';
+import { rate } from '../js/rating.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const RECIPES = ['gentle', 'beginner', 'medium', 'hard', 'big', 'rows', 'cols', 'classical', 'stuck'];
 const dir = root + 'tools/library/';
-const seen = new Set(), out = [];
+const seen = new Set(), out = [], merges = { n: 0, kept: [] };
 for (const rec of RECIPES) {
   const bySize = new Map();
   for (const f of fs.readdirSync(dir).filter((f) => f.startsWith(`regc_${rec}_`) && f.endsWith('.csv')).sort()) {
     for (const p of parseCsv(fs.readFileSync(dir + f, 'utf8'))) {
-      const h = puzzleHash(p);
+      const numbered = new Set(p.clues.map((c) => p.regions[c.r * p.cols + c.c]));
+      const m = mergeBlankRegions(p.rows, p.cols, p.regions, (g) => numbered.has(g));          // neighbouring regions without a number become one
+      // every puzzle is re-rated here (the pools may predate the current rules); a merge is kept only if the rules rate the puzzle as before
+      const fresh = (regions) => compile({ ...p, clues: p.clues.map((c) => ({ ...c })), regions });      // (compile writes into the clues: each compile gets its own copies)
+      const was = rate(fresh(p.regions));
+      let Q = fresh(p.regions), now = was;
+      if (m.merged) {
+        const M = fresh(m.regions), r = rate(M);
+        if (r.solved === was.solved && r.tier === was.tier) { Q = M; now = r; merges.n++; }
+        else merges.kept.push(`${rec}: ${was.tier}/${was.solved} -> ${r.tier}/${r.solved}`);       // the border mattered to the rules: leave it
+      }
+      Q.solution = p.solution; Q.rules = now.rules; Q.tier = now.tier; Q.score = now.score;
+      const q = Q;
+      const h = puzzleHash(q);
       if (seen.has(h)) continue;
       seen.add(h);
       const size = `${p.cols}x${p.rows}`;
       if (!bySize.has(size)) bySize.set(size, []);
-      bySize.get(size).push(p);
+      bySize.get(size).push(q);
     }
   }
   const sizes = [...bySize.keys()].sort((a, b) => a.split('x')[0] * a.split('x')[1] - b.split('x')[0] * b.split('x')[1]);
@@ -28,6 +42,7 @@ for (const rec of RECIPES) {
   }
 }
 fs.writeFileSync(root + 'data/regional-corpus.csv', toCsv(out));
+console.log(`${merges.n} puzzles had blank neighbouring regions merged; ${merges.kept.length} left as they were because the rules rated them differently${merges.kept.length ? ': ' + merges.kept.join(', ') : ''}`);
 const manifestPath = root + 'data/manifest.json';
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 manifest.books = manifest.books.filter((b) => b.id !== 'experiment-regional');          // the first sample book is replaced by this one

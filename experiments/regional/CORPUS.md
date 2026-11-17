@@ -1,5 +1,7 @@
 # Regional test corpus
 
+> Neighbouring regions that both have no number are merged into one (`mergeBlankRegions` in `js/logic.js`, applied by the generator and by `tools/build_regional_corpus.mjs`): a border between two such regions says nothing, so it is not drawn. The builder re-rates every puzzle and keeps a merge only if the rules rate it as before (the colour balance counts the boxes a region can hold, so borders matter a little to it).
+
 `data/regional-corpus.csv`, in the app as **Regional corpus (experiment)** in the Regional group. 54 puzzles named `<recipe>-<size>-<n>`
 (so "rows-8x8-2 needed X" is enough to find the puzzle again). Every puzzle is unique (checked by the rules and, on these sizes, by
 the exhaustive solver from scratch), and `node tools/audit_books.mjs --book regional-corpus --rate` passes.

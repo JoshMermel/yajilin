@@ -379,6 +379,34 @@ export const boxesToString = (boxes) => (boxes || []).map((b) => `${b.r}:${b.c}`
 export const boxesFromString = (s) => (s ? s.split(';').map((t) => { const [r, c] = t.split(':'); return { r: +r, c: +c }; }) : []);
 
 /** A regional puzzle's regions: one region id per cell, joined by '.' (a ninth column only regional puzzles have). */
+/**
+ * Regional puzzles: merge neighbouring regions that both carry no number. A boundary between two such regions says nothing (a region matters
+ * only through its number), so it is only clutter. The numbered regions are untouched. `isNumbered(id)` says whether a region carries a number.
+ * Returns { regions, merged, idOf }: the new region of every cell (ids 0.. in order of the old ones, no gaps), how many regions disappeared, and
+ * a function giving the new id of an old one. The input is not changed; `regions` is the input itself (and idOf the identity) when nothing merged.
+ */
+export function mergeBlankRegions(rows, cols, regions, isNumbered) {
+  const parent = new Map();
+  const find = (g) => { while (parent.get(g) !== g) { parent.set(g, parent.get(parent.get(g))); g = parent.get(g); } return g; };
+  for (const g of regions) if (!parent.has(g)) parent.set(g, g);
+  let merged = 0;
+  const join = (a, b) => {
+    if (a === b || isNumbered(a) || isNumbered(b)) return;
+    const ra = find(a), rb = find(b);
+    if (ra === rb) return;
+    parent.set(Math.max(ra, rb), Math.min(ra, rb));
+    merged++;
+  };
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const i = r * cols + c;
+    if (c + 1 < cols) join(regions[i], regions[i + 1]);
+    if (r + 1 < rows) join(regions[i], regions[i + cols]);
+  }
+  if (!merged) return { regions, merged: 0, idOf: (g) => g };
+  const ids = [...new Set(Array.from(regions, (g) => find(g)))].sort((a, b) => a - b), at = new Map(ids.map((g, k) => [g, k]));
+  return { regions: Array.from(regions, (g) => at.get(find(g))), merged, idOf: (g) => at.get(find(g)) };
+}
+
 export const regionsToString = (regions) => (regions && regions.length ? Array.from(regions).join('.') : '');
 export const regionsFromString = (s) => (s ? s.split('.').map(Number) : []);
 
