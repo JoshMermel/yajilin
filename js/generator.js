@@ -893,3 +893,38 @@ export function generateRegional(rows, cols, rng, options = {}) {
   }
   return null;
 }
+
+// ------------------------------------------------------------ voids only (experiment)
+
+/**
+ * A puzzle with no numbers and no arrows at all, only void cells: the board's shape is the whole clue. Start from a loop whose routing is
+ * unique (tightLoop; its holes become voids), then, while the exhaustive solver still finds a second solution, turn that solution's boxes
+ * into voids too (the solution stays valid and has no boxes of its own; a box a puzzle's solution does not have gets pinned down the
+ * same way). Ends when the solution is unique. Returns { puzzle, stats } or null (a search that does not finish, or the rules do
+ * not solve it: only puzzles a person can do without trial and error are kept).
+ */
+export function generateVoidsOnly(rows, cols, rng, { name = 'gen', upto, budgetMs = 120000, maxNodes = 300000, startDensity = 0.24 } = {}) {
+  const t0 = Date.now();
+  const N = rows * cols;
+  const make = (voids) => compile({ name, rows, cols, clues: [...voids].sort((a, b) => a - b).map((i) => ({ r: (i / cols) | 0, c: i % cols, d: 0, n: -1 })) });
+  while (Date.now() - t0 < budgetMs) {
+    const loop = tightLoop(rows, cols, rng, { startDensity, budgetMs: Math.min(5000, budgetMs - (Date.now() - t0)), maxIters: 8 * N + 200 });
+    if (!loop) continue;
+    const voids = new Set();
+    for (let i = 0; i < N; i++) if (loop.holes[i]) voids.add(i);
+    let P = make(voids), res = null, pins = 0;
+    for (; pins < 80 && Date.now() - t0 < budgetMs; pins++) {
+      P = make(voids);
+      res = solve(P, { limit: 2, maxNodes });
+      if (res.exceeded || res.count < 1 || res.count === 1) break;
+      const withBoxes = res.solutions.map((st) => encodeSolution(P, st)).map((s) => [...s].flatMap((ch, i) => (ch === 'x' ? [i] : []))).filter((b) => b.length);
+      if (!withBoxes.length) { res = null; break; }              // two different loops and no box to pin: this one cannot be fixed
+      for (const i of withBoxes[(rng() * withBoxes.length) | 0]) voids.add(i);
+    }
+    if (!res || res.exceeded || res.count !== 1) continue;
+    P.solution = encodeSolution(P, res.solutions[0]);
+    if (!solvedByRules(P, upto).solved) continue;
+    return { puzzle: P, stats: { pins, ms: Date.now() - t0 } };
+  }
+  return null;
+}

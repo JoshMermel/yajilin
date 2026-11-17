@@ -55,6 +55,11 @@
       "name": "Regional",
       "icon": "🗺️",
       "blurb": "No arrows: a number says how many boxes its region holds. An experiment."
+    },
+    {
+      "name": "Voids only",
+      "icon": "🕳️",
+      "blurb": "No numbers and no arrows: only crossed-out cells. The shape of the board is the whole puzzle. An experiment."
     }
   ],
   "books": [
@@ -300,6 +305,15 @@
       "group": "Diagonal",
       "sub": "20×36",
       "blurb": "Some arrows point along diagonals and some straight up, down, left or right, in every mix. Beginner to Hard."
+    },
+    {
+      "id": "voidsonly-corpus",
+      "name": "Experiment: voids only",
+      "file": "data/voidsonly-corpus.csv",
+      "count": 84,
+      "label": "Voids only (experiment)",
+      "group": "Voids only",
+      "blurb": "Nothing but crossed-out cells: no numbers, no arrows. Every other cell is on the loop (the solution has no boxes at all), and the shape of the board allows only one loop."
     }
   ],
   "default": "bonus-intro"

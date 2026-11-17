@@ -2,6 +2,7 @@
 //
 //   node tools/generate.mjs --size 12x12 [--count 3] [--seed 1] [--budget 300] [--out tools/library/y_12x12_s1.csv]
 //   node tools/generate.mjs --size 8x8 --diagonal 1 [--dirs EC]   (diagonal arrows: --diagonal is their share, 0..1; --dirs takes letters URDL and ECZQ = up-right, down-right, down-left, up-left)
+//   node tools/generate.mjs --voids-only --size 8x8   (experiment: only void cells, no numbers or arrows)
 //   node tools/generate.mjs --regional --size 8x8 [--avg-size 5] [--density 0.2] ...   (experiment: regional puzzles, see js/generator.js)
 //
 // --size is COLSxROWS --budget is seconds per puzzle. Each puzzle is appended to the output file
@@ -9,7 +10,7 @@
 // solution by the exhaustive solver) and rated with the human-style solver before it is stored.
 import fs from 'node:fs';
 import { compile, solve, decodeSolution, checkSolved, toCsvRow, CSV_HEADER, CSV_HEADER_REGIONAL, SHADED, E_ON } from '../js/logic.js';
-import { generatePuzzle, generateRegional, makeRng } from '../js/generator.js';
+import { generatePuzzle, generateRegional, generateVoidsOnly, makeRng } from '../js/generator.js';
 import { ratePuzzle, RULES, solvedByRules } from '../js/rating.js';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -31,6 +32,7 @@ const diagonal = +arg('diagonal', 0);                           // the share of 
 const voids = +arg('voids', 0);                                   // this many void cells (not box, not loop, no arrow) in every puzzle
 const without = arg('rules-without', '') ? arg('rules-without').split(',') : null;   // experiments: generate as if these rules did not exist (their ids, comma separated)
 const maxTier = arg('max-tier', '');   // 'medium': only the rules up to Medium (no shadeForcesLines etc.)
+const voidsOnly = process.argv.includes('--voids-only');         // experiment: no numbers or arrows at all, only void cells (generateVoidsOnly)
 const regional = process.argv.includes('--regional');             // regional puzzles (no arrows: numbered regions)
 const avgSize = +arg('avg-size', 5);                              // regional: average region size
 const spread = +arg('spread', 0), minNumbered = +arg('min-numbered', 0);   // regional: log-normal spread of the region sizes; keep at least this share of the regions numbered
@@ -46,7 +48,9 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const name = `${regional ? 'G' : 'Y'}${cols}x${rows}_s${seed}_${made + 1}`;
   const firstLookahead = RULES.findIndex((r) => r.lookahead);
   const upto = without ? RULES.slice(0, firstLookahead).map((r) => r.id).filter((id) => !without.includes(id)) : maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
-  const r = regional
+  const r = voidsOnly
+    ? generateVoidsOnly(rows, cols, rng, { name, upto, budgetMs: budget * 1000 })
+    : regional
     ? generateRegional(rows, cols, rng, { name, density: arg('density', '') === '' ? 0.2 : density, avgSize, maxSize, shape, spread, minNumbered, stuck: process.argv.includes('--stuck'), upto, acceptU: arg('accept', '') === '' ? 12 : acceptU, prune: arg('prune', '1') !== '0', budgetMs: budget * 1000 })
     : generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, boxRange, cheapFirst, tightArrows: Math.round(tightRate * cols * rows / 100), prune: arg('prune', '1') !== '0', voids, diagonal, loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
   if (!r) { console.log(`${name}: no puzzle within ${budget} s`); continue; }
@@ -73,6 +77,6 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const rating = ratePuzzle(P);
   fs.appendFileSync(out, toCsvRow(P) + '\n');
   made++;
-  console.log(`${name}: ${cols}x${rows}, ${regional ? `${P.regionCells.length} regions, ${P.clues.length} numbers` : `${P.clues.filter((c) => c.n >= 0).length} clues`}${voids ? `, ${P.clues.filter((c) => c.n < 0).length} voids` : ''}, ${P.tier} (${P.rules}, score ${P.score}), generated in ${((t1 - t0) / 1000).toFixed(1)} s, rated in ${((Date.now() - t1) / 1000).toFixed(1)} s, solved by rules: ${rating.solved}`);
+  console.log(`${name}: ${cols}x${rows}, ${regional ? `${P.regionCells.length} regions, ${P.clues.length} numbers` : `${P.clues.filter((c) => c.n >= 0).length} clues`}${voids || voidsOnly ? `, ${P.clues.filter((c) => c.n < 0).length} voids` : ''}, ${P.tier} (${P.rules}, score ${P.score}), generated in ${((t1 - t0) / 1000).toFixed(1)} s, rated in ${((Date.now() - t1) / 1000).toFixed(1)} s, solved by rules: ${rating.solved}`);
 }
 console.log(`done: ${made} puzzle(s) in ${out}`);
