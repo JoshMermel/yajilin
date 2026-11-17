@@ -136,6 +136,7 @@ button.ghost { background: transparent; }
 /* ---- hint overlay: each role its own color or texture ---- */
 .hint-undecided { fill: rgba(244, 236, 156, 0.4); pointer-events: none; }
 .hint-range { fill: var(--hint-range); pointer-events: none; }
+.hover-ray { fill: var(--hint-clue); pointer-events: none; }
 .hint-clue { fill: var(--hint-clue); pointer-events: none; }
 .hint-path { fill: var(--hint-path); pointer-events: none; }
 .hint-focus { fill: var(--hint-focus); pointer-events: none; }
