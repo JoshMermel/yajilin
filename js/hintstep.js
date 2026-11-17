@@ -4,10 +4,10 @@
 // The player cannot mark "no segment here", so showing such a step gives them nothing to do, and since their marks cannot change
 // it, the hint would show it again and again. So a step whose results are all of that kind is applied silently to the hint's own
 // working position and the search goes on, until it reaches a step that tells the player something to mark (a box, a dot, a
-// segment). The facts skipped on the way are returned, so the toast can say what the step relies on.
-import { nextSteps, applySets } from './rating.js';
+// segment). The facts skipped on the way are returned; reliesOn then picks the ones a shown step really needs, so the toast can say so.
+import { nextSteps, applySets, RULES } from './rating.js';
 import { explainStep } from './explain.js';
-import { E_ON } from './logic.js';
+import { E_ON, E_UNKNOWN, cloneState } from './logic.js';
 
 /** Does this firing give the player something to mark? A box, a dot or a segment; not only "there is no segment here". */
 export const isMarkable = (firing) => firing.sets.some(([kind, , v]) => kind === 'c' || v === E_ON);
@@ -33,4 +33,25 @@ export function nextMarkableStep(P, st) {
     for (const f of res.firings) if (!applySets(st, f.sets)) return null;     // (cannot happen for sound rules; the player's marks may be inconsistent)
   }
   return null;
+}
+
+/**
+ * Which of the skipped "no segment here" facts does this firing really need? A fact counts when taking it away (its segments back to
+ * undecided) makes the rule stop finding the firing. The rest were only passed on the way (the old toast named the last two skipped
+ * facts, which mostly had nothing to do with the step shown). `st` is the position nextMarkableStep returned the firing for.
+ * Returns the subset of `background`, in order.
+ */
+export function reliesOn(P, st, rule, firing, background) {
+  if (!background.length) return [];
+  const find = RULES.find((r) => r.id === rule).find;
+  const upto = RULES.findIndex((r) => r.lookahead);
+  return background.filter((b) => {
+    const edges = b.targets.segOff;
+    if (!edges.length) return false;
+    const s2 = cloneState(st);
+    for (const x of edges) s2.e[x] = E_UNKNOWN;
+    const found = new Set();
+    for (const f of find(P, s2, { upto })) for (const [kind, idx, v] of f.sets) found.add(`${kind}${idx}:${v}`);
+    return !firing.sets.every(([kind, idx, v]) => found.has(`${kind}${idx}:${v}`));
+  });
 }

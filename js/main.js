@@ -3,7 +3,7 @@ import { rotated, turnMarks, realEdges } from './rotate.js';
 import { parseSelection, planPrint, buildPrintRoot } from './print.js';
 import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, initialState, E_ON, SHADED, LOOP, UNKNOWN } from './logic.js';
 import { RULES } from './rating.js';
-import { nextMarkableStep } from './hintstep.js';
+import { nextMarkableStep, reliesOn } from './hintstep.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
 import { Board } from './board.js';
 import { clueStates } from './clues.js';
@@ -392,9 +392,9 @@ function showHint() {
     line('hint-meta', `${e.rule} · ${e.tier} · weight ${e.weight} · ${h.ms} ms`);
     line('', e.text);
     line('hint-marks', describeMarks(e.targets));
-    if (h.background && h.background.length) {     // facts the step relies on that are not marks: "no segment here" (the last two, newest last)
-      const shown = h.background.slice(-2);
-      line('hint-more', `Relies on: ${shown.map((b) => b.text).join(' ')}${h.background.length > shown.length ? ` (and ${h.background.length - shown.length} more)` : ''}`);
+    if (h.background && h.background.length) {     // the skipped "no segment here" facts this step needs (not the ones merely passed on the way): see reliesOn
+      const used = reliesOn(P, h.st, h.res.rule, f, h.background), shown = used.slice(-2);
+      if (shown.length) line('hint-more', `Relies on: ${shown.map((b) => b.text).join(' ')}${used.length > shown.length ? ` (and ${used.length - shown.length} more)` : ''}`);
     }
     legend(e.roles);
     if (h.res.firings.length > 1) line('hint-more', `${h.idx + 1} of ${h.res.firings.length} steps of this rule; press Hint for the next.`);
