@@ -609,7 +609,7 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
       const cand = (diagonal > 0 || (dirs && dirs.some((q) => q >= 4)) ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 2, 3]).filter((d) => d !== oldDir && (diagonal === 0 || (diagonal >= 1 ? d >= 4 : true)) && (!dirs || dirs.includes(d)) && rayOf(rows, cols, i, d, isClue).length > 0);
       if (!cand.length) continue;
       let nd = cand[(rng() * cand.length) | 0];
-      if (edgeBias !== null || numbers) { // keep the style: re-aim the way new clues are aimed
+      if (edgeBias !== null || numbers || (diagonal > 0 && diagonal < 1)) { // keep the style (and the share of diagonal arrows): re-aim the way new clues are aimed
         for (let tries = 0; tries < 6; tries++) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, dirs, numbers, loop.holes, diagonal); if (d >= 0 && d !== oldDir) { nd = d; break; } }
       }
       clueDir.set(i, nd);

@@ -3,7 +3,8 @@
 #   node tools/build_diagonal_corpus.mjs
 # Output tools/library/dg_<kind>_<tier>_<size>_s<seed>.csv. Kinds:
 #   all        every arrow diagonal (--diagonal 1)
-#   mixNN      NN% of the arrows diagonal, the rest orthogonal (25, 50, 75: the builder keeps only puzzles with both kinds)
+#   mixNN      NN% (two digits: 10, 30, 50, 70, 90, 97) is the generator's TARGET share of diagonal arrows, the rest orthogonal; the share a puzzle
+#              really ends up with is measured by the builder, which keeps only puzzles with both kinds and fills equal buckets of it
 # Tiers: beginner / medium (only the rules up to that tier, no lookahead) and hard (all rules).
 # Env: WORKERS (9), SEED0 (8000), ALL (puzzles per all-diagonal tier, 60), MIX (per mixed share and tier, 20), CHUNK (puzzles per job, 20),
 #      SIZES, KINDS (default "all mix25 mix50 mix75"), TIERS (default "beginner medium hard"), ONLY (one kind).
@@ -15,7 +16,7 @@ CH=${CHUNK:-20}
 for size in ${SIZES:-6x6 8x8 10x10 12x12 14x14}; do
   case $size in 6x6) B=30;; 8x8) B=60;; 10x10) B=120;; 12x12) B=180;; 14x14|16x16) B=240;; 20x20) B=300;; *) B=400;; esac
   for kind in ${KINDS:-all mix25 mix50 mix75}; do
-    case $kind in all) D=1; N=${ALL:-60};; mix25) D=0.25; N=${MIX:-20};; mix50) D=0.5; N=${MIX:-20};; mix75) D=0.75; N=${MIX:-20};; esac
+    case $kind in all) D=1; N=${ALL:-60};; mix*) D=0.${kind#mix}; N=${MIX:-20};; esac
     for tier in ${TIERS:-beginner medium hard}; do
       case $tier in beginner) F="--max-tier beginner --accept 0";; medium) F="--max-tier medium --accept 0";; hard) F="--accept 30";; esac
       if [ -n "$ONLY" ] && [ "$ONLY" != "$kind" ]; then continue; fi

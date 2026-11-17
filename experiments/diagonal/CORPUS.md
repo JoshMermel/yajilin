@@ -1,8 +1,8 @@
 # Diagonal test corpus
 
 Ten books of 250 in the **Diagonal** group of the picker, one sub-category per size (8×8, 12×12, 16×16, 20×20, 20×36: the sizes of the Default books), each with `data/diagonal-all-<size>.csv`
-(every arrow diagonal) and `data/diagonal-mixed-<size>.csv` (some arrows diagonal and some orthogonal, in any mix: pools made at 25%, 50% and 75%
-diagonal). Each runs from Beginner to Hard as far as the pool allows (see the tier counts `node tools/build_diagonal_corpus.mjs` prints). Every puzzle is unique (rules, plus the exhaustive solver from scratch on
+(every arrow diagonal) and `data/diagonal-mixed-<size>.csv` (some arrows diagonal and some orthogonal: an equal 50 puzzles from each fifth of the diagonal share, never 0% or 100%; the generator's `--diagonal` is only a
+target, and the share a puzzle really has is measured by the builder). Each runs from Beginner to Hard as far as the pool allows (see the tier counts `node tools/build_diagonal_corpus.mjs` prints). Every puzzle is unique (rules, plus the exhaustive solver from scratch on
 boards of up to 150 cells), and `node tools/audit_books.mjs --rate` passes.
 
 **The rule:** an arrow may point along a diagonal (up-right, down-right, down-left, up-left), and then counts the shaded cells ("boxes") on
