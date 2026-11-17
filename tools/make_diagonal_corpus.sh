@@ -10,7 +10,7 @@
 # (a job line never ends in a blank: xargs -L would join it to the next line; zsh does not split $vars, so this is a /bin/sh script)
 mkdir -p tools/library
 JOBS=$(mktemp)
-seed=6000
+seed=${SEED0:-6000}
 for size in ${SIZES:-6x6 8x8 10x10 12x12}; do
   case $size in 6x6) B=30;; 8x8) B=60;; 10x10) B=120;; 12x12) B=240;; esac
   for rec in beginner medium hard half quarter; do
@@ -23,7 +23,7 @@ for size in ${SIZES:-6x6 8x8 10x10 12x12}; do
     esac
     seed=$((seed + 1))
     if [ -n "$ONLY" ] && [ "$ONLY" != "$rec" ]; then continue; fi
-    echo "$size 2 $seed $B $rec $F" >> "$JOBS"
+    echo "$size ${COUNT:-2} $seed $B $rec $F" >> "$JOBS"
   done
 done
 wc -l < "$JOBS"

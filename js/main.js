@@ -631,8 +631,8 @@ function setupPrint() {
 }
 setupPrint();
 
-// --- Book picker: a button showing the current book opens a modal of every book, in sections, each with what it holds and how many of
-// its puzzles are solved (the same idea as polyomino-panel's). Books and sections come from data/manifest.json.
+// --- Book picker: a button showing the current book opens a modal to choose one from, with what each holds and how many of its puzzles are
+// solved (the same idea as polyomino-panel's and Star Battle's). Books and groups come from data/manifest.json.
 function syncBookButton() {
   const btn = $('book-btn');
   btn.textContent = '';
@@ -643,62 +643,108 @@ function syncBookButton() {
   btn.append(name);
 }
 
-function renderBookPicker() {
+// The picker is two or three screens deep, like the Star Battle one: cards for the manifest's groups; a group with books in more than one
+// sub-category ("sub" on the book, described by the group's "subs") shows a card per sub-category; and the last screen lists the books. A
+// group or sub-category with a single book opens it straight away. Books and groups come from data/manifest.json:
+//   groups: [{ name, icon, blurb, subs: { "Sub name": { icon, blurb } } }]    books: [{ ..., group, sub }]
+function renderBookPicker(view = {}) {
   const body = $('bp-body');
   body.textContent = '';
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-  // the manifest's sections in order, then any section a book names that the manifest does not list (a file loaded from disk, say)
+  // the manifest's groups in order, then any group a book names that the manifest does not list (a file loaded from disk, say)
   const groups = [...state.groups];
-  for (const b of state.books) { const g = b.group || 'Your files'; if (!groups.some((x) => x.name === g)) groups.push({ name: g }); }
-  const counts = [];                                       // [{ book, node }]: solved counts to fill in once each book is loaded
-  for (const g of groups) {
-    const books = state.books.filter((b) => (b.group || 'Your files') === g.name);
-    if (!books.length) continue;
-    const sec = el('div', 'bp-section');
-    sec.append(el('h3', '', g.name));
-    if (g.blurb && books.length > 1) sec.append(el('p', 'bp-blurb', g.blurb));     // a lone book says enough in its own blurb
-    const tiles = g.layout === 'tiles' && books.length > 1;
-    const holder = tiles ? el('div', 'bp-grid') : sec;
+  for (const b of state.books) { const g = b.group || 'Your files'; if (!groups.some((x) => x.name === g)) groups.push({ name: g, icon: '📂' }); }
+  const booksOf = (g) => state.books.filter((b) => (b.group || 'Your files') === g.name);
+  const isCurrent = (b) => !!state.book && b.id === state.book.id;
+  const countText = (b) => {
+    const total = b.count ?? (b.puzzles ? b.puzzles.length : null), done = bookSolved()[b.id] || 0;
+    return { text: total === null ? '' : done ? `${done} / ${total} solved` : `${total} puzzles`, done: total !== null && done > 0 && done === total };
+  };
+  const pick = (b) => { bookModal.close(); if (!isCurrent(b)) openBook(b.id, 0); };
+  const show = (v) => renderBookPicker(v);
+
+  // a card for a group or sub-category: icon, name, blurb and a line saying what is inside
+  const card = (icon, name, blurb, meta, current, onClick) => {
+    const node = el('button', 'bp-card' + (current ? ' bp-current' : ''));
+    node.type = 'button';
+    if (current) node.setAttribute('aria-current', 'true');
+    node.append(el('span', 'bp-card-icon', icon || '📖'), el('span', 'bp-card-name', name));
+    if (blurb) node.append(el('span', 'bp-card-blurb', blurb));
+    if (meta) node.append(el('span', 'bp-card-meta', meta));
+    node.addEventListener('click', onClick);
+    return node;
+  };
+  const header = (title, blurb, backLabel, onBack) => {
+    if (onBack) { const back = el('button', 'bp-back', backLabel); back.type = 'button'; back.addEventListener('click', onBack); body.append(back); }
+    body.append(el('h3', 'bp-title', title));
+    if (blurb) body.append(el('p', 'bp-blurb', blurb));
+  };
+  const bookList = (books) => {
+    const list = el('div', 'bp-list');
     for (const b of books) {
-      const current = state.book && b.id === state.book.id;
-      const node = el('button', (tiles ? 'bp-tile' : 'bp-book') + (current ? ' bp-current' : ''));
+      const node = el('button', 'bp-book' + (isCurrent(b) ? ' bp-current' : ''));
       node.type = 'button';
-      if (current) node.setAttribute('aria-current', 'true');
-      const title = el('span', 'bp-book-title', b.label || b.name);
-      const total = b.count ?? (b.puzzles ? b.puzzles.length : null);
-      const done = bookSolved()[b.id] || 0;
-      const count = el('span', 'bp-count', total === null ? '' : done ? `${done} / ${total} solved` : `${total} puzzles`);
-      count.classList.toggle('bp-count-done', total !== null && done > 0 && done === total);
-      if (b.blurb) node.title = b.blurb;
-      if (tiles) {
-        const head = el('span', 'bp-tile-head');
-        head.append(title, count);
-        node.append(head);
-        if (b.blurb) node.append(el('span', 'bp-book-blurb', b.blurb));
-      } else {
-        const text = el('span', 'bp-book-text');
-        text.append(title);
-        if (b.blurb) text.append(el('span', 'bp-book-blurb', b.blurb));
-        node.append(text, count);
+      if (isCurrent(b)) node.setAttribute('aria-current', 'true');
+      const text = el('span', 'bp-book-text');
+      text.append(el('span', 'bp-book-title', b.label || b.name));
+      if (b.blurb) text.append(el('span', 'bp-book-blurb', b.blurb));
+      const c = countText(b), count = el('span', 'bp-count', c.text);
+      count.classList.toggle('bp-count-done', c.done);
+      node.append(text, count);
+      node.addEventListener('click', () => pick(b));
+      list.append(node);
+      // a book of unknown size (no manifest count: a file loaded from disk) is fetched to be counted; the others show their manifest count
+      // and the solved count remembered for them (see recordBookSolved), so opening the picker never loads a thousand-puzzle file
+      if (b.count === undefined && !b.puzzles) {
+        const solved = solvedSet();
+        fetchBook(b).then((raw) => {
+          const n = raw.filter((p) => solved.has(puzzleHash(p))).length;
+          count.textContent = n ? `${n} / ${raw.length} solved` : `${raw.length} puzzles`;
+        }).catch(() => { /* the count stays as it was */ });
       }
-      node.addEventListener('click', () => { bookModal.close(); if (!current) openBook(b.id, 0); });
-      holder.append(node);
-      counts.push({ book: b, count });
     }
-    if (tiles) sec.append(holder);
-    body.append(sec);
+    body.append(list);
+    requestAnimationFrame(() => body.querySelector('.bp-current')?.scrollIntoView({ block: 'center' }));
+  };
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  const group = view.group && groups.find((g) => g.name === view.group);
+  if (!group) {                                                        // screen 1: the groups
+    const grid = el('div', 'bp-cards');
+    for (const g of groups) {
+      const books = booksOf(g);
+      if (!books.length) continue;
+      const only = books.length === 1 ? books[0] : null;               // a lone book opens straight away
+      grid.append(card(g.icon, g.name, g.blurb || (only && only.blurb), only ? countText(only).text : plural(books.length, 'book'),
+        books.some(isCurrent), () => (only ? pick(only) : show({ group: g.name }))));
+    }
+    body.append(grid);
+    return;
   }
-  requestAnimationFrame(() => body.querySelector('.bp-current')?.scrollIntoView({ block: 'center' }));
-  // Only a book whose size is unknown (it has no manifest count) is fetched to be counted; the others show their manifest count and the
-  // solved count remembered for them (see recordBookSolved), so opening the picker never loads a thousand-puzzle file.
-  const solved = solvedSet();
-  for (const { book, count } of counts) {
-    if (book.count !== undefined || book.puzzles) continue;
-    fetchBook(book).then((raw) => {
-      const n = raw.filter((p) => solved.has(puzzleHash(p))).length;
-      count.textContent = n ? `${n} / ${raw.length} solved` : `${raw.length} puzzles`;
-    }).catch(() => { /* the count stays as it was */ });
+  const books = booksOf(group);
+  const subs = [...new Set(books.map((b) => b.sub).filter(Boolean))];
+  const hasOther = subs.length > 0 && books.some((b) => !b.sub);
+  if (subs.length < 2 && !(subs.length && hasOther)) {                 // screen 2 is the book list
+    header(group.name, group.blurb, '← All books', () => show({}));
+    bookList(books);
+    return;
   }
+  const subName = view.sub === null ? 'Other' : view.sub;
+  if (view.sub !== undefined && (view.sub === null ? hasOther : subs.includes(view.sub))) {      // screen 3: one sub-category's books
+    header(`${group.name} · ${subName}`, group.subs?.[view.sub]?.blurb, `← ${group.name}`, () => show({ group: group.name }));
+    bookList(books.filter((b) => (view.sub === null ? !b.sub : b.sub === view.sub)));
+    return;
+  }
+  header(group.name, group.blurb, '← All books', () => show({}));      // screen 2: the group's sub-categories
+  const grid = el('div', 'bp-cards');
+  for (const s of hasOther ? [...subs, null] : subs) {
+    const inSub = books.filter((b) => (s === null ? !b.sub : b.sub === s));
+    const info = (s !== null && group.subs?.[s]) || {};
+    const only = inSub.length === 1 ? inSub[0] : null;
+    grid.append(card(info.icon || group.icon, s === null ? 'Other' : s, info.blurb || (only && only.blurb), only ? countText(only).text : plural(inSub.length, 'book'),
+      inSub.some(isCurrent), () => (only ? pick(only) : show({ group: group.name, sub: s }))));
+  }
+  body.append(grid);
 }
 const bookModal = setupModal('book-modal', 'book-btn', renderBookPicker);
 const browseModal = setupModal('browse-modal', 'browse-btn', renderBrowse);

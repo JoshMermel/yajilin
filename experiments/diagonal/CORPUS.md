@@ -1,8 +1,9 @@
 # Diagonal test corpus
 
-`data/diagonal-corpus.csv`, in the app as **Diagonal corpus (experiment)** in the Bonus group. 40 puzzles named `<recipe>-<size>-<n>`, two of each
-recipe at 6x6, 8x8, 10x10 and 12x12, easiest first within a size. Every puzzle is unique (rules, plus the exhaustive solver from scratch on
-boards of up to 150 cells), and `node tools/audit_books.mjs --book diagonal-corpus --rate` passes.
+Three books in the **Diagonal** group of the picker: `data/diagonal-all.csv` (every arrow diagonal: the `beginner`, `medium` and `hard` recipes, 24 puzzles),
+`data/diagonal-half.csv` (half the arrows diagonal, 24) and `data/diagonal-quarter.csv` (a quarter, 24). Puzzles are named `<recipe>-<size>-<n>`, at 6x6,
+8x8, 10x10 and 12x12, easiest first within a size. Every puzzle is unique (rules, plus the exhaustive solver from scratch on
+boards of up to 150 cells), and `node tools/audit_books.mjs --book diagonal-half --rate` (and the other two) passes.
 
 **The rule:** an arrow may point along a diagonal (up-right, down-right, down-left, up-left), and then counts the shaded cells ("boxes") on
 that diagonal to the edge of the board, skipping clue cells as usual. Cells on a diagonal never touch orthogonally, so a whole diagonal can be
@@ -21,4 +22,5 @@ neighbouring diagonals interact in a way you reach for (two parallel diagonals' 
 orthogonal and diagonal arrows in the mixed puzzles help or confuse each other.
 
 Not in the corpus: a `bignum` recipe (every arrow diagonal and the numbers big) produced nothing at 6x6 to 12x12 within its budget; diagonals are
-short and hold few boxes. Rebuild with `WORKERS=6 ./tools/make_diagonal_corpus.sh` and `node tools/build_diagonal_corpus.mjs`.
+short and hold few boxes. Rebuild with `WORKERS=6 ./tools/make_diagonal_corpus.sh` and `node tools/build_diagonal_corpus.mjs`; `COUNT=4 SEED0=7000 ONLY=half` adds more puzzles of one recipe
+(the share of diagonal arrows is the generator's `--diagonal 0..1`, so any other mix is one more recipe line).

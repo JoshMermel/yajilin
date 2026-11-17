@@ -1,4 +1,4 @@
-// Assemble the diagonal test corpus from the pools made by tools/make_diagonal_corpus.sh into data/diagonal-corpus.csv and register it.
+// Assemble the diagonal test corpus from the pools made by tools/make_diagonal_corpus.sh into the books data/diagonal-{all,half,quarter}.csv and register them (group Diagonal).
 //
 //   node tools/build_diagonal_corpus.mjs
 //
@@ -27,17 +27,25 @@ for (const rec of RECIPES) {
     bySize.get(size).sort((a, b) => (a.score ?? 0) - (b.score ?? 0)).forEach((p, i) => { p.name = `${rec}-${size}-${i + 1}`; out.push(p); });
   }
 }
-fs.writeFileSync(root + 'data/diagonal-corpus.csv', toCsv(out));
+// three books: every arrow diagonal, half of them, a quarter of them
+const BOOKS = [
+  { id: 'diagonal-all', recipes: ['beginner', 'medium', 'hard'], label: 'All diagonal', blurb: 'Every arrow points along a diagonal, so a diagonal arrow counts the boxes on its diagonal to the edge. Beginner to Hard.' },
+  { id: 'diagonal-half', recipes: ['half'], label: 'Half diagonal', blurb: 'Half the arrows are diagonal, the rest point up, down, left or right.' },
+  { id: 'diagonal-quarter', recipes: ['quarter'], label: 'A quarter diagonal', blurb: 'Mostly ordinary arrows, with a quarter of them diagonal.' },
+];
 const manifestPath = root + 'data/manifest.json';
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const entry = {
-  id: 'diagonal-corpus', name: 'Experiment: diagonal corpus', file: 'data/diagonal-corpus.csv', count: out.length, label: 'Diagonal corpus (experiment)', group: 'Bonus',
-  blurb: 'Arrows that point along diagonals: a diagonal arrow counts the boxes on its diagonal to the edge. A spread of styles for finding the techniques.',
-};
-const at = manifest.books.findIndex((b) => b.id === entry.id);
-if (at >= 0) manifest.books[at] = entry; else manifest.books.push(entry);
+manifest.books = manifest.books.filter((b) => b.id !== 'diagonal-corpus');          // the single experiment book this replaced
+fs.rmSync(root + 'data/diagonal-corpus.csv', { force: true });
+for (const b of BOOKS) {
+  const puzzles = out.filter((p) => b.recipes.includes(p.name.split('-')[0]));
+  fs.writeFileSync(root + `data/${b.id}.csv`, toCsv(puzzles));
+  const entry = { id: b.id, name: `Diagonal: ${b.label.toLowerCase()}`, file: `data/${b.id}.csv`, count: puzzles.length, label: b.label, group: 'Diagonal', blurb: b.blurb };
+  const at = manifest.books.findIndex((x) => x.id === b.id);
+  if (at >= 0) manifest.books[at] = { ...manifest.books[at], ...entry }; else manifest.books.push(entry);
+}
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-console.log(`${out.length} puzzles in data/diagonal-corpus.csv`);
+console.log(`${out.length} puzzles in ${BOOKS.map((b) => b.id).join(', ')}`);
 const tally = {};
 for (const p of out) { const rec = p.name.split('-')[0]; (tally[rec] = tally[rec] || []).push(`${p.cols}x${p.rows} ${p.tier || '?'}${p.rules ? `/${p.rules}` : ''}`); }
 for (const [rec, list] of Object.entries(tally)) console.log(`  ${rec}: ${list.join(', ')}`);

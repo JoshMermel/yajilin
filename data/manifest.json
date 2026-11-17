@@ -2,17 +2,42 @@
   "groups": [
     {
       "name": "Start here",
+      "icon": "🌱",
       "blurb": "Small Beginner puzzles that need only the easiest rules."
     },
     {
       "name": "Default",
-      "blurb": "The plain board sizes: a thousand puzzles each, easiest first.",
-      "layout": "tiles"
+      "icon": "📚",
+      "blurb": "The plain board sizes: a thousand puzzles each, easiest first."
     },
     {
       "name": "Bonus",
+      "icon": "🎁",
       "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
-      "layout": "tiles"
+      "subs": {
+        "Arrows": {
+          "icon": "🧭",
+          "blurb": "What the arrows point at, and what they say"
+        },
+        "Boxes": {
+          "icon": "⬛",
+          "blurb": "Few boxes, or a board packed with them"
+        },
+        "Odd boards": {
+          "icon": "🧩",
+          "blurb": "Ribbons and crossed-out cells"
+        }
+      }
+    },
+    {
+      "name": "Diagonal",
+      "icon": "↗️",
+      "blurb": "Arrows that point along diagonals and count the boxes on them."
+    },
+    {
+      "name": "Regional",
+      "icon": "🗺️",
+      "blurb": "No arrows: a number says how many boxes its region holds. An experiment."
     }
   ],
   "books": [
@@ -77,7 +102,8 @@
       "group": "Bonus",
       "blurb": "Arrows point away from the nearest edge: long lines of sight.",
       "file": "data/bonus-longway.csv",
-      "count": 100
+      "count": 100,
+      "sub": "Arrows"
     },
     {
       "id": "bonus-onedir",
@@ -86,16 +112,8 @@
       "group": "Bonus",
       "blurb": "Every arrow in a puzzle points the same way.",
       "file": "data/bonus-onedir.csv",
-      "count": 100
-    },
-    {
-      "id": "bonus-skinny",
-      "name": "Bonus: skinny",
-      "label": "Skinny",
-      "group": "Bonus",
-      "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
-      "file": "data/bonus-skinny.csv",
-      "count": 100
+      "count": 100,
+      "sub": "Arrows"
     },
     {
       "id": "bonus-zeros",
@@ -104,7 +122,8 @@
       "count": 100,
       "label": "All zeros",
       "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.",
-      "group": "Bonus"
+      "group": "Bonus",
+      "sub": "Arrows"
     },
     {
       "id": "bonus-bignum",
@@ -113,7 +132,8 @@
       "group": "Bonus",
       "blurb": "Large numbers on the arrows; some puzzles go further and every arrow says 2 or more.",
       "file": "data/bonus-bignum.csv",
-      "count": 100
+      "count": 100,
+      "sub": "Arrows"
     },
     {
       "id": "bonus-few",
@@ -122,7 +142,8 @@
       "count": 100,
       "label": "Few boxes",
       "blurb": "Under a third of the non-loop cells are boxes: lots of arrows, a long loop.",
-      "group": "Bonus"
+      "group": "Bonus",
+      "sub": "Boxes"
     },
     {
       "id": "bonus-packed",
@@ -131,7 +152,18 @@
       "count": 100,
       "label": "Packed with boxes",
       "blurb": "Over half the non-loop cells are boxes, with few arrows to say where.",
-      "group": "Bonus"
+      "group": "Bonus",
+      "sub": "Boxes"
+    },
+    {
+      "id": "bonus-skinny",
+      "name": "Bonus: skinny",
+      "label": "Skinny",
+      "group": "Bonus",
+      "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
+      "file": "data/bonus-skinny.csv",
+      "count": 100,
+      "sub": "Odd boards"
     },
     {
       "id": "bonus-voids",
@@ -140,7 +172,35 @@
       "count": 36,
       "label": "Voids",
       "group": "Bonus",
-      "blurb": "Crossed-out blocks are void: nothing goes there. The loop avoids them and arrows count straight through them."
+      "blurb": "Crossed-out blocks are void: nothing goes there. The loop avoids them and arrows count straight through them.",
+      "sub": "Odd boards"
+    },
+    {
+      "id": "diagonal-all",
+      "name": "Diagonal: all diagonal",
+      "file": "data/diagonal-all.csv",
+      "count": 24,
+      "label": "All diagonal",
+      "group": "Diagonal",
+      "blurb": "Every arrow points along a diagonal, so a diagonal arrow counts the boxes on its diagonal to the edge. Beginner to Hard."
+    },
+    {
+      "id": "diagonal-half",
+      "name": "Diagonal: half diagonal",
+      "file": "data/diagonal-half.csv",
+      "count": 24,
+      "label": "Half diagonal",
+      "group": "Diagonal",
+      "blurb": "Half the arrows are diagonal, the rest point up, down, left or right."
+    },
+    {
+      "id": "diagonal-quarter",
+      "name": "Diagonal: a quarter diagonal",
+      "file": "data/diagonal-quarter.csv",
+      "count": 24,
+      "label": "A quarter diagonal",
+      "group": "Diagonal",
+      "blurb": "Mostly ordinary arrows, with a quarter of them diagonal."
     },
     {
       "id": "regional-corpus",
@@ -148,17 +208,8 @@
       "file": "data/regional-corpus.csv",
       "count": 54,
       "label": "Regional corpus (experiment)",
-      "group": "Bonus",
+      "group": "Regional",
       "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."
-    },
-    {
-      "id": "diagonal-corpus",
-      "name": "Experiment: diagonal corpus",
-      "file": "data/diagonal-corpus.csv",
-      "count": 40,
-      "label": "Diagonal corpus (experiment)",
-      "group": "Bonus",
-      "blurb": "Arrows that point along diagonals: a diagonal arrow counts the boxes on its diagonal to the edge. A spread of styles for finding the techniques."
     }
   ],
   "default": "bonus-intro"

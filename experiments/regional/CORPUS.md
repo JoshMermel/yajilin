@@ -1,6 +1,6 @@
 # Regional test corpus
 
-`data/regional-corpus.csv`, in the app as **Regional corpus (experiment)** in the Bonus group. 54 puzzles named `<recipe>-<size>-<n>`
+`data/regional-corpus.csv`, in the app as **Regional corpus (experiment)** in the Regional group. 54 puzzles named `<recipe>-<size>-<n>`
 (so "rows-8x8-2 needed X" is enough to find the puzzle again). Every puzzle is unique (checked by the rules and, on these sizes, by
 the exhaustive solver from scratch), and `node tools/audit_books.mjs --book regional-corpus --rate` passes.
 
