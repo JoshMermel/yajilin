@@ -45,3 +45,36 @@ test('a drawn solution still has every segment and box', () => {
   assert.equal(count(s, /class="seg"/g), segs);
   assert.equal(count(s, /class="shaded/g), boxes);
 });
+
+test('hovering an arrow, or tapping it on a touch screen, tints the cells it counts in; open cells stronger than decided ones', () => {
+  const P = compile(parseCsv(fs.readFileSync(`${root}data/bonus-intro.csv`, 'utf8'))[2]);
+  const k = P.clues.findIndex((c) => c.n >= 0 && P.rays[P.clues.indexOf(c)].length >= 2);
+  const cell = P.clues[k].r * P.cols + P.clues[k].c, ray = P.rays[k];
+  const el = stubEl(), b = new Board(el, {});
+  b.setPuzzle(P);
+  const marks = { cells: new Uint8Array(P.N), edges: new Uint8Array(P.numEdges), auto: new Uint8Array(P.N) };
+  const draw = () => { b.render(marks, { clueState: clueStates(P, marks), badShaded: new Set() }); return el.innerHTML; };
+  assert.equal(count(draw(), /class="hover-ray/g), 0, 'nothing tinted at rest');
+  b.hoverCell = cell;
+  assert.equal(count(draw(), /class="hover-ray"/g), ray.length, 'hover: every open cell of the line');
+  b.hoverCell = -1;
+  marks.cells[ray[0]] = 1;
+  b.pinned = cell;
+  const s = draw();
+  assert.equal(count(s, /class="hover-ray decided"/g), 1, 'a box in the line is tinted fainter');
+  assert.equal(count(s, /class="hover-ray"/g), ray.length - 1);
+  // touch: tap the arrow pins it, tap again clears, a mouse click does nothing, a tap outside the line clears
+  b.pinned = -1;
+  b.pinArrow({ start: cell, mouse: true });
+  assert.equal(b.pinned, -1, 'a mouse has hover instead');
+  b.pinArrow({ start: cell, mouse: false });
+  assert.equal(b.pinned, cell);
+  b.pinArrow({ start: ray[0], mouse: false });
+  assert.equal(b.pinned, cell, 'tapping a cell of the line keeps it');
+  const outside = [...Array(P.N).keys()].find((i) => P.clueAt[i] < 0 && !ray.includes(i));
+  b.pinArrow({ start: outside, mouse: false });
+  assert.equal(b.pinned, -1, 'tapping a cell outside the line clears it');
+  b.pinArrow({ start: cell, mouse: false });
+  b.pinArrow({ start: cell, mouse: false });
+  assert.equal(b.pinned, -1, 'tapping the arrow again clears it');
+});

@@ -24,6 +24,7 @@ export class Board {
     this.P = null;
     this.gesture = null;
     this.hoverCell = -1;
+    this.pinned = -1;                                  // an arrow tapped on a touch screen: its line stays tinted (see up())
     this.opts = { colorLines: false, labels: false };
     this.grace = makeGrace(); this._badTimer = 0; this._graceNow = true;
     el.addEventListener('pointerdown', (e) => this.down(e));
@@ -34,7 +35,7 @@ export class Board {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  setPuzzle(P) { this.P = P; this.colors = null; this.grace.reset(); clearTimeout(this._badTimer); this._graceNow = true; }   // the first render of a puzzle shows its red at once
+  setPuzzle(P) { this.P = P; this.pinned = -1; this.colors = null; this.grace.reset(); clearTimeout(this._badTimer); this._graceNow = true; }   // the first render of a puzzle shows its red at once
 
   /** Display options: { colorLines: color each separate path differently, labels: number the rows and columns }. */
   setOptions(opts) { Object.assign(this.opts, opts); if (this.marks) this.render(this.marks, this.info, this.hint); }
@@ -119,9 +120,10 @@ export class Board {
       const roles = hint.roles || {};
       for (const role of ['range', 'clue', 'path', 'problem', 'focus']) for (const i of roles[role] || []) g += rect(i, `hint-${role}`);
     }
-    // hovering an arrow tints every cell it counts in: the open ones (no box, dot or line yet) strongest, since that is where its boxes can still go
-    if (this.hoverCell >= 0 && !this.gesture) {
-      const k = P.clueAt[this.hoverCell];
+    // hovering an arrow (or, on a touch screen, tapping it) tints every cell it counts in: the open ones (no box, dot or line yet) strongest,
+    // since that is where its boxes can still go
+    for (const at of new Set([this.gesture ? -1 : this.hoverCell, this.pinned])) {
+      const k = at >= 0 ? P.clueAt[at] : -1;
       if (k >= 0 && P.clues[k].n >= 0 && !P.clues[k].region) for (const i of P.rays[k]) g += `<rect class="hover-ray${marks.cells[i] === 0 && deg[i] === 0 ? '' : ' decided'}" x="${cellX(i)}" y="${cellY(i)}" width="${S}" height="${S}"/>`;
     }
     for (let r = 0; r <= P.rows; r++) g += `<line class="grid-line" x1="${PAD}" y1="${PAD + r * S}" x2="${PAD + P.cols * S}" y2="${PAD + r * S}"/>`;
@@ -222,7 +224,7 @@ export class Board {
     if (e.button !== undefined && e.button > 0) return;
     if (cell < 0) return;
     this.el.setPointerCapture?.(e.pointerId);
-    this.gesture = { start: cell, last: cell, moved: false, steps: 0, x: e.clientX, y: e.clientY };
+    this.gesture = { start: cell, last: cell, moved: false, steps: 0, x: e.clientX, y: e.clientY, mouse: e.pointerType === 'mouse' };
     this.h.onStart();
   }
 
@@ -242,6 +244,20 @@ export class Board {
     gs.x = e.clientX; gs.y = e.clientY;
   }
 
+  /**
+   * Touch has no hover, so tapping an arrow tints its line and keeps it tinted (tap it again to clear it, tap another arrow to move it).
+   * It stays while you mark cells in that line, which is the use of it, and goes when you tap a cell outside the line. A mouse has hover instead.
+   */
+  pinArrow(gs) {
+    if (gs.mouse || !this.P) return;
+    const k = this.P.clueAt[gs.start], P = this.P;
+    const isArrow = k >= 0 && P.clues[k].n >= 0 && !P.clues[k].region;
+    const was = this.pinned;
+    if (isArrow) this.pinned = gs.start === was ? -1 : gs.start;
+    else if (was >= 0 && !P.rays[P.clueAt[was]].includes(gs.start)) this.pinned = -1;
+    if (this.pinned !== was && this.marks) this.render(this.marks, this.info, this.hint);
+  }
+
   /** On-screen size of one cell in CSS pixels. */
   cellPixels() {
     const svg = this.el.querySelector('svg');
@@ -253,7 +269,7 @@ export class Board {
     const gs = this.gesture;
     if (!gs) return;
     this.gesture = null;
-    if (!gs.moved) this.h.onTap(gs.start);
+    if (!gs.moved) { this.pinArrow(gs); this.h.onTap(gs.start); }
     this.h.onEnd(false);
   }
 
