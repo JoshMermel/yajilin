@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
-import { pickBySize, sizesArg } from './quota.mjs';
+import { pickBySize, sizesArg, byTierScore } from './quota.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
@@ -24,7 +24,7 @@ for (const f of fs.readdirSync(dir).filter((f) => prefixes.some((x) => f.startsW
     seen.add(h); puzzles.push(p);
   }
 }
-puzzles.sort((a, b) => a.rows * a.cols - b.rows * b.cols || (a.score ?? 0) - (b.score ?? 0));
+puzzles.sort(byTierScore);
 const limit = +arg('limit', 0);               // --limit 100: more than that are thinned out evenly (by size, then score), keeping the spread
 const sizes = sizesArg(process.argv);         // --sizes 10x10,12x12,14x14: only these sizes, an even share of the limit from each (see quota.mjs)
 if (sizes) puzzles.splice(0, puzzles.length, ...pickBySize(puzzles, sizes, limit));

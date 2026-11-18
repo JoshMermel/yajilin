@@ -3,7 +3,7 @@
 // sideways when that fits the window better.)
 import fs from 'node:fs';
 import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
-import { pickBySize, sizesArg } from './quota.mjs';
+import { pickBySize, sizesArg, byTierScore } from './quota.mjs';
 const root = new URL('..', import.meta.url).pathname, dir = root + 'experiments/tall/pools/';
 const MAX_SIDE = 36, LIMIT = +(process.argv[process.argv.indexOf('--limit') + 1] || 0);   // --limit 100 thins a bigger pool out evenly
 const seen = new Set(), ps = [];
@@ -14,7 +14,7 @@ for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.csv')).sort()) {
     seen.add(h); ps.push(p);
   }
 }
-ps.sort((a, b) => a.rows * a.cols - b.rows * b.cols || a.score - b.score);
+ps.sort(byTierScore);
 const SIZES = sizesArg(process.argv);                       // --sizes 4x36,6x36,8x36: only these sizes, an even share of --limit from each
 if (SIZES) ps.splice(0, ps.length, ...pickBySize(ps, SIZES, LIMIT));
 else if (LIMIT && ps.length > LIMIT) { const keep = new Set(Array.from({ length: LIMIT }, (_, k) => Math.floor(((k + 0.5) * ps.length) / LIMIT))); ps.splice(0, ps.length, ...ps.filter((_, i) => keep.has(i))); }

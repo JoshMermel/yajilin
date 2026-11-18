@@ -8,7 +8,7 @@
 // have few Hard puzzles). Puzzles are named DIAGONAL-ALL-6X6-001 etc.
 import fs from 'node:fs';
 import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
-import { pickBySize, sizesArg, sizeKey, normSize } from './quota.mjs';
+import { pickBySize, sizesArg, sizeKey, normSize, byTierScore } from './quota.mjs';
 
 
 const root = new URL('..', import.meta.url).pathname;
@@ -35,7 +35,7 @@ function pickByShare(pool, size, limit) {
   }
   const out = [];
   buckets.forEach((g, b) => { g.sort((x, y) => (x.score ?? 0) - (y.score ?? 0)); for (let j = 0; j < take[b]; j++) out.push(g[Math.floor(((j + 0.5) * g.length) / take[b])]); });
-  return out.sort((a, b) => (a.score ?? 0) - (b.score ?? 0));
+  return out.sort(byTierScore);
 }
 const manifestPath = root + 'data/manifest.json';
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));

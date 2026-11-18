@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import { parseCsv, toCsv, puzzleHash, mergeBlankRegions, compile } from '../js/logic.js';
 import { rate } from '../js/rating.js';
+import { byTierScore } from './quota.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const RECIPES = ['gentle', 'beginner', 'medium', 'hard', 'big', 'rows', 'cols', 'classical', 'stuck'];
@@ -41,6 +42,7 @@ for (const rec of RECIPES) {
     bySize.get(size).sort((a, b) => (a.score ?? 0) - (b.score ?? 0)).forEach((p, i) => { p.name = `${rec}-${size}-${i + 1}`; out.push(p); });
   }
 }
+out.sort(byTierScore);                                                  // like every book: easiest tier first, then by score
 fs.writeFileSync(root + 'data/regional-corpus.csv', toCsv(out));
 console.log(`${merges.n} puzzles had blank neighbouring regions merged; ${merges.kept.length} left as they were because the rules rated them differently${merges.kept.length ? ': ' + merges.kept.join(', ') : ''}`);
 const manifestPath = root + 'data/manifest.json';

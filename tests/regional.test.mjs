@@ -131,7 +131,7 @@ test('a region clue shows green when its boxes are all there, red when there are
 });
 
 test('hints and printing know regions', () => {
-  const P = book()[13];
+  const P = book().find((q) => q.name === 'medium-6x6-2');                 // by name: the book's order is by tier and score, and changes when it is rebuilt
   const st = initialState(P);
   const step = nextSteps(P, st);
   assert.ok(step);
