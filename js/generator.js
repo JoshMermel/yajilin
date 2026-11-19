@@ -8,7 +8,7 @@
 //      exactly one solution and needs no exhaustive search. If they get stuck, turn more shaded cells near the cells
 //      they could not decide into clues, and ask again.
 //   4. Optionally prune: turn clues back into shaded cells while the rules still solve it.
-import { compile, initialState, encodeSolution, solve, mergeBlankRegions, SHADED, LOOP, E_ON, E_OFF, DR, DC, UNKNOWN } from './logic.js';
+import { compile, initialState, propagate, encodeSolution, decodeSolution, solve, mergeBlankRegions, SHADED, LOOP, E_ON, E_OFF, E_UNKNOWN, DR, DC, UNKNOWN } from './logic.js';
 import { solvedByRules, RULES } from './rating.js';
 
 /** Small deterministic PRNG (mulberry32) so a seed reproduces a puzzle. */
@@ -927,4 +927,160 @@ export function generateVoidsOnly(rows, cols, rng, { name = 'gen', upto, budgetM
     return { puzzle: P, stats: { pins, ms: Date.now() - t0 } };
   }
   return null;
+}
+
+// ------------------------------------------------------------ sparse puzzles (experiment)
+//
+// As few clues as possible, and difficulty does not matter, only that the solution is unique (the exhaustive solver decides: the rules
+// are not asked, so a sparse puzzle may need more than they can do). Solution first, as everywhere: a loop, whose holes (the cells it
+// leaves out) are boxes or clue cells in the solution. A hole pattern that admits two loops can never be fixed by clues (they decide
+// which cells are boxes, never the loop's route), so the loop comes from tightLoop, whose routing is unique for its holes.
+//
+//   1. Start with a unique puzzle: greedy (add the clue, a hole and a direction, that leaves the FEWEST solutions, until one is left;
+//      holes touch nobody, so any may be a box or a clue cell), or `fromRules` (an ordinary generatePuzzle puzzle, for boards where
+//      greedy from nothing is slow: the exhaustive solver is cheap near a unique puzzle and costly far from one).
+//      While very many solutions remain (a count that reaches `probeCap`) the best-scored candidate is simply taken: every exact count
+//      would be the cap.
+//      Counting every candidate's solutions exactly is too slow, so each is first scored by how many cells the solver's propagation
+//      leaves undecided (a millisecond), and only the `shortlist` best are counted exactly (with the best count so far as the limit,
+//      so a candidate that cannot win stops after a few solutions).
+//   2. Sparsify: take clues back one by one (a clue cell turns into a box again) while it stays unique; then exchange: take m clues
+//      away and look for n < m clues (any holes, any directions) that make it unique again, for (m, n) = (2, 1) and (3, 2). Each
+//      success saves a clue. Candidates for an added clue are again the shortlist by propagation.
+//      The exchanges are the expensive part, so only a try that has come within `polishWithin` clues of the best so far gets them.
+//   3. Many solutions are tried and the sparsest kept (`bestOf`), or the first with at most `maxClues` clues is returned. A greedy
+//      run that already needs more clues than the best so far is dropped at once.
+
+/** The tools every sparse run shares: counting solutions, scoring candidates, the clue-removal and exchange search. */
+export function sparseKit(rows, cols, rng, { name, directions, maxNodes, shortlist, rulesFirst }) {
+  const N = rows * cols;
+  const undecided = (P) => {                                              // cells (and a little for edges) propagation leaves open: fewer is better
+    const st = initialState(P);
+    if (!propagate(P, st)) return Infinity;
+    let u = 0;
+    for (let i = 0; i < N; i++) if (st.cell[i] === UNKNOWN) u++;
+    for (let x = 0; x < P.numEdges; x++) if (st.e[x] === E_UNKNOWN) u += 0.2;
+    return u;
+  };
+  // Counting solutions. From scratch the solver's own propagation is weak: on a 12x12 board even a unique puzzle can take 8 s to prove
+  // (and exceed any sensible node cap). The rules (sound, polynomial) get a position the search can finish from, in milliseconds.
+  const count = (P, limit) => {
+    if (rulesFirst) {
+      const br = solvedByRules(P);
+      if (br.solved) return 1;
+      const r = solve(P, { limit, maxNodes, state: br.state });
+      return r.exceeded ? limit : r.count;
+    }
+    const r = solve(P, { limit, maxNodes });
+    return r.exceeded ? limit : r.count;
+  };
+  const build = (loop, clueDir) => buildPuzzle(rows, cols, loop, clueDir, name);
+  /** Every (hole, direction) not yet a clue, the most promising first. */
+  const candidates = (loop, holes, clueDir, isClue) => {
+    const cand = [];
+    for (const h of holes) {
+      if (clueDir.has(h)) continue;
+      for (const d of directions) {
+        if (!rayOf(rows, cols, h, d, isClue).length) continue;           // an arrow at a wall counts nothing
+        clueDir.set(h, d); isClue[h] = 1;
+        cand.push([h, d, undecided(build(loop, clueDir)) + rng() * 0.3]);
+        clueDir.delete(h); isClue[h] = 0;
+      }
+    }
+    return cand.sort((x, y) => x[2] - y[2]);
+  };
+  const mayBeBox = (loop, isClue, h) => !gridNeighbours(rows, cols, h).some((j) => loop.holes[j] && !isClue[j]);
+  const combos = (arr, m) => {
+    const out = [], cur = [];
+    const rec = (from) => { if (cur.length === m) { out.push(cur.slice()); return; } for (let i = from; i < arr.length; i++) { cur.push(arr[i]); rec(i + 1); cur.pop(); } };
+    rec(0);
+    return out;
+  };
+  /** Take clues back and exchange until nothing improves or `deadline` (a Date.now() value) passes. Changes clueDir and isClue. */
+  const sparsify = (loop, holes, clueDir, isClue, deadline, { swaps = [[1, 0], [2, 1], [3, 2]], maxSubsets = 300 } = {}) => {
+    const addSearch = (left) => {
+      if (Date.now() > deadline) return false;
+      for (const [h, d] of candidates(loop, holes, clueDir, isClue).slice(0, shortlist)) {
+        clueDir.set(h, d); isClue[h] = 1;
+        if (left === 1 ? count(build(loop, clueDir), 2) === 1 : addSearch(left - 1)) return true;
+        clueDir.delete(h); isClue[h] = 0;
+      }
+      return false;
+    };
+    for (let improved = true; improved && Date.now() < deadline;) {
+      improved = false;
+      for (const [m, n] of swaps) {
+        if (clueDir.size < m) continue;
+        for (const subset of shuffle(combos([...clueDir.keys()], m), rng).slice(0, maxSubsets)) {
+          if (Date.now() > deadline) break;
+          const was = subset.map((h) => [h, clueDir.get(h)]);
+          for (const h of subset) { clueDir.delete(h); isClue[h] = 0; }
+          const ok = subset.every((h) => mayBeBox(loop, isClue, h)) && (n === 0 ? count(build(loop, clueDir), 2) === 1 : addSearch(n));
+          if (ok) { improved = true; break; }
+          for (const h of [...clueDir.keys()]) if (!isClue[h]) isClue[h] = 1;     // (an addSearch that failed has already undone its own)
+          for (const [h, d] of was) { clueDir.set(h, d); isClue[h] = 1; }
+        }
+        if (improved) break;
+      }
+    }
+  };
+  return { undecided, count, build, candidates, sparsify };
+}
+
+/** The sparsest puzzle found: { puzzle, stats: { clues, tries, ms } }, or null if none within the budget. */
+export function generateSparse(rows, cols, rng, { name = 'gen', maxClues = Infinity, bestOf = 1, budgetMs = 60000, directions = [0, 1, 2, 3], startDensity = 0.2, maxNodes = 300000, probeCap = 40, shortlist = 8, polish = true, polishMs = 30000, polishWithin = 2, swaps, fromRules = false, rulesFirst = null } = {}) {
+  const t0 = Date.now();
+  const N = rows * cols;
+  const kit = sparseKit(rows, cols, rng, { name, directions, maxNodes, shortlist, rulesFirst: rulesFirst === null ? N >= 64 : rulesFirst });
+  let best = null, found = 0, tries = 0;
+  while (Date.now() - t0 < budgetMs && found < bestOf) {
+    tries++;
+    let loop, clueDir = new Map(), isClue = new Uint8Array(N), c = 0;
+    if (fromRules) {
+      // an ordinary rules-solvable puzzle: its loop and clues are the start
+      const r = generatePuzzle(rows, cols, rng, { name, budgetMs: Math.max(1000, budgetMs - (Date.now() - t0)) });
+      if (!r) continue;
+      const sol = decodeSolution(r.puzzle, r.puzzle.solution);
+      loop = { holes: new Uint8Array(N), edges: new Uint8Array(2 * N) };
+      for (let i = 0; i < N; i++) if (sol.cell[i] === SHADED || r.puzzle.clueAt[i] >= 0) loop.holes[i] = 1;
+      for (let x = 0; x < 2 * N; x++) if (sol.e[x] === E_ON) loop.edges[x] = 1;
+      r.puzzle.clues.forEach((cl) => { clueDir.set(cl.r * cols + cl.c, cl.d); isClue[cl.r * cols + cl.c] = 1; });
+      c = 1;
+    } else {
+      loop = tightLoop(rows, cols, rng, { startDensity, independent: true, clump: 1, budgetMs: Math.min(5000, budgetMs - (Date.now() - t0)), maxIters: 8 * N + 200 });
+      if (!loop) continue;
+      const bound = best ? best.clues + 1 : maxClues + 6;                       // greedy may overshoot the goal: sparsify takes clues back (and once there is a puzzle, a try needing more than one clue beyond it is dropped)
+      const holes = [...Array(N).keys()].filter((i) => loop.holes[i]);
+      for (;;) {
+        c = kit.count(kit.build(loop, clueDir), probeCap);                     // (a probe: only "one" and "very many" matter here)
+        if (c === 1 || clueDir.size >= bound || Date.now() - t0 >= budgetMs) break;
+        const cand = kit.candidates(loop, holes, clueDir, isClue);
+        if (!cand.length) break;
+        let pick = cand[0];                                                     // far from unique, every count is the cap and says nothing: trust the propagation score
+        if (c < probeCap) {
+          let top = c;
+          for (const [h, d] of cand.slice(0, shortlist)) {
+            clueDir.set(h, d); isClue[h] = 1;
+            const k = kit.count(kit.build(loop, clueDir), top);
+            clueDir.delete(h); isClue[h] = 0;
+            if (k < top) { top = k; pick = [h, d]; }
+            if (top === 1) break;
+          }
+        }
+        clueDir.set(pick[0], pick[1]); isClue[pick[0]] = 1;
+      }
+    }
+    if (c !== 1) continue;
+    const holes = [...Array(N).keys()].filter((i) => loop.holes[i]);
+    kit.sparsify(loop, holes, clueDir, isClue, t0 + budgetMs, { swaps: [[1, 0]] });                   // taking clues back is cheap
+    if (polish && clueDir.size <= (best ? best.clues : Infinity) + polishWithin) {                    // exchanges are not: only for a try that is near the best
+      kit.sparsify(loop, holes, clueDir, isClue, Math.min(t0 + budgetMs, Date.now() + polishMs), { swaps });
+    }
+    const P = kit.build(loop, clueDir);
+    if (kit.count(P, 2) !== 1 || clueDir.size >= (best ? best.clues : Infinity)) continue;
+    best = { puzzle: P, clues: clueDir.size };
+    found++;
+    if (best.clues <= maxClues) break;
+  }
+  return best ? { puzzle: best.puzzle, stats: { clues: best.clues, tries, ms: Date.now() - t0 } } : null;
 }

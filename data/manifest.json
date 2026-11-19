@@ -60,6 +60,11 @@
       "name": "Voids only",
       "icon": "🕳️",
       "blurb": "No numbers and no arrows: only crossed-out cells. The shape of the board is the whole puzzle. An experiment."
+    },
+    {
+      "name": "Sparse",
+      "icon": "🔹",
+      "blurb": "As few arrows as the generator could find, from 6×6 to 12×12: about one cell in ten. Difficulty is not controlled, only that the answer is unique. An experiment."
     }
   ],
   "books": [
@@ -314,6 +319,15 @@
       "label": "Voids only (experiment)",
       "group": "Voids only",
       "blurb": "Nothing but crossed-out cells: no numbers, no arrows. Every other cell is on the loop (the solution has no boxes at all), and the shape of the board allows only one loop."
+    },
+    {
+      "id": "sparse-corpus",
+      "name": "Experiment: sparse",
+      "file": "data/sparse-corpus.csv",
+      "count": 92,
+      "label": "Sparse (experiment)",
+      "group": "Sparse",
+      "blurb": "Far fewer arrows than usual: about one cell in ten, against one in six. Boards from 6×6 to 12×12, easy to hard (mostly hard: with so few arrows you have to try a cell somewhere)."
     }
   ],
   "default": "bonus-intro"

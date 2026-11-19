@@ -3,6 +3,7 @@
 //   node tools/generate.mjs --size 12x12 [--count 3] [--seed 1] [--budget 300] [--out tools/library/y_12x12_s1.csv]
 //   node tools/generate.mjs --size 8x8 --diagonal 1 [--dirs EC]   (diagonal arrows: --diagonal is their share, 0..1; --dirs takes letters URDL and ECZQ = up-right, down-right, down-left, up-left)
 //   node tools/generate.mjs --voids-only --size 8x8   (experiment: only void cells, no numbers or arrows)
+//   node tools/generate.mjs --sparse --size 6x6 [--max-clues 4] [--best-of 5] [--from-rules] [--polish-ms 30]   (experiment: as few clues as the exhaustive solver allows; difficulty is not controlled)
 //   node tools/generate.mjs --regional --size 8x8 [--avg-size 5] [--density 0.2] ...   (experiment: regional puzzles, see js/generator.js)
 //
 // --size is COLSxROWS --budget is seconds per puzzle. Each puzzle is appended to the output file
@@ -10,7 +11,7 @@
 // solution by the exhaustive solver) and rated with the human-style solver before it is stored.
 import fs from 'node:fs';
 import { compile, solve, decodeSolution, checkSolved, toCsvRow, CSV_HEADER, CSV_HEADER_REGIONAL, SHADED, E_ON } from '../js/logic.js';
-import { generatePuzzle, generateRegional, generateVoidsOnly, makeRng } from '../js/generator.js';
+import { generatePuzzle, generateRegional, generateVoidsOnly, generateSparse, makeRng } from '../js/generator.js';
 import { ratePuzzle, RULES, solvedByRules } from '../js/rating.js';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -33,6 +34,7 @@ const voids = +arg('voids', 0);                                   // this many v
 const without = arg('rules-without', '') ? arg('rules-without').split(',') : null;   // experiments: generate as if these rules did not exist (their ids, comma separated)
 const maxTier = arg('max-tier', '');   // 'medium': only the rules up to Medium (no shadeForcesLines etc.)
 const voidsOnly = process.argv.includes('--voids-only');         // experiment: no numbers or arrows at all, only void cells (generateVoidsOnly)
+const sparse = process.argv.includes('--sparse');                 // experiment: as few clues as possible, uniqueness by the exhaustive solver (generateSparse)
 const regional = process.argv.includes('--regional');             // regional puzzles (no arrows: numbered regions)
 const avgSize = +arg('avg-size', 5);                              // regional: average region size
 const spread = +arg('spread', 0), minNumbered = +arg('min-numbered', 0);   // regional: log-normal spread of the region sizes; keep at least this share of the regions numbered
@@ -48,7 +50,9 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const name = `${regional ? 'G' : 'Y'}${cols}x${rows}_s${seed}_${made + 1}`;
   const firstLookahead = RULES.findIndex((r) => r.lookahead);
   const upto = without ? RULES.slice(0, firstLookahead).map((r) => r.id).filter((id) => !without.includes(id)) : maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
-  const r = voidsOnly
+  const r = sparse
+    ? generateSparse(rows, cols, rng, { name, maxClues: +arg('max-clues', Infinity), bestOf: +arg('best-of', 1), startDensity: +arg('start-density', 0.2), shortlist: +arg('shortlist', 8), maxNodes: +arg('max-nodes', 300000), probeCap: +arg('probe-cap', 40), polish: arg('polish', '1') !== '0', polishMs: +arg('polish-ms', 30) * 1000, polishWithin: +arg('polish-within', 2), fromRules: process.argv.includes('--from-rules'), rulesFirst: arg('rules-first', '') === '' ? null : arg('rules-first') === '1', directions: directions || undefined, budgetMs: budget * 1000 })
+    : voidsOnly
     ? generateVoidsOnly(rows, cols, rng, { name, upto, budgetMs: budget * 1000 })
     : regional
     ? generateRegional(rows, cols, rng, { name, density: arg('density', '') === '' ? 0.2 : density, avgSize, maxSize, shape, spread, minNumbered, stuck: process.argv.includes('--stuck'), upto, acceptU: arg('accept', '') === '' ? 12 : acceptU, prune: arg('prune', '1') !== '0', budgetMs: budget * 1000 })
