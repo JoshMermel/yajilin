@@ -56,6 +56,22 @@ function strandedResult(P, st, info, closes = false) {
   return `that ${failureAt(P, s2, followLines(P, s2))}`;
 }
 
+/** Whether the lines a box at `cell` forces close the loop early (as opposed to leaving a cell with three lines or too few ways out). */
+function cloneStateClosed(P, st, cell) {
+  const s2 = cloneState(st); s2.cell[cell] = SHADED;
+  followLines(P, s2);
+  return !!s2.closedEarly;
+}
+
+/** The segments a box at `cell` would force (their edge indexes), by following the lines from position `st`. */
+function forcedLines(P, st, cell) {
+  const s2 = cloneState(st); s2.cell[cell] = SHADED;
+  followLines(P, s2);
+  const out = [];
+  for (let x = 0; x < P.numEdges; x++) if (s2.e[x] === E_ON && st.e[x] !== E_ON) out.push(x);
+  return out;
+}
+
 /** The same for a segment assumed off or on. */
 function segmentResult(P, st, info, closes = false) {
   if (!st) return closes ? 'close the loop early' : `give ${cellName(P, info.stranded)} three lines or too few ways out`;
@@ -71,7 +87,7 @@ export function explainStep(P, step, st = null) {
   const { rule, info } = step;
   const roles = {};
   const role = (r, ...cells) => { roles[r] = [...new Set([...(roles[r] || []), ...cells.flat().filter((c) => c !== undefined && c >= 0)])]; };
-  let text = '';
+  let text = '', chain = [];
 
   const N = (i) => cellName(P, i);
   const edgeName = (edge) => { const [a, b] = edgeCells(P, edge); return `${N(a)} and ${N(b)}`; };
@@ -214,9 +230,16 @@ export function explainStep(P, step, st = null) {
     }
     case 'shadeForcesLines':
     case 'shadeClosesLoop':
+    case 'shadeShortChain': {
       role('focus', info.cell); role('problem', info.stranded);
-      text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info, rule === 'shadeClosesLoop')}. So ${N(info.cell)} gets a dot.`;
+      chain = st ? forcedLines(P, st, info.cell) : [];      // drawn dashed, so the player can follow the box to where it goes wrong
+      const closes = rule === 'shadeClosesLoop' || (rule === 'shadeShortChain' && st && cloneStateClosed(P, st, info.cell));
+      if (chain.length) {
+        const s2 = cloneState(st); s2.cell[info.cell] = SHADED;
+        text = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed), and that would ${failureAt(P, s2, followLines(P, s2))}. So ${N(info.cell)} gets a dot.`;
+      } else text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info, closes)}. So ${N(info.cell)} gets a dot.`;
       break;
+    }
     case 'uniqueRoute': {
       role('range', info.cells); role('focus', ...info.ends);
       const [a, b] = edgeCells(P, info.edge);
@@ -275,7 +298,7 @@ export function explainStep(P, step, st = null) {
     else (v === E_ON ? targets.segOn : v === E_OFF ? targets.segOff : []).push(idx);
   }
   const sourceCells = [...new Set(Object.values(roles).flat())];
-  return { rule, tier: step.tier, weight: step.weight, label: ruleLabel(rule), text, roles, sourceCells, targets };
+  return { rule, tier: step.tier, weight: step.weight, label: ruleLabel(rule), text, roles, sourceCells, targets, chain };
 }
 
 /** One line saying what the step does to the board. */

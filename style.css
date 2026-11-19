@@ -148,6 +148,7 @@ button.ghost { background: transparent; }
 .hint-exit { fill: none; stroke: var(--hint-exit); stroke-width: 2.5; stroke-dasharray: 5 3; pointer-events: none; }
 .ghost-shade { fill: var(--hint-focus); stroke: var(--hint-ink); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
 .ghost-dot { fill: none; stroke: var(--hint-ink); stroke-width: 2.5; pointer-events: none; }
+.chain-seg { stroke: var(--hint-problem); stroke-linecap: round; stroke-dasharray: 6 5; opacity: 0.9; pointer-events: none; }
 .ghost-seg { stroke: var(--hint-ink); stroke-linecap: round; stroke-dasharray: 5 4; pointer-events: none; }
 .ghost-x { stroke: var(--color-error); stroke-width: 4; stroke-linecap: round; fill: none; pointer-events: none; }
 .ghost-x-halo { stroke: var(--bg-white); stroke-width: 8; stroke-linecap: round; fill: none; pointer-events: none; }

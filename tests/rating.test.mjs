@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, solve, initialState, cluesFromString, SHADED, LOOP, E_ON, E_OFF, UNKNOWN } from '../js/logic.js';
-import { rate, RULES, RULE_IDS, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules } from '../js/rating.js';
+import { rate, RULES, RULE_IDS, SHORT_CHAIN, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules } from '../js/rating.js';
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -181,6 +181,24 @@ test('pattern: a box would turn neighbours into dots and leave a clue no room (b
   assert.equal(f.info.most, 0);
   // with room to spare nothing fires
   assert.deepEqual(ruleSets('boxStarvesClue', compile({ name: 'ok', rows: 4, cols: 7, clues: [{ r: 0, c: 0, d: 5, n: 1 }] })), []);
+});
+
+test('lookahead hints: the shortest chain comes first, and shadeShortChain only takes short ones', () => {
+  const P = compile({ name: 'sfl', rows: 5, cols: 4, clues: [{ r: 1, c: 2, d: 2, n: 1 }, { r: 0, c: 0, d: 2, n: 0 }] });
+  const rule = (id) => RULES.find((r) => r.id === id);
+  let checked = 0;
+  for (const id of ['shadeForcesLines', 'shadeClosesLoop']) {
+    const f = rule(id).find(P, initialState(P), {});
+    for (let i = 1; i < f.length; i++) assert.ok(f[i - 1].info.forced < f[i].info.forced || (f[i - 1].info.forced === f[i].info.forced && f[i - 1].info.cell < f[i].info.cell), `${id}: shortest first`);
+    checked += f.length;
+  }
+  const near = rule('shadeShortChain').find(P, initialState(P), {});
+  assert.ok(near.every((f) => f.info.forced <= SHORT_CHAIN));
+  // the capped rule is the unlimited ones restricted to short chains: every firing it has, one of them has too
+  const all = ['shadeForcesLines', 'shadeClosesLoop'].flatMap((id) => rule(id).find(P, initialState(P), {})).map((f) => f.info.cell);
+  for (const f of near) assert.ok(all.includes(f.info.cell));
+  assert.ok(checked + near.length > 0);
+  assert.ok(rule('shadeShortChain').weight < rule('shadeForcesLines').weight && rule('shadeShortChain').tier === 'Hard');
 });
 
 test('pattern: clues pointing the same way share a range with a known box count (rangeSame)', () => {

@@ -358,9 +358,9 @@ function showHint() {
   t.classList.add('hint');
   t.replaceChildren();
   const line = (cls, text) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; t.appendChild(d); };
-  const legend = (roles) => {
+  const legend = (roles, chain = []) => {
     const used = Object.keys(ROLES).filter((r) => (roles[r] || []).length);
-    if (!used.length) return;
+    if (!used.length && !chain.length) return;
     const d = document.createElement('div');
     d.className = 'hint-legend';
     for (const r of used) {
@@ -370,6 +370,12 @@ function showHint() {
       chip.style.background = r === 'problem' ? 'repeating-linear-gradient(45deg, var(--hint-problem) 0 2px, transparent 2px 4px)' : r === 'exit' ? 'transparent' : `var(--hint-${r === 'focus' ? 'focus' : r})`;
       if (r === 'exit') chip.style.border = '2px dashed var(--hint-exit)';
       span.append(chip, ROLES[r]);
+      d.appendChild(span);
+    }
+    if (chain.length) {     // the lines the imagined box would force (drawn dashed in the problem colour)
+      const span = document.createElement('span'), chip = document.createElement('span');
+      chip.className = 'chip'; chip.style.background = 'transparent'; chip.style.border = '2px dashed var(--hint-problem)';
+      span.append(chip, 'the lines the box would force');
       d.appendChild(span);
     }
     t.appendChild(d);
@@ -388,7 +394,7 @@ function showHint() {
   } else {
     const f = h.res.firings[h.idx];
     const e = explainStep(P, { rule: h.res.rule, tier: h.res.tier, weight: h.res.weight, sets: f.sets, info: f.info }, h.st);
-    overlay = { roles: e.roles, shaded: e.targets.shaded, loop: e.targets.loop, segOn: e.targets.segOn, segOff: e.targets.segOff };
+    overlay = { roles: e.roles, shaded: e.targets.shaded, loop: e.targets.loop, segOn: e.targets.segOn, segOff: e.targets.segOff, chain: e.chain };
     line('hint-meta', `${e.rule} · ${e.tier} · weight ${e.weight} · ${h.ms} ms`);
     line('', e.text);
     line('hint-marks', describeMarks(e.targets));
@@ -396,7 +402,7 @@ function showHint() {
       const used = reliesOn(P, h.st, h.res.rule, f, h.background), shown = used.slice(-2);
       if (shown.length) line('hint-more', `Relies on: ${shown.map((b) => b.text).join(' ')}${used.length > shown.length ? ` (and ${used.length - shown.length} more)` : ''}`);
     }
-    legend(e.roles);
+    legend(e.roles, e.chain);
     if (h.res.firings.length > 1) line('hint-more', `${h.idx + 1} of ${h.res.firings.length} steps of this rule; press Hint for the next.`);
   }
   t.hidden = false;

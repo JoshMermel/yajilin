@@ -19,6 +19,9 @@
 //   placementDeadEnd cluePlacements again, throwing out placements whose boxes would leave a neighbouring cell with fewer than two exits
 //   boxStarvesClue   shading a cell would turn its neighbours into dots, and a clue would be left with too few open cells to reach its
 //                    number: the cell is loop
+//   shadeShortChain  shadeForcesLines and shadeClosesLoop when the imagined box forces only a few segments (SHORT_CHAIN): a chain short
+//                    enough to follow by eye. Cheaper than they are; it sits after the lookahead rules in the table because it is
+//                    contained in them (closure never needs it) and only the rating and the hints try it
 //   shadeForcesLines imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if that
 //                    makes a line end do two incompatible things (a cell gets three lines, or is left with fewer than
 //                    two exits), the cell is loop
@@ -732,19 +735,22 @@ const rangeFacing = (P, st) => facing(P, st, false);
  * The "lines only" consequences of a position: shaded cells make their neighbours loop, a loop cell with exactly two
  * exits uses both, a cell with two lines has no more. No clue reasoning. Returns the first cell that ends up with
  * three lines or with too few exits, or a cell of a cycle that closes the loop too early (and sets st.closedEarly), or -1. Mutates `st`.
+ * Sets st.forced to the number of segments it had to draw. With `cap`, gives up (-1) as soon as it has drawn more than that many: the
+ * "short chain" version, which only sees contradictions a person reaches in a few forced steps.
  */
-export function followLines(P, st) {
+export function followLines(P, st, cap = Infinity) {
   const { N, ed, nb } = P, cols = P.cols;
   // the number of segments on at each cell, kept up to date as segments are added (this used to be recounted from the four edges of a cell
   // and of each neighbour, many times per cell on every pass: the largest cost of the lookahead rules)
   const onc = new Int8Array(N);
   for (let x = 0; x < P.numEdges; x++) if (st.e[x] === E_ON) { const a = x >> 1; onc[a]++; onc[(x & 1) ? a + cols : a + 1]++; }
-  let changed = false;
+  let changed = false, forced = 0;
+  const done = (v) => { st.forced = forced; return v; };
   const putCell = (idx, v) => { if (st.cell[idx] === 0) { st.cell[idx] = v; changed = true; } };
   const putEdge = (x, v) => {
     if (st.e[x] !== 0) return;
     st.e[x] = v; changed = true;
-    if (v === E_ON) { const a = x >> 1; onc[a]++; onc[(x & 1) ? a + cols : a + 1]++; }
+    if (v === E_ON) { const a = x >> 1; onc[a]++; onc[(x & 1) ? a + cols : a + 1]++; forced++; }
   };
   for (let guard = 0; guard < 500; guard++) {
     changed = false;
@@ -771,7 +777,7 @@ export function followLines(P, st) {
         if (st.e[x] !== E_ON && onc[j] >= 2) continue;              // a full cell takes no more segments
         ex++;
       }
-      if ((s === LOOP || on > 0) && (on > 2 || ex < 2)) return i;
+      if ((s === LOOP || on > 0) && (on > 2 || ex < 2)) return done(i);
       if (s === LOOP || on > 0) {
         for (let d = 0; d < 4; d++) {
           const x = ed[i * 4 + d];
@@ -779,6 +785,7 @@ export function followLines(P, st) {
           if (on === 2) putEdge(x, E_OFF);
           else if (ex === 2 && onc[nb[i * 4 + d]] < 2) putEdge(x, E_ON); // a full neighbour is not one of the two ways out
         }
+        if (forced > cap) return done(-1);
       }
     }
     for (let x = 0; x < P.numEdges; x++) {
@@ -788,11 +795,11 @@ export function followLines(P, st) {
     }
     if (!changed) {
       const c = closedEarly(P, st);
-      if (c >= 0) { st.closedEarly = true; return c; }
-      return -1;
+      if (c >= 0) { st.closedEarly = true; return done(c); }
+      return done(-1);
     }
   }
-  return -1;
+  return done(-1);
 }
 
 /** A cell of a closed cycle of segments when loop cells lie outside it (the loop closed too early), else -1. */
@@ -807,20 +814,28 @@ function closedEarly(P, st) {
   return outside ? on : -1;
 }
 
-/** Imagine a cell is shaded and add the lines that forces: if some cell gets three lines (or is left stranded), it is loop. */
-function shadeForces(P, st, closes) {
+/**
+ * Imagine a cell is shaded and add the lines that forces: if some cell gets three lines (or is left stranded), it is loop.
+ * `closes`: which kind of contradiction counts (true: the loop closes early; false: three lines or too few ways out; null: either).
+ * `cap`: give up on a box whose lines take more than this many forced segments. The firings come shortest chain first (then by cell),
+ * so Hint shows the one a person can follow most easily; info.forced is the number of segments the box forces.
+ */
+function shadeForces(P, st, closes, cap = Infinity) {
   const out = [];
   for (let i = 0; i < P.N; i++) {
     if (st.cell[i] !== UNKNOWN) continue;
     const st2 = cloneState(st);
     st2.cell[i] = SHADED;
-    const bad = followLines(P, st2);
-    if (bad >= 0 && !!st2.closedEarly === closes) out.push(firing([setCell(i, LOOP)], { cell: i, stranded: bad }));
+    const bad = followLines(P, st2, cap);
+    if (bad >= 0 && (closes === null || !!st2.closedEarly === closes)) out.push(firing([setCell(i, LOOP)], { cell: i, stranded: bad, forced: st2.forced }));
   }
-  return out;
+  return out.sort((a, b) => a.info.forced - b.info.forced || a.info.cell - b.info.cell);
 }
 const shadeForcesLines = (P, st) => shadeForces(P, st, false);   // a cell ends up with three lines or too few ways out
 const shadeClosesLoop = (P, st) => shadeForces(P, st, true);     // the forced lines close the loop too early
+/** DRAFT cap: the most forced segments a box may lead to for shadeShortChain (a chain a person can follow by eye). */
+export const SHORT_CHAIN = 3;
+const shadeShortChain = (P, st) => shadeForces(P, st, null, SHORT_CHAIN);
 
 /**
  * Like shadeForcesLines, for a segment: imagine it missing (or drawn) next to a loop cell, add the lines that forces, and if
@@ -1450,6 +1465,7 @@ export const RULES = [
   { id: 'rangeFacing', tier: 'Hard', weight: 105, find: rangeFacing, label: 'two clues point at each other: how many boxes fit in each part of the line fixes how many it holds' },
   { id: 'tryCell', tier: 'Hard', weight: 140, lookahead: true, find: lookahead('cell'), label: 'trying a cell one way leads to a contradiction' },
   { id: 'tryEdge', tier: 'Hard', weight: 160, lookahead: true, find: lookahead('edge'), label: 'trying a segment one way leads to a contradiction' },
+  { id: 'shadeShortChain', tier: 'Hard', weight: 55, find: shadeShortChain, label: `a box here would force only a few lines (at most ${SHORT_CHAIN} segments) that leave a cell with three lines or too few ways out, or close the loop early: this cell is a dot` },
   { id: 'uniqueRoute', tier: 'Hard', weight: 125, assumesUnique: true, find: uniqueRoute, label: 'a way of joining the open ends here could be drawn two ways, which would give two solutions: so it is not the way' },
 ];
 

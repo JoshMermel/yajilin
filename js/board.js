@@ -67,7 +67,7 @@ export class Board {
    * info  = { clueState: array of 'ok'|'bad'|'' per clue, badShaded: Set of cell indexes }
    * hint  = optional overlay (ghost marks, nothing is changed):
    *   { roles: { clue, range, focus, problem, exit, path: [cells] }, undecided: [cells], shaded: [cells], loop: [cells],
-   *     segOn: [edges], segOff: [edges], wrongCells: [cells], wrongEdges: [edges] }
+   *     segOn: [edges], segOff: [edges], chain: [edges: the lines an imagined box would force], wrongCells: [cells], wrongEdges: [edges] }
    */
   render(marks, info, hint = null) {
     const P = this.P;
@@ -180,6 +180,8 @@ export class Board {
         const len = Math.hypot(x2 - x1, y2 - y1), k = (S * 0.3) / len;
         g += `<line class="ghost-seg" stroke-width="${S * 0.12}" x1="${x1 + (x2 - x1) * k}" y1="${y1 + (y2 - y1) * k}" x2="${x2 - (x2 - x1) * k}" y2="${y2 - (y2 - y1) * k}"/>`;
       }
+      // the lines an imagined box would force (Hint's lookahead steps): the whole segment, dashed, under the ghost marks
+      for (const x of hint.chain || []) { const [x1, y1, x2, y2] = seg(x); g += `<line class="chain-seg" stroke-width="${S * 0.1}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; }
       for (const x of hint.segOff || []) {
         const [x1, y1, x2, y2] = seg(x), mx = (x1 + x2) / 2, my = (y1 + y2) / 2, d = S * 0.17;
         const path = `M${mx - d} ${my - d} L${mx + d} ${my + d} M${mx - d} ${my + d} L${mx + d} ${my - d}`;

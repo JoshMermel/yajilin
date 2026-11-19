@@ -39,3 +39,22 @@ test('every step of every rated puzzle can be explained', () => {
   }
   assert.ok(RULE_IDS.length > 0);
 });
+
+test('a lookahead step says how many lines the box forces and hands the board those lines to draw dashed', async () => {
+  const { compile, initialState } = await import('../js/logic.js');
+  const { nextStep, applySets } = await import('../js/rating.js');
+  const P = compile({ name: 'sfl', rows: 5, cols: 4, clues: [{ r: 1, c: 2, d: 2, n: 1 }, { r: 0, c: 0, d: 2, n: 0 }] });
+  const st = initialState(P);
+  let seen = null;
+  for (let g = 0; g < 200 && !seen; g++) {
+    const step = nextStep(P, st);
+    if (!step) break;
+    if (step.rule === 'shadeShortChain') seen = { step, at: JSON.parse(JSON.stringify({ ...st, cell: Array.from(st.cell), e: Array.from(st.e) })) };
+    else applySets(st, step.sets);
+  }
+  assert.ok(seen, 'the puzzle needs a short-chain step');
+  const e = explainStep(P, seen.step, { ...st, cell: Uint8Array.from(seen.at.cell), e: Int8Array.from(seen.at.e) });
+  assert.match(e.text, /would force \d+ line segments? \(dashed\)/);
+  assert.ok(e.chain.length > 0 && e.chain.every((x) => x >= 0 && x < P.numEdges));
+  assert.equal(explainStep(P, seen.step).chain.length, 0, 'without a position there is nothing to draw');
+});
