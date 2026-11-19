@@ -169,6 +169,20 @@ test('pattern: shading a cell would leave a neighbour with one exit (deadEndNeig
   assert.equal(m.c7, LOOP);
 });
 
+test('pattern: a box would turn neighbours into dots and leave a clue no room (boxStarvesClue)', () => {
+  // a 1-arrow pointing down-right with two cells in its line, (2,5) and (3,6); the two cells that touch both would leave it with none
+  const P = compile({ name: 'bsc', rows: 4, cols: 7, clues: [{ r: 1, c: 4, d: 5, n: 1 }] });
+  const m = asMap(ruleSets('boxStarvesClue', P));
+  assert.equal(m[`c${2 * 7 + 6}`], LOOP);                              // G3
+  assert.equal(m[`c${3 * 7 + 5}`], LOOP);                              // F4
+  assert.equal(m[`c${2 * 7 + 5}`], undefined, 'a box in the line itself is the arrow\'s box');
+  const f = RULES.find((r) => r.id === 'boxStarvesClue').find(P, initialState(P), {}).find((x) => x.info.cell === 2 * 7 + 6);
+  assert.deepEqual(f.info.dots, [2 * 7 + 5, 3 * 7 + 6]);
+  assert.equal(f.info.most, 0);
+  // with room to spare nothing fires
+  assert.deepEqual(ruleSets('boxStarvesClue', compile({ name: 'ok', rows: 4, cols: 7, clues: [{ r: 0, c: 0, d: 5, n: 1 }] })), []);
+});
+
 test('pattern: clues pointing the same way share a range with a known box count (rangeSame)', () => {
   // A (col 0, right, 3) and B (col 4, right, 1): the 3 cells between hold 3 - 1 = 2 boxes, so the ends are boxes
   const P = row(9, [[0, R, 3], [4, R, 1]]);
@@ -248,7 +262,7 @@ test('every rule is sound on random partial positions of true solutions', () => 
     }
   }
   console.log(`    ${positions} positions; firings: ${JSON.stringify(fired)}`);
-  for (const id of ['cluePlacements', 'placementDeadEnd', 'rangeSame', 'rangeFacingKnown', 'deadEndNeighbor', 'shadeForcesLines']) {
+  for (const id of ['cluePlacements', 'placementDeadEnd', 'rangeSame', 'rangeFacingKnown', 'deadEndNeighbor', 'boxStarvesClue', 'shadeForcesLines']) {
     assert.ok(fired[id] > 0, `${id} never fired in the sample`);
   }
 });

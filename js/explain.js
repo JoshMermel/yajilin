@@ -17,7 +17,7 @@ export const ROLES = {
   clue: 'the clue',
   range: 'the cells it counts',
   focus: 'the cell being decided',
-  problem: 'the neighbour that would be stranded',
+  problem: 'where the box would cause trouble',
   exit: 'its remaining ways out',
   path: 'the ends of a path',
 };
@@ -114,6 +114,12 @@ export function explainStep(P, step, st = null) {
       const left = st ? waysOut(P, st, info.neighbor, info.cell).length : -1;
       text = `A box at ${N(info.cell)} would turn ${N(info.neighbor)} into a dot with ${left === 0 ? 'no way out' : left === 1 ? 'just one way out' : 'fewer than two ways out'}. So ${N(info.cell)} gets a dot.`;
       break;
+    case 'boxStarvesClue': {
+      const k = info.clue; role('focus', info.cell); role('clue', clueCell(P, k)); role('range', P.rays[k]); role('problem', info.dots);
+      const names = info.dots.map(N), list = names.length > 2 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join(' and ');
+      text = `A box at ${N(info.cell)} would turn ${list} into ${info.dots.length === 1 ? 'a dot' : 'dots'}, leaving the ${clueName(P, k)} room for at most ${plural(info.most, 'box', 'boxes')}, but it needs ${P.clues[k].n}. So ${N(info.cell)} gets a dot.`;
+      break;
+    }
     case 'closingNeighbor':
       role('focus', info.cell); role('problem', info.neighbor); role('path', info.a, info.b);
       text = `A box at ${N(info.cell)} would turn ${N(info.neighbor)} into a dot whose only two ways out, ${N(info.a)} and ${N(info.b)}, are the ends of one path: using both would close the loop early. So ${N(info.cell)} gets a dot.`;

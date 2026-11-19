@@ -17,6 +17,8 @@
 //   cluePlacements   try every way to place a clue's shaded cells without two touching: a cell they all use is shaded,
 //                    a cell none uses is loop
 //   placementDeadEnd cluePlacements again, throwing out placements whose boxes would leave a neighbouring cell with fewer than two exits
+//   boxStarvesClue   shading a cell would turn its neighbours into dots, and a clue would be left with too few open cells to reach its
+//                    number: the cell is loop
 //   shadeForcesLines imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if that
 //                    makes a line end do two incompatible things (a cell gets three lines, or is left with fewer than
 //                    two exits), the cell is loop
@@ -338,6 +340,39 @@ function deadEndNeighbor(P, st) {
       const n = P.nb[i * 4 + d];
       if (n < 0 || st.cell[n] === SHADED) continue;
       if (exits(P, st, n, i) < 2) { out.push(firing([setCell(i, LOOP)], { cell: i, neighbor: n })); break; }
+    }
+  }
+  return out;
+}
+
+/**
+ * Imagine a box at a cell: boxes never touch, so its open neighbours would be dots. If that takes so many open cells out of a clue's
+ * line that it could no longer reach its number (the boxes it has plus the open cells it has left are fewer than it needs), the cell
+ * is a dot. Seen at a glance next to a clue: "a box here leaves the clue no room".
+ */
+function boxStarvesClue(P, st) {
+  const cluesAt = Array.from({ length: P.N }, () => []);         // the clues whose line (or region) holds each cell
+  const have = new Int16Array(P.clues.length), open = new Int16Array(P.clues.length);
+  P.clues.forEach((cl, k) => {
+    if (cl.n < 0) return;
+    for (const i of P.rays[k]) {
+      cluesAt[i].push(k);
+      if (st.cell[i] === SHADED) have[k]++; else if (st.cell[i] === UNKNOWN) open[k]++;
+    }
+  });
+  const out = [];
+  for (let i = 0; i < P.N; i++) {
+    if (st.cell[i] !== UNKNOWN) continue;
+    const touched = [i];                                         // the cell and the open neighbours that would turn into dots
+    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && st.cell[j] === UNKNOWN) touched.push(j); }
+    const lost = new Map();                                      // clue -> how many of its open cells the box takes away
+    for (const j of touched) for (const k of cluesAt[j]) lost.set(k, (lost.get(k) || 0) + 1);
+    for (const [k, gone] of lost) {
+      const boxes = have[k] + (cluesAt[i].includes(k) ? 1 : 0), room = open[k] - gone;
+      if (boxes + room >= P.clues[k].n) continue;
+      const dots = touched.slice(1).filter((j) => cluesAt[j].includes(k)).sort((a, b) => a - b);
+      out.push(firing([setCell(i, LOOP)], { cell: i, clue: k, dots, most: boxes + room }));
+      break;
     }
   }
   return out;
@@ -1399,6 +1434,7 @@ export const RULES = [
   { id: 'deadEndNeighbor', tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
   { id: 'cluePlacements', tier: 'Medium', weight: 12, find: cluePlacements, label: 'every way to place a clue\'s boxes includes (or leaves out) this cell' },
   { id: 'placementDeadEnd', tier: 'Medium', weight: 14, find: placementDeadEnd, label: 'every way to place a clue\'s boxes that leaves no neighbor stranded includes (or leaves out) this cell' },
+  { id: 'boxStarvesClue', tier: 'Medium', weight: 16, find: boxStarvesClue, label: 'a box here would turn its neighbors into dots and leave a clue no room for its number of boxes: this cell is a dot' },
   { id: 'closingNeighbor', tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
   { id: 'rangeSame', tier: 'Medium', weight: 24, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
   { id: 'rangeFacingKnown', tier: 'Medium', weight: 28, find: rangeFacingKnown, label: 'two clues point at each other and one part of the line has a known number of boxes: that fixes the other two parts' },
