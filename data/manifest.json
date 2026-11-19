@@ -64,7 +64,18 @@
     {
       "name": "Sparse",
       "icon": "🔹",
-      "blurb": "As few arrows as the generator could find, from 6×6 to 12×12: about one cell in ten. Difficulty is not controlled, only that the answer is unique. An experiment."
+      "blurb": "As few arrows as the generator could find, from 6×6 to 12×12: about one cell in ten, fewer with diagonals. Difficulty is not controlled, only that the answer is unique. An experiment.",
+      "subs": {
+        "Orthogonal": {
+          "icon": "🔹"
+        },
+        "Diagonal": {
+          "icon": "↗️"
+        },
+        "Diagonal + orthogonal": {
+          "icon": "✳️"
+        }
+      }
     }
   ],
   "books": [
@@ -327,7 +338,28 @@
       "count": 92,
       "label": "Sparse (experiment)",
       "group": "Sparse",
-      "blurb": "Far fewer arrows than usual: about one cell in ten, against one in six. Boards from 6×6 to 12×12, easy to hard (mostly hard: with so few arrows you have to try a cell somewhere)."
+      "blurb": "Far fewer arrows than usual: about one cell in ten, against one in six. Boards from 6×6 to 12×12, easy to hard (mostly hard: with so few arrows you have to try a cell somewhere).",
+      "sub": "Orthogonal"
+    },
+    {
+      "id": "sparse-diagonal-corpus",
+      "name": "Experiment: sparse diagonal",
+      "file": "data/sparse-diagonal-corpus.csv",
+      "count": 69,
+      "group": "Sparse",
+      "sub": "Diagonal",
+      "label": "Sparse diagonal (experiment)",
+      "blurb": "Every arrow diagonal, and as few as the generator could find: 3 on a 6×6, 5 on a 7×7 or 8×8, 13 on a 12×12. Boards from 6×6 to 12×12, mostly hard."
+    },
+    {
+      "id": "sparse-mixed-corpus",
+      "name": "Experiment: sparse diagonal and orthogonal",
+      "file": "data/sparse-mixed-corpus.csv",
+      "count": 70,
+      "group": "Sparse",
+      "sub": "Diagonal + orthogonal",
+      "label": "Sparse mixed (experiment)",
+      "blurb": "Arrows in all eight directions, and fewer than any other book: 3 on a 6×6 or a 7×7, 5 or 6 on a 9×9, 9 to 12 on a 12×12. Boards from 6×6 to 12×12, mostly hard."
     }
   ],
   "default": "bonus-intro"

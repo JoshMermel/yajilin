@@ -54,6 +54,26 @@ same 3-arrow puzzles (19 found, 7 distinct) and never found 2.
 Rebuild with `./tools/make_sparse_corpus.sh` (env `SIZES`, `SEED0`, `WORKERS`; the 12×12 jobs are nine of 25 minutes each) and
 `node tools/build_book.mjs --id sparse-corpus --name "Experiment: sparse" --glob sp_`.
 
+## Sparse diagonal and mixed books
+
+The same generator with `--dirs` (`MODE=diag` is `ECZQ`, every arrow diagonal; `MODE=mix` is `URDLECZQ`, all eight directions), the pools
+`spd_*` and `spm_*`, books `sparse-diagonal-corpus` (69 puzzles) and `sparse-mixed-corpus` (70). No generator change was needed. Six 12×12
+jobs per variant instead of nine; audit passes for all 8,705 puzzles in the data folder.
+
+| Size | Diagonal only: arrows (puzzles) | All eight directions: arrows (puzzles) |
+|---|---|---|
+| 6×6 | 3 (13) | 3 (19) |
+| 7×7 | 4 (2), 5 (15) | 3 (10) |
+| 8×8 | 4 (1), 5 (12), 6 (1) | 4 (5), 5 (10) |
+| 9×9 | 4 (1), 6 (2), 7 (9) | 5 (2), 6 (10) |
+| 10×10 | 8 (2), 9 (6) | 6 (1), 7 (2), 8 (5) |
+| 12×12 | 12 (1), 13 (2), 14 (2) | 9 (1), 10 (2), 11 (2), 12 (1) |
+
+More directions mean sparser puzzles: an arrow in any of eight directions rules out more fillings than one in four, so a 12×12 needs 9 to 12
+arrows against 14 to 17 for orthogonal. Diagonal only is a little sparser than orthogonal at 12×12 (12 to 14) and equal at 6×6 (3). The 6×6
+floor is 3 for all three, as before. Rebuild with `MODE=diag|mix sh tools/make_sparse_corpus.sh` and
+`node tools/build_book.mjs --id sparse-diagonal-corpus --name "Experiment: sparse diagonal" --glob spd_` (or `sparse-mixed-corpus`, `spm_`).
+
 What to look for: whether so few arrows is pleasant or just a loop puzzle with hints, how often you have to guess and check (the Hint
 tier says Hard for most), and whether 12×12 with 15 arrows feels different from 6×6 with 3. Next: a better score than "cells propagation leaves open" (it cannot tell a unique 12×12 puzzle from one with many solutions, which
 blocks any local search), and bigger exchange moves.

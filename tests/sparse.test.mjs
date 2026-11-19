@@ -48,3 +48,18 @@ test('counting with the rules first agrees with counting from scratch', () => {
     assert.equal(solve(r.puzzle, { limit: 2 }).count, 1);
   }
 });
+
+test('diagonal and mixed directions give unique, valid sparse puzzles that use those directions', () => {
+  for (const [dirs, label] of [[[4, 5, 6, 7], 'diagonal'], [[0, 1, 2, 3, 4, 5, 6, 7], 'mixed']]) {
+    const r = generateSparse(6, 6, makeRng(3), { name: label, directions: dirs, bestOf: 3, budgetMs: 20000 });
+    assert.ok(r, `a ${label} 6x6 sparse puzzle within 20 s`);
+    const P = r.puzzle;
+    assert.ok(P.clues.length >= 3 && P.clues.length <= 6, `${P.clues.length} clues`);
+    if (label === 'diagonal') assert.ok(P.clues.every((c) => c.d >= 4), 'every arrow is diagonal');
+    const sol = decodeSolution(P, P.solution);
+    const shaded = Uint8Array.from(sol.cell, (v) => (v === SHADED ? 1 : 0));
+    const edges = Int8Array.from(sol.e, (v) => (v === E_ON ? 1 : 0));
+    assert.ok(checkSolved(P, shaded, edges), 'the stored solution is valid');
+    assert.equal(solve(P, { limit: 2 }).count, 1, 'and the only one');
+  }
+});
