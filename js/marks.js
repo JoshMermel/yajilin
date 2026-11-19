@@ -14,7 +14,8 @@ export function nextMark(current, lined) {
 // ---- Automatic dots, with their reasons
 // A cell has a reason to be a dot when it is next to a box ('s<cell>') or in the line of a clue that has all its boxes ('c<clue>').
 // A dot is placed automatically when a cell gains a reason it did not have before, and an automatic dot goes away when its last reason
-// does (take the box off, and the dots it caused go too). Dots the player placed are never touched.
+// does (take the box off, and the dots it caused go too). A box the player puts on such a cell and takes off again leaves the automatic dot
+// back, since the reasons never went away. Dots the player placed are never touched.
 // marks m = { cells: 0 blank / 1 box / 2 dot, edges, auto: 1 where a dot was placed automatically }; P is a compiled puzzle.
 
 /** Map: cell -> Set of reasons it should be a dot. */
@@ -47,7 +48,8 @@ export function reconcile(P, prev, cur, enabled = true) {
       if (!reasons) { cur.cells[i] = EMPTY; cur.auto[i] = 0; }          // its reasons are gone
     } else if (cur.cells[i] === EMPTY && reasons && enabled) {
       const old = before.get(i);
-      for (const r of reasons) if (!old || !old.has(r)) { cur.cells[i] = DOT; cur.auto[i] = 1; break; } // a new reason
+      if (prev && prev.cells[i] === BOX) { cur.cells[i] = DOT; cur.auto[i] = 1; }    // a box taken off a cell that still has reasons: back to its automatic dot
+      else for (const r of reasons) if (!old || !old.has(r)) { cur.cells[i] = DOT; cur.auto[i] = 1; break; } // a new reason
     }
   }
 }

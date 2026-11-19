@@ -90,3 +90,22 @@ test('reconcile with the switch off still lets automatic dots go when their reas
   reconcile(P, { cells: Uint8Array.from(m.cells.map((v, i) => (i === cell(2, 2) ? 0 : v))), auto: m.auto, edges: m.edges }, m, false);
   assert.equal(dotsOf(m).length, before);
 });
+
+test('a box taken off a cell that still has reasons leaves its automatic dot; with no reasons left it leaves nothing', () => {
+  const P = puzzle(), m = blank(P);
+  m.cells[cell(0, 3)] = BOX;
+  applyAutoDots(P, m, true);
+  const snap = () => ({ cells: Uint8Array.from(m.cells), auto: Uint8Array.from(m.auto), edges: m.edges });
+  const c = cell(0, 2);                                               // next to the box at D1 and in the satisfied arrow's line
+  assert.equal(m.cells[c], DOT);
+  let prev = snap(); m.cells[c] = BOX; m.auto[c] = 0; reconcile(P, prev, m);   // promoted: dot -> box
+  assert.equal(m.cells[c], BOX);
+  prev = snap(); m.cells[c] = EMPTY; reconcile(P, prev, m);                    // tapped again: box -> blank
+  assert.equal(m.cells[c], DOT, 'the reasons are still there, so the automatic dot is back');
+  assert.equal(m.auto[c], 1);
+  // a cell whose only reason was the box that just came off ends up blank
+  const d = cell(1, 3);
+  prev = snap(); m.cells[cell(0, 3)] = EMPTY; reconcile(P, prev, m);
+  assert.equal(m.cells[d], EMPTY);
+  assert.equal(m.cells[c], EMPTY, 'the arrow is no longer satisfied either');
+});
