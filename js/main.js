@@ -659,8 +659,9 @@ function renderBookPicker(view = {}) {
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
   // the manifest's groups in order, then any group a book names that the manifest does not list (a file loaded from disk, say)
   const groups = [...state.groups];
-  for (const b of state.books) { const g = b.group || 'Your files'; if (!groups.some((x) => x.name === g)) groups.push({ name: g, icon: '📂' }); }
-  const booksOf = (g) => state.books.filter((b) => (b.group || 'Your files') === g.name);
+  const listed = state.books.filter((b) => !b.hidden);      // a hidden book (the armory of docs/how_to_solve.md) opens from a link, not from here
+  for (const b of listed) { const g = b.group || 'Your files'; if (!groups.some((x) => x.name === g)) groups.push({ name: g, icon: '📂' }); }
+  const booksOf = (g) => listed.filter((b) => (b.group || 'Your files') === g.name);
   const isCurrent = (b) => !!state.book && b.id === state.book.id;
   const countText = (b) => {
     const total = b.count ?? (b.puzzles ? b.puzzles.length : null), done = bookSolved()[b.id] || 0;

@@ -10,7 +10,7 @@ const root = new URL('..', import.meta.url).pathname;
 const check = process.argv.includes('--check');
 const manifest = JSON.parse(fs.readFileSync(root + 'data/manifest.json', 'utf8'));
 let moved = 0;
-for (const b of manifest.books) {
+for (const b of manifest.books.filter((b) => !b.hidden)) {      // (the armory is in the order of docs/how_to_solve.md)
   const text = fs.readFileSync(root + b.file, 'utf8');
   const ps = parseCsv(text);
   const sorted = ps.map((p, i) => [p, i]).sort((x, y) => byTierScore(x[0], y[0]) || x[1] - y[1]).map(([p]) => p);   // stable

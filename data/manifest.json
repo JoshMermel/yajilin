@@ -387,6 +387,14 @@
       "group": "Sparse",
       "sub": "12×12",
       "blurb": "Arrows point along rows, columns and diagonals, and there are few of them: 9 to 13 on a 12×12 board (one cell in 13 on average). Beginner to Hard."
+    },
+    {
+      "id": "armory",
+      "name": "Armory",
+      "file": "data/armory.csv",
+      "count": 24,
+      "hidden": true,
+      "blurb": "The worked examples of docs/how_to_solve.md (not listed in the app)."
     }
   ],
   "default": "bonus-intro"

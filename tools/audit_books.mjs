@@ -81,7 +81,7 @@ const chunk = +arg('chunk', 50), jobs = +arg('jobs', Math.max(2, os.cpus().lengt
 const withRating = process.argv.includes('--rate');
 const problems = [], tasks = [], everywhere = new Map();     // everywhere: symmetry key -> book:name of the first puzzle seen
 let total = 0;
-for (const entry of manifest.books.filter((b) => !only || only.includes(b.id))) {
+for (const entry of manifest.books.filter((b) => (only ? only.includes(b.id) : !b.hidden))) {      // (a hidden book, the armory, has copies of puzzles from the others: audit it with --book)
   const ps = loadBook(entry);
   total += ps.length;
   if (ps.length !== entry.count) problems.push(`${entry.id}: the manifest says ${entry.count} puzzles, the file has ${ps.length}`);
