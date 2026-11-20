@@ -41,9 +41,10 @@ test('every step of every rated puzzle can be explained', () => {
 });
 
 test('a lookahead step says how many lines the box forces and hands the board those lines to draw dashed', async () => {
-  const { compile, initialState } = await import('../js/logic.js');
+  const { compile, initialState, cluesFromString } = await import('../js/logic.js');
   const { nextStep, applySets } = await import('../js/rating.js');
-  const P = compile({ name: 'sfl', rows: 5, cols: 4, clues: [{ r: 1, c: 2, d: 2, n: 1 }, { r: 0, c: 0, d: 2, n: 0 }] });
+  // (a book puzzle that still needs a short chain after the Medium rules)
+  const P = compile({ name: 'sfl', rows: 8, cols: 8, clues: cluesFromString('1:5:U:0;2:5:L:1;2:7:D:1;3:0:U:0;3:2:U:0;3:3:U:1;4:0:R:1;5:2:U:1;6:4:D:0;6:5:R:0;7:0:R:0;7:7:L:0') });
   const st = initialState(P);
   let seen = null;
   for (let g = 0; g < 200 && !seen; g++) {
@@ -57,4 +58,16 @@ test('a lookahead step says how many lines the box forces and hands the board th
   assert.match(e.text, /would force \d+ line segments? \(dashed\)/);
   assert.ok(e.chain.length > 0 && e.chain.every((x) => x >= 0 && x < P.numEdges));
   assert.equal(explainStep(P, seen.step).chain.length, 0, 'without a position there is nothing to draw');
+});
+
+test('boxStarvesClue through a forced neighbour talks about the lines the box forces, dashed', async () => {
+  const { compile, initialState, LOOP } = await import('../js/logic.js');
+  const { RULES } = await import('../js/rating.js');
+  // a 1-arrow pointing left along the bottom row of a 3x5 board, with B3 on the loop: a box at B2 would force A3-B3 and B3-C3
+  const P = compile({ name: 'bsc2', rows: 3, cols: 5, clues: [{ r: 2, c: 3, d: 3, n: 1 }] });
+  const st = initialState(P); st.cell[2 * 5 + 1] = LOOP;
+  const f = RULES.find((r) => r.id === 'boxStarvesClue').find(P, st, {}).find((x) => x.info.cell === 1 * 5 + 1);
+  const e = explainStep(P, { rule: 'boxStarvesClue', info: f.info, sets: f.sets }, st);
+  assert.match(e.text, /would force \d+ line segments \(dashed\) that put dots on .* room for at most 0 boxes/);
+  assert.ok(e.chain.length >= 2 && e.chain.every((x) => x >= 0 && x < P.numEdges));
 });

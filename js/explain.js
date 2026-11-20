@@ -133,6 +133,17 @@ export function explainStep(P, step, st = null) {
     case 'boxStarvesClue': {
       const k = info.clue; role('focus', info.cell); role('clue', clueCell(P, k)); role('range', P.rays[k]); role('problem', info.dots);
       const names = info.dots.map(N), list = names.length > 2 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join(' and ');
+      if (info.chain) {
+        // framed like the lines a box forces elsewhere: the box forces segments (dashed), and those leave the clue with no room
+        const segs = new Set();
+        if (st) for (const j of info.through) for (let e = 0; e < 4; e++) {
+          const x = P.ed[j * 4 + e], m = P.nb[j * 4 + e];
+          if (x >= 0 && info.chain.includes(m) && st.e[x] === E_UNKNOWN) segs.add(x);       // the new segments that lead to the dots in the clue's line
+        }
+        chain = [...segs].sort((a, b) => a - b);
+        text = `A box at ${N(info.cell)} would force ${chain.length ? `${plural(chain.length, 'line segment')} (dashed)` : 'lines'} that put dots on ${list}, and that would leave the ${clueName(P, k)} room for at most ${plural(info.most, 'box', 'boxes')}, but it needs ${P.clues[k].n}. So ${N(info.cell)} gets a dot.`;
+        break;
+      }
       text = `A box at ${N(info.cell)} would turn ${list} into ${info.dots.length === 1 ? 'a dot' : 'dots'}, leaving the ${clueName(P, k)} room for at most ${plural(info.most, 'box', 'boxes')}, but it needs ${P.clues[k].n}. So ${N(info.cell)} gets a dot.`;
       break;
     }

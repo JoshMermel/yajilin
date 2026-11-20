@@ -183,6 +183,23 @@ test('pattern: a box would turn neighbours into dots and leave a clue no room (b
   assert.deepEqual(ruleSets('boxStarvesClue', compile({ name: 'ok', rows: 4, cols: 7, clues: [{ r: 0, c: 0, d: 5, n: 1 }] })), []);
 });
 
+test('boxStarvesClue also follows a neighbour left with two ways out', () => {
+  // a 1-arrow pointing left along the bottom row of a 3x5 board; (2,1) is on the loop. A box at (1,1) would leave (2,1) with only
+  // (2,0) and (2,2) as ways out, so both become dots and the arrow has nothing left to shade.
+  const P = compile({ name: 'bsc2', rows: 3, cols: 5, clues: [{ r: 2, c: 3, d: 3, n: 1 }] });
+  const st = initialState(P);
+  st.cell[2 * 5 + 1] = LOOP;
+  const fs = RULES.find((r) => r.id === 'boxStarvesClue').find(P, st, {});
+  const f = fs.find((x) => x.info.cell === 1 * 5 + 1);
+  assert.ok(f, 'a box above the dot is ruled out');
+  assert.deepEqual(f.info.dots, [2 * 5 + 0, 2 * 5 + 2]);
+  assert.deepEqual(f.info.chain, [2 * 5 + 0, 2 * 5 + 2]);
+  assert.deepEqual(f.info.through, [1 * 5 + 0, 2 * 5 + 1]);                  // the left-edge neighbour (1,0) forces (2,0) too
+  // (2,1) is a dot-to-be even when unknown, since it touches the box; the same chain then shows without the starting dot
+  const g = RULES.find((r) => r.id === 'boxStarvesClue').find(P, initialState(P), {}).find((x) => x.info.cell === 1 * 5 + 1);
+  assert.deepEqual(g.info.dots, [2 * 5 + 0, 2 * 5 + 1, 2 * 5 + 2]);
+});
+
 test('lookahead hints: the shortest chain comes first, and shadeShortChain only takes short ones', () => {
   const P = compile({ name: 'sfl', rows: 5, cols: 4, clues: [{ r: 1, c: 2, d: 2, n: 1 }, { r: 0, c: 0, d: 2, n: 0 }] });
   const rule = (id) => RULES.find((r) => r.id === id);

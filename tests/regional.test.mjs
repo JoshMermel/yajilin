@@ -111,7 +111,9 @@ import { nextSteps } from '../js/rating.js';
 const book = () => parseCsv(fs.readFileSync(new URL('../data/regional-corpus.csv', import.meta.url), 'utf8')).map((p) => compile(p));
 
 test('a quarter turn keeps a regional puzzle the same puzzle: regions turn with the board, and the rotated board is solved by the same rules', () => {
-  for (const P of book().filter((_, i) => i % 6 === 0)) {
+  // a fixed sample (not every sixth puzzle, which moves when the book is re-sorted: some 8x8 ones take minutes to solve exhaustively)
+  const sample = ['beginner-6x6-1', 'beginner-8x8-1', 'medium-6x6-1', 'medium-10x10-2', 'rows-8x8-1', 'classical-8x8-1', 'stuck-6x6-2', 'stuck-10x10-1', 'rows-10x10-1'];
+  for (const P of book().filter((p) => sample.includes(p.name))) {
     const R = rotated(P, 'h');
     assert.ok(R.regional && R.rows === P.cols && R.cols === P.rows);
     assert.equal(R.regionCells.length, P.regionCells.length);

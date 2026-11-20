@@ -351,7 +351,8 @@ function deadEndNeighbor(P, st) {
 /**
  * Imagine a box at a cell: boxes never touch, so its open neighbours would be dots. If that takes so many open cells out of a clue's
  * line that it could no longer reach its number (the boxes it has plus the open cells it has left are fewer than it needs), the cell
- * is a dot. Seen at a glance next to a clue: "a box here leaves the clue no room".
+ * is a dot. Seen at a glance next to a clue: "a box here leaves the clue no room". A neighbour of the box that is left with exactly two
+ * ways out (a dot on the edge, a box on its other side) uses both, so those two cells are dots too.
  */
 function boxStarvesClue(P, st) {
   const cluesAt = Array.from({ length: P.N }, () => []);         // the clues whose line (or region) holds each cell
@@ -367,14 +368,31 @@ function boxStarvesClue(P, st) {
   for (let i = 0; i < P.N; i++) {
     if (st.cell[i] !== UNKNOWN) continue;
     const touched = [i];                                         // the cell and the open neighbours that would turn into dots
-    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && st.cell[j] === UNKNOWN) touched.push(j); }
+    const forced = [];                                 // cells whose line is then forced (a dot left with exactly two ways out uses both), and the dots that force them
+    const viaOf = new Map();
+    for (let d = 0; d < 4; d++) {
+      const j = P.nb[i * 4 + d];
+      if (j < 0 || st.cell[j] === SHADED) continue;
+      if (st.cell[j] === UNKNOWN) touched.push(j);
+      const outs = [];                                           // j's ways out once i is a box
+      for (let e = 0; e < 4; e++) {
+        const x = P.ed[j * 4 + e], m = P.nb[j * 4 + e];
+        if (x < 0 || m === i || st.e[x] === E_OFF || st.cell[m] === SHADED) continue;
+        if (st.e[x] !== E_ON && onCount(P, st, m) >= 2) continue;
+        outs.push(m);
+      }
+      if (outs.length === 2) for (const m of outs) if (st.cell[m] === UNKNOWN) { if (!viaOf.has(m)) { viaOf.set(m, []); forced.push(m); } viaOf.get(m).push(j); }
+    }
+    touched.push(...forced);
     const lost = new Map();                                      // clue -> how many of its open cells the box takes away
     for (const j of touched) for (const k of cluesAt[j]) lost.set(k, (lost.get(k) || 0) + 1);
     for (const [k, gone] of lost) {
       const boxes = have[k] + (cluesAt[i].includes(k) ? 1 : 0), room = open[k] - gone;
       if (boxes + room >= P.clues[k].n) continue;
       const dots = touched.slice(1).filter((j) => cluesAt[j].includes(k)).sort((a, b) => a - b);
-      out.push(firing([setCell(i, LOOP)], { cell: i, clue: k, dots, most: boxes + room }));
+      const chain = dots.filter((j) => forced.includes(j));        // the dots that come from a neighbour's forced line, not from touching the box
+      const through = [...new Set(chain.flatMap((j) => viaOf.get(j)))].sort((a, b) => a - b);
+      out.push(firing([setCell(i, LOOP)], { cell: i, clue: k, dots, most: boxes + room, ...(chain.length ? { chain, through } : {}) }));
       break;
     }
   }
