@@ -72,9 +72,9 @@ test('boxStarvesClue through a forced neighbour talks about the lines the box fo
   assert.ok(e.chain.length >= 2 && e.chain.every((x) => x >= 0 && x < P.numEdges));
 });
 
-test('a box whose forced lines fill a neighbour says so: "put two lines in B5, so A5 could not join it"', async () => {
+test('a box whose forced lines give a cell three lines draws just those lines: A4 gives B5 three lines', async () => {
   const fs = await import('node:fs');
-  const { compile, parseCsv, initialState, SHADED, LOOP, E_ON } = await import('../js/logic.js');
+  const { compile, parseCsv, initialState, edgeCells, SHADED, LOOP, E_ON } = await import('../js/logic.js');
   const { nextMarkableStep } = await import('../js/hintstep.js');
   const raw = parseCsv(fs.readFileSync(new URL('../data/sparse-8x8-both.csv', import.meta.url), 'utf8')).find((p) => p.name === 'SPARSE-8X8-BOTH-29');
   const P = compile(raw);
@@ -89,9 +89,12 @@ test('a box whose forced lines fill a neighbour says so: "put two lines in B5, s
     if (!nx) break;
     const f = nx.res.firings[0];
     const e = explainStep(P, { rule: nx.res.rule, tier: nx.res.tier, weight: nx.res.weight, sets: f.sets, info: f.info }, st);
-    if (/^A box at A4 would force/.test(e.text)) { text = e.text; assert.ok(e.roles.problem.length >= 2, 'the full neighbour is highlighted too'); }
+    if (/^A box at A4 would force/.test(e.text)) { text = e.text; 
+      const names = e.chain.map((x) => edgeCells(P, x).map((c) => `${'ABCDEFGH'[c % 8]}${((c / 8) | 0) + 1}`).sort().join('-')).sort();
+      assert.deepEqual(names, ['A5-A6', 'A5-B5', 'B3-B4', 'B4-B5'], 'B4 up and down, A5 right and down');
+      assert.deepEqual(e.roles.problem, [P.cols * 4 + 1], 'B5 is the trouble spot'); }
     for (const [k, i, v] of f.sets) { if (k === 'c') cells[i] = v === SHADED ? 1 : 2; else if (v === E_ON) edges[i] = 1; }
   }
   assert.ok(text, 'the A4 hint comes up');
-  assert.match(text, /\(dashed\), which would put two lines in B5\. A5 could not join it, so it would be left with just one way out\. So A4 gets a dot\./);
+  assert.match(text, /would force 4 line segments \(dashed\), which would give B5 three lines\. So A4 gets a dot\./);
 });

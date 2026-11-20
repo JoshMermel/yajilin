@@ -297,7 +297,7 @@
   "hardest": true,
   "cells": "002020020202202020000220202222020020",
   "edges": "000000000000000001000000001000000000000000110001000000001100000000100000",
-  "text": "A box at F3 would force 4 line segments (dashed), which would put two lines in E4. F4 could not join it, so it would be left with just one way out. So F3 gets a dot."
+  "text": "A box at F3 would force 3 line segments (dashed), which would give E4 three lines. So F3 gets a dot."
  },
  {
   "rule": "shadeClosesLoop",
@@ -417,7 +417,7 @@
   "hardest": false,
   "cells": "020200200002000002000002000002220002",
   "edges": "000000000000000000001001000000000000010000000001010100010001100000101000",
-  "text": "A box at E3 would force 1 line segment (dashed), which would put two lines in F4. E4 could not join it, so it would be left with just one way out. So E3 gets a dot."
+  "text": "A box at E3 would force 3 line segments (dashed), which would give F4 three lines. So E3 gets a dot."
  },
  {
   "rule": "uniqueRoute",

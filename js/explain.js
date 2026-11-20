@@ -1,6 +1,6 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can color them differently) and the marks the step makes.
-import { SHADED, LOOP, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
+import { SHADED, LOOP, CLUE, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
 import { ruleLabel, followLines } from './rating.js';
 
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
@@ -70,6 +70,46 @@ function filledNeighbours(P, st, s2, bad) {
     if (linesAt(P, s2, j) >= 2 && linesAt(P, st, j) < 2) out.push(j);
   }
   return out;
+}
+
+/**
+ * The shortest picture of a box giving a cell three lines, when the lines come straight from the box: every neighbour of the box is a
+ * loop cell, and one with only two ways to go (the box, other boxes and full cells rule out the rest) must use both. If those lines give
+ * some cell F three lines, return { cells: [F...], edges } with just the segments that matter: F's new lines, and the other line of each
+ * cell they come from. Null when the contradiction needs a longer chain.
+ */
+function directProof(P, st, box) {
+  const forcedAt = (k) => {                                   // the two segments of a cell with exactly two ways out, else []
+    const ways = [];
+    for (let d = 0; d < 4; d++) {
+      const x = P.ed[k * 4 + d]; if (x < 0) continue;
+      const j = P.nb[k * 4 + d];
+      if (j === box || st.e[x] === E_OFF || st.cell[j] === SHADED || st.cell[j] === CLUE) continue;
+      if (st.e[x] !== E_ON && linesAt(P, st, j) >= 2) continue;
+      ways.push(x);
+    }
+    return ways.length === 2 ? ways : [];
+  };
+  const q = new Set(), by = new Map();                       // forced segments, and which of them sit at each cell
+  for (let d = 0; d < 4; d++) {
+    const k = P.nb[box * 4 + d];
+    if (k < 0 || st.cell[k] === SHADED || st.cell[k] === CLUE) continue;
+    const xs = forcedAt(k);
+    by.set(k, xs);
+    for (const x of xs) if (st.e[x] === E_UNKNOWN) q.add(x);
+  }
+  const into = new Map();                                      // new lines at each cell
+  for (const x of q) for (const c of edgeCells(P, x)) into.set(c, (into.get(c) || 0) + 1);
+  const cells = [...into].filter(([c, n]) => linesAt(P, st, c) + n > 2).map(([c]) => c);
+  if (!cells.length) return null;
+  const edges = new Set();
+  for (const f of cells) for (const x of q) {
+    const [a, b] = edgeCells(P, x);
+    if (a !== f && b !== f) continue;
+    edges.add(x);
+    for (const y of by.get(a === f ? b : a) || []) if (q.has(y)) edges.add(y);
+  }
+  return { cells, edges: [...edges].sort((a, b) => a - b) };
 }
 
 /** How a box at info.cell ends in a contradiction: "that give E8 three lines" / "that leave E8 with just one way out" (needs `st`). */
@@ -270,6 +310,14 @@ export function explainStep(P, step, st = null) {
       const closes = rule === 'shadeClosesLoop' || (rule === 'shadeShortChain' && st && cloneStateClosed(P, st, info.cell));
       if (chain.length) {
         const s2 = cloneState(st); s2.cell[info.cell] = SHADED;
+        const direct = closes ? null : directProof(P, st, info.cell);
+        if (direct) {
+          // the lines come straight from the box: show just them, and the cell that ends up with three lines
+          delete roles.problem; role('problem', ...direct.cells);
+          chain = direct.edges;
+          text = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed), which would give ${direct.cells.map(N).join(' and ')} three lines. So ${N(info.cell)} gets a dot.`;
+          break;
+        }
         const bad = followLines(P, s2), filled = bad >= 0 ? filledNeighbours(P, st, s2, bad) : [];
         const forcedText = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed)`;
         if (filled.length) {
