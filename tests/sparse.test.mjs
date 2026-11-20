@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { solve, decodeSolution, checkSolved, parseCsv, toCsvRow, SHADED, E_ON } from '../js/logic.js';
 import { generateSparse, makeRng } from '../js/generator.js';
+import { RULES, solvedByRules, rate } from '../js/rating.js';
 
 // Sparse puzzles (experiment): as few clues as possible, uniqueness decided by the exhaustive solver alone.
 
@@ -61,5 +62,18 @@ test('diagonal and mixed directions give unique, valid sparse puzzles that use t
     const edges = Int8Array.from(sol.e, (v) => (v === E_ON ? 1 : 0));
     assert.ok(checkSolved(P, shaded, edges), 'the stored solution is valid');
     assert.equal(solve(P, { limit: 2 }).count, 1, 'and the only one');
+  }
+});
+
+test('with a rule limit (upto) the puzzle is solved by those rules alone, so its tier is capped and it is unique', () => {
+  for (const tier of ['Medium', 'Hard']) {                                      // the first rule of this tier ends the prefix: Beginner rules, or Beginner and Medium
+    const upto = RULES.findIndex((r) => r.tier === tier);
+    const r = generateSparse(7, 7, makeRng(5), { name: `cap${tier}`, upto, bestOf: 2, budgetMs: 40000, polishMs: 3000 });
+    assert.ok(r, `a ${tier}-capped 7x7 sparse puzzle within 40 s`);
+    const P = r.puzzle;
+    assert.ok(solvedByRules(P, upto).solved, 'the allowed rules alone solve it');
+    const tiers = tier === 'Medium' ? ['Beginner'] : ['Beginner', 'Medium'];
+    assert.ok(tiers.includes(rate(P).tier), `its rated tier is ${tiers.join(' or ')}, got ${rate(P).tier}`);
+    assert.equal(solve(P, { limit: 2 }).count, 1, 'and the exhaustive solver agrees it is the only solution');
   }
 });

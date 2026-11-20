@@ -9,7 +9,7 @@
 //      they could not decide into clues, and ask again.
 //   4. Optionally prune: turn clues back into shaded cells while the rules still solve it.
 import { compile, initialState, propagate, encodeSolution, decodeSolution, solve, mergeBlankRegions, SHADED, LOOP, E_ON, E_OFF, E_UNKNOWN, DR, DC, UNKNOWN } from './logic.js';
-import { solvedByRules, RULES } from './rating.js';
+import { solvedByRules, closure, RULES } from './rating.js';
 
 /** Small deterministic PRNG (mulberry32) so a seed reproduces a puzzle. */
 export function makeRng(seed) {
@@ -952,7 +952,7 @@ export function generateVoidsOnly(rows, cols, rng, { name = 'gen', upto, budgetM
 //      run that already needs more clues than the best so far is dropped at once.
 
 /** The tools every sparse run shares: counting solutions, scoring candidates, the clue-removal and exchange search. */
-export function sparseKit(rows, cols, rng, { name, directions, maxNodes, shortlist, rulesFirst }) {
+export function sparseKit(rows, cols, rng, { name, directions, maxNodes, shortlist, rulesFirst, upto = null }) {
   const N = rows * cols;
   const undecided = (P) => {                                              // cells (and a little for edges) propagation leaves open: fewer is better
     const st = initialState(P);
@@ -964,7 +964,19 @@ export function sparseKit(rows, cols, rng, { name, directions, maxNodes, shortli
   };
   // Counting solutions. From scratch the solver's own propagation is weak: on a 12x12 board even a unique puzzle can take 8 s to prove
   // (and exceed any sensible node cap). The rules (sound, polynomial) get a position the search can finish from, in milliseconds.
+  // With `upto` (a prefix length of the rule table, as generatePuzzle's) a puzzle counts as unique only when those rules alone solve it: the
+  // rules are sound, so that proves it, and it caps the difficulty at the tier of the rules allowed. A puzzle they cannot finish counts as `limit`.
+  const ruleUndecided = (P) => {                                          // cells the allowed rules leave open (the better score when they are the test)
+    const st = initialState(P);
+    const r = closure(P, st, upto);
+    if (r.contradiction) return Infinity;
+    let u = 0;
+    for (let i = 0; i < N; i++) if (st.cell[i] === UNKNOWN) u++;
+    for (let x = 0; x < P.numEdges; x++) if (st.e[x] === E_UNKNOWN) u += 0.2;
+    return u;
+  };
   const count = (P, limit) => {
+    if (upto !== null) return solvedByRules(P, upto).solved ? 1 : limit;
     if (rulesFirst) {
       const br = solvedByRules(P);
       if (br.solved) return 1;
@@ -1024,14 +1036,14 @@ export function sparseKit(rows, cols, rng, { name, directions, maxNodes, shortli
       }
     }
   };
-  return { undecided, count, build, candidates, sparsify };
+  return { undecided, ruleUndecided, count, build, candidates, sparsify };
 }
 
 /** The sparsest puzzle found: { puzzle, stats: { clues, tries, ms } }, or null if none within the budget. */
-export function generateSparse(rows, cols, rng, { name = 'gen', maxClues = Infinity, bestOf = 1, budgetMs = 60000, directions = [0, 1, 2, 3], startDensity = 0.2, maxNodes = 300000, probeCap = 40, shortlist = 8, polish = true, polishMs = 30000, polishWithin = 2, swaps, fromRules = false, rulesFirst = null } = {}) {
+export function generateSparse(rows, cols, rng, { name = 'gen', maxClues = Infinity, bestOf = 1, budgetMs = 60000, directions = [0, 1, 2, 3], startDensity = 0.2, maxNodes = 300000, probeCap = 40, shortlist = 8, polish = true, polishMs = 30000, polishWithin = 2, swaps, fromRules = false, rulesFirst = null, upto = null } = {}) {
   const t0 = Date.now();
   const N = rows * cols;
-  const kit = sparseKit(rows, cols, rng, { name, directions, maxNodes, shortlist, rulesFirst: rulesFirst === null ? N >= 64 : rulesFirst });
+  const kit = sparseKit(rows, cols, rng, { name, directions, maxNodes, shortlist, rulesFirst: rulesFirst === null ? N >= 64 : rulesFirst, upto });
   let best = null, found = 0, tries = 0;
   while (Date.now() - t0 < budgetMs && found < bestOf) {
     tries++;
@@ -1057,7 +1069,15 @@ export function generateSparse(rows, cols, rng, { name = 'gen', maxClues = Infin
         const cand = kit.candidates(loop, holes, clueDir, isClue);
         if (!cand.length) break;
         let pick = cand[0];                                                     // far from unique, every count is the cap and says nothing: trust the propagation score
-        if (c < probeCap) {
+        if (upto !== null) {                                                    // rules as the test: re-score the best by propagation with what the allowed rules leave open
+          let top = Infinity;
+          for (const [h, d] of cand.slice(0, shortlist * 2)) {
+            clueDir.set(h, d); isClue[h] = 1;
+            const u = kit.ruleUndecided(kit.build(loop, clueDir));
+            clueDir.delete(h); isClue[h] = 0;
+            if (u < top) { top = u; pick = [h, d]; }
+          }
+        } else if (c < probeCap) {
           let top = c;
           for (const [h, d] of cand.slice(0, shortlist)) {
             clueDir.set(h, d); isClue[h] = 1;

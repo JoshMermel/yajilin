@@ -64,16 +64,13 @@
     {
       "name": "Sparse",
       "icon": "🔹",
-      "blurb": "As few arrows as the generator could find, from 6×6 to 12×12: about one cell in ten, fewer with diagonals. Difficulty is not controlled, only that the answer is unique. An experiment.",
+      "blurb": "As few arrows as a search could find, each book running from Beginner to Hard: about one cell in ten or fewer, against one in six in the main books. An experiment.",
       "subs": {
-        "Orthogonal": {
+        "8×8": {
           "icon": "🔹"
         },
-        "Diagonal": {
-          "icon": "↗️"
-        },
-        "Diagonal + orthogonal": {
-          "icon": "✳️"
+        "12×12": {
+          "icon": "🔹"
         }
       }
     }
@@ -332,34 +329,64 @@
       "blurb": "Nothing but crossed-out cells: no numbers, no arrows. Every other cell is on the loop (the solution has no boxes at all), and the shape of the board allows only one loop."
     },
     {
-      "id": "sparse-corpus",
-      "name": "Experiment: sparse",
-      "file": "data/sparse-corpus.csv",
-      "count": 92,
-      "label": "Sparse (experiment)",
+      "id": "sparse-8x8-orthogonal",
+      "name": "Sparse 8×8, orthogonal",
+      "file": "data/sparse-8x8-orthogonal.csv",
+      "count": 30,
+      "label": "8×8 orthogonal",
       "group": "Sparse",
-      "blurb": "Far fewer arrows than usual: about one cell in ten, against one in six. Boards from 6×6 to 12×12, easy to hard (mostly hard: with so few arrows you have to try a cell somewhere).",
-      "sub": "Orthogonal"
+      "sub": "8×8",
+      "blurb": "Arrows point along rows and columns only, and there are few of them: 5 to 7 on a 8×8 board (one cell in 11 on average). Beginner to Hard."
     },
     {
-      "id": "sparse-diagonal-corpus",
-      "name": "Experiment: sparse diagonal",
-      "file": "data/sparse-diagonal-corpus.csv",
-      "count": 69,
+      "id": "sparse-8x8-diagonal",
+      "name": "Sparse 8×8, diagonal",
+      "file": "data/sparse-8x8-diagonal.csv",
+      "count": 30,
+      "label": "8×8 diagonal",
       "group": "Sparse",
-      "sub": "Diagonal",
-      "label": "Sparse diagonal (experiment)",
-      "blurb": "Every arrow diagonal, and as few as the generator could find: 3 on a 6×6, 5 on a 7×7 or 8×8, 13 on a 12×12. Boards from 6×6 to 12×12, mostly hard."
+      "sub": "8×8",
+      "blurb": "Every arrow is diagonal, and there are few of them: 3 to 7 on a 8×8 board (one cell in 12 on average). Beginner to Hard."
     },
     {
-      "id": "sparse-mixed-corpus",
-      "name": "Experiment: sparse diagonal and orthogonal",
-      "file": "data/sparse-mixed-corpus.csv",
-      "count": 70,
+      "id": "sparse-8x8-both",
+      "name": "Sparse 8×8, both",
+      "file": "data/sparse-8x8-both.csv",
+      "count": 30,
+      "label": "8×8 both",
       "group": "Sparse",
-      "sub": "Diagonal + orthogonal",
-      "label": "Sparse mixed (experiment)",
-      "blurb": "Arrows in all eight directions, and fewer than any other book: 3 on a 6×6 or a 7×7, 5 or 6 on a 9×9, 9 to 12 on a 12×12. Boards from 6×6 to 12×12, mostly hard."
+      "sub": "8×8",
+      "blurb": "Arrows point along rows, columns and diagonals, and there are few of them: 3 to 5 on a 8×8 board (one cell in 15 on average). Beginner to Hard."
+    },
+    {
+      "id": "sparse-12x12-orthogonal",
+      "name": "Sparse 12×12, orthogonal",
+      "file": "data/sparse-12x12-orthogonal.csv",
+      "count": 24,
+      "label": "12×12 orthogonal",
+      "group": "Sparse",
+      "sub": "12×12",
+      "blurb": "Arrows point along rows and columns only, and there are few of them: 14 to 17 on a 12×12 board (one cell in 9 on average). Beginner to Hard."
+    },
+    {
+      "id": "sparse-12x12-diagonal",
+      "name": "Sparse 12×12, diagonal",
+      "file": "data/sparse-12x12-diagonal.csv",
+      "count": 24,
+      "label": "12×12 diagonal",
+      "group": "Sparse",
+      "sub": "12×12",
+      "blurb": "Every arrow is diagonal, and there are few of them: 10 to 15 on a 12×12 board (one cell in 11 on average). Beginner to Hard."
+    },
+    {
+      "id": "sparse-12x12-both",
+      "name": "Sparse 12×12, both",
+      "file": "data/sparse-12x12-both.csv",
+      "count": 24,
+      "label": "12×12 both",
+      "group": "Sparse",
+      "sub": "12×12",
+      "blurb": "Arrows point along rows, columns and diagonals, and there are few of them: 9 to 13 on a 12×12 board (one cell in 13 on average). Beginner to Hard."
     }
   ],
   "default": "bonus-intro"

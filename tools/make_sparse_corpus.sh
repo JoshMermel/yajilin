@@ -1,4 +1,6 @@
 #!/bin/sh
+# (Superseded by tools/make_sparse_tier_books.sh and tools/build_sparse_books.mjs, which make the current six sparse books; this made the
+# earlier mixed-size experiment books, which are gone from the app. Its pools are still read by the builder.)
 # Pools for the SPARSE experiment book: as few clues as the generator can find, difficulty not controlled (see generateSparse in js/generator.js).
 # Run from the project root (WORKERS=6 by default); output tools/library/sp_<size>_s<seed>.csv. Then:
 #   node tools/build_book.mjs --id sparse-corpus --name "Experiment: sparse" --glob sp_

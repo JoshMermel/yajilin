@@ -437,6 +437,44 @@ export function parseCsv(text) {
   return out;
 }
 
+const dirOf = (dr, dc) => DR.findIndex((v, d) => v === dr && DC[d] === dc);
+
+/**
+ * A key that is the same for a puzzle and for every turned or mirrored copy of it (the 8 symmetries of the grid: a transpose, a quarter
+ * turn, a reflection...), and different for puzzles that are not copies of each other. Books are deduplicated by it, so a pool never
+ * holds the same puzzle twice in two orientations. (puzzleHash stays orientation-specific: it is the save key, and a transposed twin is
+ * a different board to play. A rotated twin made by js/rotate.js keeps the original's hash for that reason.)
+ * Made from the clues alone (a unique puzzle has no other solution); regions are relabelled in reading order so that which cell carries
+ * a region's number does not matter.
+ */
+export function symmetryKey(p) {
+  const { rows, cols } = p;
+  let best = null;
+  for (let t = 0; t < 8; t++) {
+    const swap = t & 1, flipR = t & 2, flipC = t & 4;
+    const R = swap ? cols : rows, C = swap ? rows : cols;
+    const move = (r, c) => { if (swap) [r, c] = [c, r]; return [flipR ? R - 1 - r : r, flipC ? C - 1 - c : c]; };
+    const turn = (d) => { let dr = DR[d], dc = DC[d]; if (swap) [dr, dc] = [dc, dr]; return dirOf(flipR ? -dr : dr, flipC ? -dc : dc); };
+    const arrows = p.clues.filter((c) => !c.region).map((c) => {
+      const [r, cc] = move(c.r, c.c);
+      return [r * C + cc, `${r}:${cc}:${c.n < 0 ? 'V' : DIR_LETTERS[turn(c.d)]}:${c.n}`];
+    }).sort((a, b) => a[0] - b[0]).map((x) => x[1]).join(';');
+    const boxes = (p.boxes || []).map((b) => { const [r, c] = move(b.r, b.c); return [r * C + c, `${r}:${c}`]; }).sort((a, b) => a[0] - b[0]).map((x) => x[1]).join(';');
+    let regions = '';
+    if (p.regions && p.regions.length) {
+      const owner = new Array(rows * cols), number = new Map();
+      for (const c of p.clues) if (c.region) number.set(p.regions[c.r * cols + c.c], c.n);
+      for (let i = 0; i < rows * cols; i++) { const [r, c] = move((i / cols) | 0, i % cols); owner[r * C + c] = p.regions[i]; }
+      const label = new Map(), nums = [];
+      const labels = owner.map((g) => { if (!label.has(g)) { label.set(g, label.size); nums.push(number.has(g) ? number.get(g) : ''); } return label.get(g); });
+      regions = `|g${labels.join('.')}|${nums.join(',')}`;
+    }
+    const key = `${R}x${C}|${arrows}|${boxes}${regions}`;
+    if (best === null || key < best) best = key;
+  }
+  return best;
+}
+
 /** A short stable hash of a puzzle's identity (size + clues), for save keys that survive renumbering. */
 export function puzzleHash(p) {
   if (p.hashKey) return p.hashKey;   // a rotated twin of a puzzle (js/rotate.js) keeps the original's identity

@@ -51,7 +51,7 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const firstLookahead = RULES.findIndex((r) => r.lookahead);
   const upto = without ? RULES.slice(0, firstLookahead).map((r) => r.id).filter((id) => !without.includes(id)) : maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
   const r = sparse
-    ? generateSparse(rows, cols, rng, { name, maxClues: +arg('max-clues', Infinity), bestOf: +arg('best-of', 1), startDensity: +arg('start-density', 0.2), shortlist: +arg('shortlist', 8), maxNodes: +arg('max-nodes', 300000), probeCap: +arg('probe-cap', 40), polish: arg('polish', '1') !== '0', polishMs: +arg('polish-ms', 30) * 1000, polishWithin: +arg('polish-within', 2), fromRules: process.argv.includes('--from-rules'), rulesFirst: arg('rules-first', '') === '' ? null : arg('rules-first') === '1', directions: directions || undefined, budgetMs: budget * 1000 })
+    ? generateSparse(rows, cols, rng, { name, maxClues: +arg('max-clues', Infinity), bestOf: +arg('best-of', 1), startDensity: +arg('start-density', 0.2), shortlist: +arg('shortlist', 8), maxNodes: +arg('max-nodes', 300000), probeCap: +arg('probe-cap', 40), polish: arg('polish', '1') !== '0', polishMs: +arg('polish-ms', 30) * 1000, polishWithin: +arg('polish-within', 2), fromRules: process.argv.includes('--from-rules'), rulesFirst: arg('rules-first', '') === '' ? null : arg('rules-first') === '1', directions: directions || undefined, upto, budgetMs: budget * 1000 })
     : voidsOnly
     ? generateVoidsOnly(rows, cols, rng, { name, upto, budgetMs: budget * 1000 })
     : regional

@@ -4,7 +4,7 @@
 //
 // Puzzles are named <recipe>-<size>-<n> (so a player can say "stuck-8x8-2 needs ..."), ordered by recipe, then size, then score.
 import fs from 'node:fs';
-import { parseCsv, toCsv, puzzleHash, mergeBlankRegions, compile } from '../js/logic.js';
+import { parseCsv, toCsv, symmetryKey, mergeBlankRegions, compile } from '../js/logic.js';
 import { rate } from '../js/rating.js';
 import { byTierScore } from './quota.mjs';
 
@@ -29,7 +29,7 @@ for (const rec of RECIPES) {
       }
       Q.solution = p.solution; Q.rules = now.rules; Q.tier = now.tier; Q.score = now.score;
       const q = Q;
-      const h = puzzleHash(q);
+      const h = symmetryKey(q);   // a turned or mirrored copy counts as the same puzzle
       if (seen.has(h)) continue;
       seen.add(h);
       const size = `${p.cols}x${p.rows}`;

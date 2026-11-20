@@ -7,7 +7,7 @@
 // --limit puzzles, thinned evenly by rated score (tools/quota.mjs), so a book runs from easy to hard as far as the pool allows (the small boards
 // have few Hard puzzles). Puzzles are named DIAGONAL-ALL-6X6-001 etc.
 import fs from 'node:fs';
-import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
+import { parseCsv, toCsv, symmetryKey } from '../js/logic.js';
 import { pickBySize, sizesArg, sizeKey, normSize, byTierScore } from './quota.mjs';
 
 
@@ -50,7 +50,7 @@ for (const k of KINDS) {
   pools[k.kind] = [];
   for (const f of fs.readdirSync(dir).filter((f) => k.pools.test(f) && f.endsWith('.csv')).sort()) {
     for (const p of parseCsv(fs.readFileSync(dir + f, 'utf8'))) {
-      const h = puzzleHash(p);
+      const h = symmetryKey(p);   // a turned or mirrored copy counts as the same puzzle
       if (seen.has(h) || !k.keep(p.clues)) continue;
       seen.add(h);
       pools[k.kind].push(p);

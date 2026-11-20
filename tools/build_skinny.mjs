@@ -2,14 +2,14 @@
 // (The pools also hold the older, longer ribbons up to 8x100; they stay there but are not in the book. The page shows a skinny board
 // sideways when that fits the window better.)
 import fs from 'node:fs';
-import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
+import { parseCsv, toCsv, symmetryKey } from '../js/logic.js';
 import { pickBySize, sizesArg, byTierScore } from './quota.mjs';
 const root = new URL('..', import.meta.url).pathname, dir = root + 'experiments/tall/pools/';
 const MAX_SIDE = 36, LIMIT = +(process.argv[process.argv.indexOf('--limit') + 1] || 0);   // --limit 100 thins a bigger pool out evenly
 const seen = new Set(), ps = [];
 for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.csv')).sort()) {
   for (const p of parseCsv(fs.readFileSync(dir + f, 'utf8'))) {
-    const h = puzzleHash(p);
+    const h = symmetryKey(p);   // a turned or mirrored copy counts as the same puzzle
     if (seen.has(h) || Math.max(p.rows, p.cols) > MAX_SIDE) continue;
     seen.add(h); ps.push(p);
   }

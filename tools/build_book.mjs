@@ -7,7 +7,7 @@
 // the book. (The sibling projects' builders are much fancier: tier shares, stable rebuilds. This is the first draft.)
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseCsv, toCsv, puzzleHash } from '../js/logic.js';
+import { parseCsv, toCsv, symmetryKey } from '../js/logic.js';
 import { pickBySize, sizesArg, byTierScore } from './quota.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -19,7 +19,7 @@ const seen = new Set();
 const puzzles = [];
 for (const f of fs.readdirSync(dir).filter((f) => prefixes.some((x) => f.startsWith(x)) && f.endsWith('.csv')).sort()) {
   for (const p of parseCsv(fs.readFileSync(dir + f, 'utf8'))) {
-    const h = puzzleHash(p);
+    const h = symmetryKey(p);   // a turned or mirrored copy counts as the same puzzle
     if (seen.has(h) || p.rows * p.cols < minCells) continue;
     seen.add(h); puzzles.push(p);
   }

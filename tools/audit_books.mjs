@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { parseCsv, compile, solve, decodeSolution, checkSolved, puzzleHash, SHADED, E_ON } from '../js/logic.js';
+import { parseCsv, compile, solve, decodeSolution, checkSolved, symmetryKey, SHADED, E_ON } from '../js/logic.js';
 import { RULES, solvedByRules, rate } from '../js/rating.js';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -79,7 +79,7 @@ if (process.argv.includes('--worker')) {
 const only = arg('book', '') ? arg('book').split(',') : null;
 const chunk = +arg('chunk', 50), jobs = +arg('jobs', Math.max(2, os.cpus().length - 1));
 const withRating = process.argv.includes('--rate');
-const problems = [], tasks = [];
+const problems = [], tasks = [], everywhere = new Map();     // everywhere: symmetry key -> book:name of the first puzzle seen
 let total = 0;
 for (const entry of manifest.books.filter((b) => !only || only.includes(b.id))) {
   const ps = loadBook(entry);
@@ -89,9 +89,11 @@ for (const entry of manifest.books.filter((b) => !only || only.includes(b.id))) 
   ps.forEach((p, i) => {
     if (names.has(p.name)) problems.push(`${entry.id}: the name ${p.name} appears twice`);
     names.add(p.name);
-    const h = puzzleHash(p);
-    if (hashes.has(h)) problems.push(`${entry.id}: ${p.name} is the same puzzle as ${hashes.get(h)}`);
+    const h = symmetryKey(p);                                   // the same puzzle, or a turned or mirrored copy of it
+    if (hashes.has(h)) problems.push(`${entry.id}: ${p.name} is the same puzzle as ${hashes.get(h)} (possibly turned or mirrored)`);
+    else if (everywhere.has(h)) problems.push(`${entry.id}: ${p.name} is the same puzzle as ${everywhere.get(h)} (possibly turned or mirrored)`);
     hashes.set(h, p.name);
+    if (!everywhere.has(h)) everywhere.set(h, `${entry.id}:${p.name}`);
   });
   for (let from = 0; from < ps.length; from += chunk) tasks.push({ id: entry.id, range: `${from}-${Math.min(ps.length, from + chunk)}` });
 }

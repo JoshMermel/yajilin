@@ -124,3 +124,28 @@ test('solve reports when it was cut off, so a truncated search never proves uniq
   assert.equal(full.count, 1);
   assert.equal(full.exceeded, false);
 });
+
+// symmetryKey: one key for a puzzle and all its turned and mirrored copies (books are deduplicated by it)
+test('symmetryKey is the same for all eight turns and mirrors of a puzzle, and differs for other puzzles', async () => {
+  const { symmetryKey, puzzleHash, parseCsv, DR, DC, DIR_LETTERS } = await import('../js/logic.js');
+  const { rotateRaw } = await import('../js/rotate.js');
+  const fs = await import('node:fs');
+  const root = new URL('..', import.meta.url).pathname;
+  const ps = parseCsv(fs.readFileSync(`${root}data/diagonal-mixed-8x8.csv`, 'utf8')).concat(parseCsv(fs.readFileSync(`${root}data/bonus-skinny.csv`, 'utf8')).slice(0, 4));
+  const dirOf = (dr, dc) => DR.findIndex((v, d) => v === dr && DC[d] === dc);
+  // an independent mirror (left to right) and transpose, written out
+  const mirror = (p) => ({ ...p, clues: p.clues.map((c) => (c.n < 0 ? { ...c, c: p.cols - 1 - c.c } : { ...c, c: p.cols - 1 - c.c, d: dirOf(DR[c.d], -DC[c.d]) })) });
+  const transpose = (p) => ({ ...p, rows: p.cols, cols: p.rows, clues: p.clues.map((c) => (c.n < 0 ? { ...c, r: c.c, c: c.r } : { ...c, r: c.c, c: c.r, d: dirOf(DC[c.d], DR[c.d]) })) });
+  for (const p of ps) {
+    const k = symmetryKey(p);
+    let q = p;
+    for (let t = 0; t < 4; t++) { q = rotateRaw(q); assert.equal(symmetryKey(q), k, `a quarter turn (${t + 1}) of ${p.name}`); }
+    assert.equal(symmetryKey(mirror(p)), k, `the mirror of ${p.name}`);
+    assert.equal(symmetryKey(transpose(p)), k, `the transpose of ${p.name}`);
+    assert.equal(symmetryKey(mirror(transpose(rotateRaw(p)))), k, 'and a mixture');
+  }
+  const [a, b] = [ps[0], ps[ps.length - 1]];
+  assert.notEqual(symmetryKey(a), symmetryKey(b), 'different puzzles differ');
+  assert.notEqual(puzzleHash(transpose(ps[0])), puzzleHash(ps[0]), 'the save key still tells a transposed twin apart');
+  assert.ok(DIR_LETTERS.length === 8);
+});
