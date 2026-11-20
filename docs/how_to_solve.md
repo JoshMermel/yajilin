@@ -373,7 +373,7 @@ Hint says: "However the 6 open ends of this sealed-off area pair up, F4 and H4 e
 
 *Y6x6_s9003_52, 6×6: the board after 15 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "A box at F3 would force 4 line segments (dashed), and that would leave F4 with just one way out. So F3 gets a dot."
+Hint says: "A box at F3 would force 4 line segments (dashed), which would put two lines in E4. F4 could not join it, so it would be left with just one way out. So F3 gets a dot."
 
 ---
 
@@ -493,7 +493,7 @@ Hint says: "Trying no segment between E5 and F5 leads to a contradiction, so the
 
 *Y6x6_s32001_4, 6×6: the board after 13 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "A box at E3 would force 1 line segment (dashed), and that would leave E4 with just one way out. So E3 gets a dot."
+Hint says: "A box at E3 would force 1 line segment (dashed), which would put two lines in F4. E4 could not join it, so it would be left with just one way out. So E3 gets a dot."
 
 ---
 

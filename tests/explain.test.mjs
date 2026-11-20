@@ -71,3 +71,27 @@ test('boxStarvesClue through a forced neighbour talks about the lines the box fo
   assert.match(e.text, /would force \d+ line segments \(dashed\) that put dots on .* room for at most 0 boxes/);
   assert.ok(e.chain.length >= 2 && e.chain.every((x) => x >= 0 && x < P.numEdges));
 });
+
+test('a box whose forced lines fill a neighbour says so: "put two lines in B5, so A5 could not join it"', async () => {
+  const fs = await import('node:fs');
+  const { compile, parseCsv, initialState, SHADED, LOOP, E_ON } = await import('../js/logic.js');
+  const { nextMarkableStep } = await import('../js/hintstep.js');
+  const raw = parseCsv(fs.readFileSync(new URL('../data/sparse-8x8-both.csv', import.meta.url), 'utf8')).find((p) => p.name === 'SPARSE-8X8-BOTH-29');
+  const P = compile(raw);
+  const cells = new Uint8Array(P.N), edges = new Uint8Array(P.numEdges);
+  for (const i of P.boxIdx) cells[i] = 1;
+  let text = null;
+  for (let n = 0; n < 300 && !text; n++) {                    // press Hint and mark the first firing, as a player does
+    const st = initialState(P);
+    for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0) { if (cells[i] === 1) st.cell[i] = SHADED; else if (cells[i] === 2) st.cell[i] = LOOP; }
+    for (let x = 0; x < P.numEdges; x++) if (edges[x]) st.e[x] = E_ON;
+    const nx = nextMarkableStep(P, st);
+    if (!nx) break;
+    const f = nx.res.firings[0];
+    const e = explainStep(P, { rule: nx.res.rule, tier: nx.res.tier, weight: nx.res.weight, sets: f.sets, info: f.info }, st);
+    if (/^A box at A4 would force/.test(e.text)) { text = e.text; assert.ok(e.roles.problem.length >= 2, 'the full neighbour is highlighted too'); }
+    for (const [k, i, v] of f.sets) { if (k === 'c') cells[i] = v === SHADED ? 1 : 2; else if (v === E_ON) edges[i] = 1; }
+  }
+  assert.ok(text, 'the A4 hint comes up');
+  assert.match(text, /\(dashed\), which would put two lines in B5\. A5 could not join it, so it would be left with just one way out\. So A4 gets a dot\./);
+});

@@ -49,6 +49,29 @@ function failureAt(P, s2, bad) {
   return `leave ${cellName(P, bad)} with ${ways === 0 ? 'no way out' : 'just one way out'}`;
 }
 
+/** Lines at cell `i` in a position. */
+function linesAt(P, s, i) {
+  let n = 0;
+  for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && s.e[x] === E_ON) n++; }
+  return n;
+}
+
+/**
+ * The neighbours of `bad` that the forced lines of `s2` filled up (two lines, from one or fewer in `st`): `bad` cannot join them, which is
+ * what leaves it short of ways out. Empty when `bad` has three lines or the loop closed.
+ */
+function filledNeighbours(P, st, s2, bad) {
+  if (s2.closedEarly || linesAt(P, s2, bad) > 2) return [];
+  const out = [];
+  for (let d = 0; d < 4; d++) {
+    const x = P.ed[bad * 4 + d]; if (x < 0) continue;
+    const j = P.nb[bad * 4 + d];
+    if (s2.e[x] === E_ON || s2.cell[j] === SHADED || st.e[x] === E_OFF) continue;
+    if (linesAt(P, s2, j) >= 2 && linesAt(P, st, j) < 2) out.push(j);
+  }
+  return out;
+}
+
 /** How a box at info.cell ends in a contradiction: "that give E8 three lines" / "that leave E8 with just one way out" (needs `st`). */
 function strandedResult(P, st, info, closes = false) {
   if (!st) return closes ? 'that close the loop early' : `that give ${cellName(P, info.stranded)} three lines or too few ways out`;
@@ -247,7 +270,13 @@ export function explainStep(P, step, st = null) {
       const closes = rule === 'shadeClosesLoop' || (rule === 'shadeShortChain' && st && cloneStateClosed(P, st, info.cell));
       if (chain.length) {
         const s2 = cloneState(st); s2.cell[info.cell] = SHADED;
-        text = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed), and that would ${failureAt(P, s2, followLines(P, s2))}. So ${N(info.cell)} gets a dot.`;
+        const bad = followLines(P, s2), filled = bad >= 0 ? filledNeighbours(P, st, s2, bad) : [];
+        const forcedText = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed)`;
+        if (filled.length) {
+          // "too many lines into B5": the forced lines fill B5, so A5 cannot join it and is left short of ways out
+          role('problem', ...filled);
+          text = `${forcedText}, which would put two lines in ${filled.map(N).join(' and ')}. ${N(bad)} could not join ${filled.length === 1 ? 'it' : 'them'}, so it would ${failureAt(P, s2, bad).replace(/^leave \S+ with /, 'be left with ')}. So ${N(info.cell)} gets a dot.`;
+        } else text = `${forcedText}, and that would ${failureAt(P, s2, bad)}. So ${N(info.cell)} gets a dot.`;
       } else text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info, closes)}. So ${N(info.cell)} gets a dot.`;
       break;
     }
