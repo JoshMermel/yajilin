@@ -263,12 +263,12 @@ function recordBookSolved() {
 let toastTimer = null;
 function toast(msg) {
   const t = $('toast');
-  t.classList.remove('hint', 'top');
+  t.classList.remove('hint', 'below');
   t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
 }
-function hideHintToast() { const t = $('toast'); if (t.classList.contains('hint')) { t.hidden = true; t.classList.remove('hint', 'top'); } }
+function hideHintToast() { const t = $('toast'); if (t.classList.contains('hint')) { t.hidden = true; t.classList.remove('hint', 'below'); } }
 function dismissToast() {
   const t = $('toast');
   if (t.hidden) return;
@@ -406,10 +406,14 @@ function showHint() {
     if (h.res.firings.length > 1) line('hint-more', `${h.idx + 1} of ${h.res.firings.length} steps of this rule; press Hint for the next.`);
   }
   t.hidden = false;
-  // like polyomino-panel: sit at the bottom unless that would cover the board, then move to the top
-  t.classList.remove('top');
+  // sit at the bottom of the window unless that would cover the board: then it goes in the page, just under the board (scrolled into view)
+  t.classList.remove('below');
   const b = $('board').getBoundingClientRect(), tr = t.getBoundingClientRect();
-  if (tr.top < b.bottom && tr.bottom > b.top) t.classList.add('top');
+  if (tr.top < b.bottom && tr.bottom > b.top) {
+    t.classList.add('below');
+    const r = t.getBoundingClientRect();
+    if (r.bottom > innerHeight) t.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }
   board.render(state.marks, analyse(), overlay);
 }
 

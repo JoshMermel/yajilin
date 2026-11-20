@@ -73,43 +73,45 @@ function filledNeighbours(P, st, s2, bad) {
 }
 
 /**
- * The shortest picture of a box giving a cell three lines, when the lines come straight from the box: every neighbour of the box is a
- * loop cell, and one with only two ways to go (the box, other boxes and full cells rule out the rest) must use both. If those lines give
- * some cell F three lines, return { cells: [F...], edges } with just the segments that matter: F's new lines, and the other line of each
- * cell they come from. Null when the contradiction needs a longer chain.
+ * The lines that matter when a box leads to a contradiction: follow the forced lines (rating.js followLines, with its provenance) back from
+ * the contradiction and keep only the segments it rests on, instead of every segment the box forces. Returns
+ *   { edges, bad, three, cells, s2 }: `edges` the segments to draw dashed; `three`: the picture is "these cells end up with three lines"
+ *   (`cells`), true when `bad` itself gets three, or when it has just two ways to go, both forced, and one leads into a cell the forced
+ *   lines already filled (those lines are drawn too: B5 would then have its two and the one A5 needs);
+ *   otherwise `three` is false and `cells` is empty (the stranded cell has fewer than two ways out, whichever way you count).
+ * Null when there is no contradiction to trace (or the loop closes early).
  */
-function directProof(P, st, box) {
-  const forcedAt = (k) => {                                   // the two segments of a cell with exactly two ways out, else []
-    const ways = [];
+function proofLines(P, st, box) {
+  const s2 = cloneState(st); s2.cell[box] = SHADED;
+  const why = { off: new Map(), ev: new Map(), events: [] };
+  const bad = followLines(P, s2, Infinity, why);
+  if (bad < 0 || s2.closedEarly || !why.fail) return null;
+  const shown = new Set(), seen = new Set(), stack = [...why.fail.deps];
+  while (stack.length) {
+    const id = why.ev.get(stack.pop());
+    if (id === undefined || seen.has(id)) continue;
+    seen.add(id);
+    for (const y of why.events[id].edges) shown.add(y);
+    stack.push(...why.events[id].deps);
+  }
+  const out = { edges: [], bad, three: false, cells: [], s2 };
+  if (why.fail.kind === 'three') { out.three = true; out.cells = [bad]; }
+  else {
+    const ways = [];                                             // everywhere `bad` could go, if the lines forced so far did not fill cells
     for (let d = 0; d < 4; d++) {
-      const x = P.ed[k * 4 + d]; if (x < 0) continue;
-      const j = P.nb[k * 4 + d];
-      if (j === box || st.e[x] === E_OFF || st.cell[j] === SHADED || st.cell[j] === CLUE) continue;
-      if (st.e[x] !== E_ON && linesAt(P, st, j) >= 2) continue;
-      ways.push(x);
+      const x = P.ed[bad * 4 + d]; if (x < 0) continue;
+      const j = P.nb[bad * 4 + d];
+      if (st.e[x] === E_OFF || s2.cell[j] === SHADED || s2.cell[j] === CLUE) continue;
+      ways.push([x, j]);
     }
-    return ways.length === 2 ? ways : [];
-  };
-  const q = new Set(), by = new Map();                       // forced segments, and which of them sit at each cell
-  for (let d = 0; d < 4; d++) {
-    const k = P.nb[box * 4 + d];
-    if (k < 0 || st.cell[k] === SHADED || st.cell[k] === CLUE) continue;
-    const xs = forcedAt(k);
-    by.set(k, xs);
-    for (const x of xs) if (st.e[x] === E_UNKNOWN) q.add(x);
+    const full = ways.filter(([x, j]) => s2.e[x] !== E_ON && linesAt(P, s2, j) >= 2).map(([, j]) => j);
+    if (ways.length === 2 && full.length) {
+      for (const [x] of ways) if (st.e[x] === E_UNKNOWN) shown.add(x);
+      out.three = true; out.cells = full;
+    }
   }
-  const into = new Map();                                      // new lines at each cell
-  for (const x of q) for (const c of edgeCells(P, x)) into.set(c, (into.get(c) || 0) + 1);
-  const cells = [...into].filter(([c, n]) => linesAt(P, st, c) + n > 2).map(([c]) => c);
-  if (!cells.length) return null;
-  const edges = new Set();
-  for (const f of cells) for (const x of q) {
-    const [a, b] = edgeCells(P, x);
-    if (a !== f && b !== f) continue;
-    edges.add(x);
-    for (const y of by.get(a === f ? b : a) || []) if (q.has(y)) edges.add(y);
-  }
-  return { cells, edges: [...edges].sort((a, b) => a - b) };
+  out.edges = [...shown].filter((x) => st.e[x] === E_UNKNOWN).sort((a, b) => a - b);
+  return out;
 }
 
 /** How a box at info.cell ends in a contradiction: "that give E8 three lines" / "that leave E8 with just one way out" (needs `st`). */
@@ -308,23 +310,24 @@ export function explainStep(P, step, st = null) {
       role('focus', info.cell); role('problem', info.stranded);
       chain = st ? forcedLines(P, st, info.cell) : [];      // drawn dashed, so the player can follow the box to where it goes wrong
       const closes = rule === 'shadeClosesLoop' || (rule === 'shadeShortChain' && st && cloneStateClosed(P, st, info.cell));
-      if (chain.length) {
-        const s2 = cloneState(st); s2.cell[info.cell] = SHADED;
-        const direct = closes ? null : directProof(P, st, info.cell);
-        if (direct) {
-          // the lines come straight from the box: show just them, and the cell that ends up with three lines
-          delete roles.problem; role('problem', ...direct.cells);
-          chain = direct.edges;
-          text = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed), which would give ${direct.cells.map(N).join(' and ')} three lines. So ${N(info.cell)} gets a dot.`;
-          break;
-        }
-        const bad = followLines(P, s2), filled = bad >= 0 ? filledNeighbours(P, st, s2, bad) : [];
+      const proof = st && !closes ? proofLines(P, st, info.cell) : null;
+      if (proof && proof.edges.length) {
+        chain = proof.edges;                                    // just the lines the contradiction rests on
+        const s2 = proof.s2;                                    // (the box and everything it forces)
         const forcedText = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed)`;
-        if (filled.length) {
-          // "too many lines into B5": the forced lines fill B5, so A5 cannot join it and is left short of ways out
-          role('problem', ...filled);
-          text = `${forcedText}, which would put two lines in ${filled.map(N).join(' and ')}. ${N(bad)} could not join ${filled.length === 1 ? 'it' : 'them'}, so it would ${failureAt(P, s2, bad).replace(/^leave \S+ with /, 'be left with ')}. So ${N(info.cell)} gets a dot.`;
-        } else text = `${forcedText}, and that would ${failureAt(P, s2, bad)}. So ${N(info.cell)} gets a dot.`;
+        if (proof.three) {
+          delete roles.problem; role('problem', ...proof.cells);
+          text = `${forcedText}, which would give ${proof.cells.map(N).join(' and ')} three lines. So ${N(info.cell)} gets a dot.`;
+        } else {
+          const filled = filledNeighbours(P, st, s2, proof.bad);
+          if (filled.length) {
+            role('problem', ...filled);
+            text = `${forcedText}, which would put two lines in ${filled.map(N).join(' and ')}. ${N(proof.bad)} could not join ${filled.length === 1 ? 'it' : 'them'}, so it would ${failureAt(P, s2, proof.bad).replace(/^leave \S+ with /, 'be left with ')}. So ${N(info.cell)} gets a dot.`;
+          } else text = `${forcedText}, and that would ${failureAt(P, s2, proof.bad)}. So ${N(info.cell)} gets a dot.`;
+        }
+      } else if (chain.length) {
+        const s2 = cloneState(st); s2.cell[info.cell] = SHADED;
+        text = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed), and that would ${failureAt(P, s2, followLines(P, s2))}. So ${N(info.cell)} gets a dot.`;
       } else text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info, closes)}. So ${N(info.cell)} gets a dot.`;
       break;
     }

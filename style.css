@@ -166,7 +166,7 @@ button.ghost { background: transparent; }
   background: var(--text-primary); color: var(--bg-white); padding: 8px 14px; border-radius: 8px; cursor: pointer;
 }
 .toast[hidden] { display: none; }
-.toast.top { bottom: auto; top: 12px; }
+.toast.below { position: static; transform: none; margin: 12px auto 0; width: min(560px, 94vw); }   /* a hint that would cover the board sits under it instead */
 .toast.hint { text-align: left; width: min(560px, 94vw); line-height: 1.4; }
 .toast.hint .hint-meta { font-size: 0.75rem; opacity: 0.75; margin-bottom: 2px; font-family: ui-monospace, Menlo, monospace; }
 .toast.hint .hint-marks { margin-top: 4px; font-weight: 600; }

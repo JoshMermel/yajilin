@@ -755,14 +755,32 @@ const rangeFacing = (P, st) => facing(P, st, false);
  * three lines or with too few exits, or a cell of a cycle that closes the loop too early (and sets st.closedEarly), or -1. Mutates `st`.
  * Sets st.forced to the number of segments it had to draw. With `cap`, gives up (-1) as soon as it has drawn more than that many: the
  * "short chain" version, which only sees contradictions a person reaches in a few forced steps.
+ * `why` (optional, for explanations): pass { off: new Map(), ev: new Map(), events: [] } and it is filled with where everything came from:
+ * events[k] = { edges, deps } is a cell that had exactly two ways and so drew `edges`, because of the drawn segments `deps`; ev maps a
+ * drawn segment to its event; off maps a segment ruled out by a full cell to the segments that filled it; why.fail = { cell, kind, deps }
+ * is the contradiction ('three' lines, or too few 'ways') and the drawn segments it rests on. Following deps back through ev gives just
+ * the lines that matter to the contradiction.
  */
-export function followLines(P, st, cap = Infinity) {
+export function followLines(P, st, cap = Infinity, why = null) {
   const { N, ed, nb } = P, cols = P.cols;
   // the number of segments on at each cell, kept up to date as segments are added (this used to be recounted from the four edges of a cell
   // and of each neighbour, many times per cell on every pass: the largest cost of the lookahead rules)
   const onc = new Int8Array(N);
   for (let x = 0; x < P.numEdges; x++) if (st.e[x] === E_ON) { const a = x >> 1; onc[a]++; onc[(x & 1) ? a + cols : a + 1]++; }
   let changed = false, forced = 0;
+  const start = why ? { cell: Uint8Array.from(st.cell), on: Int8Array.from(onc) } : null;
+  const onAt = (c) => { const o = []; for (let d = 0; d < 4; d++) { const x = ed[c * 4 + d]; if (x >= 0 && st.e[x] === E_ON) o.push(x); } return o; };
+  const rootLoop = (c) => { if (start.cell[c] === LOOP || start.on[c] > 0) return true; for (let d = 0; d < 4; d++) { const j = nb[c * 4 + d]; if (j >= 0 && start.cell[j] === SHADED) return true; } return false; };
+  const excludedDeps = (c) => {                                  // the drawn segments behind each way out that `c` has lost
+    const o = [];
+    for (let d = 0; d < 4; d++) {
+      const x = ed[c * 4 + d]; if (x < 0) continue;
+      const j = nb[c * 4 + d];
+      if (st.e[x] === E_OFF) { const w = why.off.get(x); if (w) o.push(...w); }
+      else if (st.cell[j] !== SHADED && st.e[x] !== E_ON && onc[j] >= 2) o.push(...onAt(j));
+    }
+    return o;
+  };
   const done = (v) => { st.forced = forced; return v; };
   const putCell = (idx, v) => { if (st.cell[idx] === 0) { st.cell[idx] = v; changed = true; } };
   const putEdge = (x, v) => {
@@ -795,14 +813,19 @@ export function followLines(P, st, cap = Infinity) {
         if (st.e[x] !== E_ON && onc[j] >= 2) continue;              // a full cell takes no more segments
         ex++;
       }
-      if ((s === LOOP || on > 0) && (on > 2 || ex < 2)) return done(i);
+      if ((s === LOOP || on > 0) && (on > 2 || ex < 2)) {
+        if (why) why.fail = { cell: i, kind: on > 2 ? 'three' : 'ways', deps: on > 2 ? onAt(i) : [...excludedDeps(i), ...(rootLoop(i) ? [] : onAt(i))] };
+        return done(i);
+      }
       if (s === LOOP || on > 0) {
+        const deps = why && on !== 2 && ex === 2 ? [...excludedDeps(i), ...(rootLoop(i) ? [] : onAt(i))] : null, drawn = [];
         for (let d = 0; d < 4; d++) {
           const x = ed[i * 4 + d];
           if (x < 0 || st.e[x] !== E_UNKNOWN || st.cell[nb[i * 4 + d]] === SHADED) continue;
-          if (on === 2) putEdge(x, E_OFF);
-          else if (ex === 2 && onc[nb[i * 4 + d]] < 2) putEdge(x, E_ON); // a full neighbour is not one of the two ways out
+          if (on === 2) { if (why) why.off.set(x, onAt(i)); putEdge(x, E_OFF); }
+          else if (ex === 2 && onc[nb[i * 4 + d]] < 2) { putEdge(x, E_ON); drawn.push(x); } // a full neighbour is not one of the two ways out
         }
+        if (why && drawn.length) { for (const x of drawn) why.ev.set(x, why.events.length); why.events.push({ edges: drawn, deps }); }
         if (forced > cap) return done(-1);
       }
     }

@@ -80,8 +80,8 @@ test('a box whose forced lines give a cell three lines draws just those lines: A
   const P = compile(raw);
   const cells = new Uint8Array(P.N), edges = new Uint8Array(P.numEdges);
   for (const i of P.boxIdx) cells[i] = 1;
-  let text = null;
-  for (let n = 0; n < 300 && !text; n++) {                    // press Hint and mark the first firing, as a player does
+  let text = null, c2 = null;
+  for (let n = 0; n < 300 && !(text && c2); n++) {                    // press Hint and mark the first firing, as a player does
     const st = initialState(P);
     for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0) { if (cells[i] === 1) st.cell[i] = SHADED; else if (cells[i] === 2) st.cell[i] = LOOP; }
     for (let x = 0; x < P.numEdges; x++) if (edges[x]) st.e[x] = E_ON;
@@ -89,6 +89,7 @@ test('a box whose forced lines give a cell three lines draws just those lines: A
     if (!nx) break;
     const f = nx.res.firings[0];
     const e = explainStep(P, { rule: nx.res.rule, tier: nx.res.tier, weight: nx.res.weight, sets: f.sets, info: f.info }, st);
+    if (/^A box at C2 would force/.test(e.text)) c2 = e;
     if (/^A box at A4 would force/.test(e.text)) { text = e.text; 
       const names = e.chain.map((x) => edgeCells(P, x).map((c) => `${'ABCDEFGH'[c % 8]}${((c / 8) | 0) + 1}`).sort().join('-')).sort();
       assert.deepEqual(names, ['A5-A6', 'A5-B5', 'B3-B4', 'B4-B5'], 'B4 up and down, A5 right and down');
@@ -96,5 +97,9 @@ test('a box whose forced lines give a cell three lines draws just those lines: A
     for (const [k, i, v] of f.sets) { if (k === 'c') cells[i] = v === SHADED ? 1 : 2; else if (v === E_ON) edges[i] = 1; }
   }
   assert.ok(text, 'the A4 hint comes up');
+  assert.ok(c2, 'the C2 hint comes up');
+  // C2 forces nine segments, but the contradiction (A2 and B3 full, so A3 has one way out) rests on five of them: only those are drawn
+  assert.match(c2.text, /^A box at C2 would force 5 line segments \(dashed\), which would put two lines in A2 and B3\. A3 could not join them/);
+  assert.equal(c2.chain.length, 5);
   assert.match(text, /would force 4 line segments \(dashed\), which would give B5 three lines\. So A4 gets a dot\./);
 });
