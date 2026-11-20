@@ -63,10 +63,12 @@ test('hovering an arrow, or tapping it on a touch screen, tints the cells it cou
   const s = draw();
   assert.equal(count(s, /class="hover-ray decided"/g), 1, 'a box in the line is tinted fainter');
   assert.equal(count(s, /class="hover-ray"/g), ray.length - 1);
-  // touch: tap the arrow pins it, tap again clears, a mouse click does nothing, a tap outside the line clears
+  // tap or click: the arrow pins it, again clears, a tap outside the line clears
   b.pinned = -1;
   b.pinArrow({ start: cell, mouse: true });
-  assert.equal(b.pinned, -1, 'a mouse has hover instead');
+  assert.equal(b.pinned, cell, 'a mouse click pins too (hover shows it only while the pointer is there)');
+  b.pinArrow({ start: cell, mouse: true });
+  assert.equal(b.pinned, -1, 'and a second click clears it');
   b.pinArrow({ start: cell, mouse: false });
   assert.equal(b.pinned, cell);
   b.pinArrow({ start: ray[0], mouse: false });

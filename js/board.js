@@ -24,7 +24,7 @@ export class Board {
     this.P = null;
     this.gesture = null;
     this.hoverCell = -1;
-    this.pinned = -1;                                  // an arrow tapped on a touch screen: its line stays tinted (see up())
+    this.pinned = -1;                                  // an arrow tapped or clicked: its line stays tinted (see pinArrow())
     this.opts = { colorLines: false, labels: false };
     this.grace = makeGrace(); this._badTimer = 0; this._graceNow = true;
     el.addEventListener('pointerdown', (e) => this.down(e));
@@ -120,7 +120,7 @@ export class Board {
       const roles = hint.roles || {};
       for (const role of ['range', 'clue', 'path', 'problem', 'focus']) for (const i of roles[role] || []) g += rect(i, `hint-${role}`);
     }
-    // hovering an arrow (or, on a touch screen, tapping it) tints every cell it counts in: the open ones (no box, dot or line yet) strongest,
+    // hovering an arrow (or tapping or clicking it, which keeps it) tints every cell it counts in: the open ones (no box, dot or line yet) strongest,
     // since that is where its boxes can still go
     for (const at of new Set([this.gesture ? -1 : this.hoverCell, this.pinned])) {
       const k = at >= 0 ? P.clueAt[at] : -1;
@@ -247,11 +247,12 @@ export class Board {
   }
 
   /**
-   * Touch has no hover, so tapping an arrow tints its line and keeps it tinted (tap it again to clear it, tap another arrow to move it).
-   * It stays while you mark cells in that line, which is the use of it, and goes when you tap a cell outside the line. A mouse has hover instead.
+   * Tapping (or clicking) an arrow tints its line and keeps it tinted (tap it again to clear it, tap another arrow to move it).
+   * It stays while you mark cells in that line, which is the use of it, and goes when you tap a cell outside the line. Touch has no hover,
+   * so this is all it has; a mouse also tints the line under the pointer, and the click keeps it once the pointer moves on.
    */
   pinArrow(gs) {
-    if (gs.mouse || !this.P) return;
+    if (!this.P) return;
     const k = this.P.clueAt[gs.start], P = this.P;
     const isArrow = k >= 0 && P.clues[k].n >= 0 && !P.clues[k].region;
     const was = this.pinned;
