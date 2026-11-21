@@ -339,6 +339,24 @@
       "blurb": "No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more."
     },
     {
+      "id": "bonus-symmetric-8x8",
+      "name": "Bonus: symmetric 8×8",
+      "file": "data/bonus-symmetric-8x8.csv",
+      "count": 60,
+      "label": "Symmetric 8×8",
+      "group": "Bonus",
+      "blurb": "The arrows and boxes sit in matching pairs: turn the board half a way round and the layout is the same, with every arrow pointing the opposite way."
+    },
+    {
+      "id": "bonus-symmetric-12x12",
+      "name": "Bonus: symmetric 12×12",
+      "file": "data/bonus-symmetric-12x12.csv",
+      "count": 60,
+      "label": "Symmetric 12×12",
+      "group": "Bonus",
+      "blurb": "The arrows and boxes sit in matching pairs: turn the board half a way round and the layout is the same, with every arrow pointing the opposite way."
+    },
+    {
       "id": "bonus-skinny",
       "name": "Bonus: skinny",
       "label": "Skinny",

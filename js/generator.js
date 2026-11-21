@@ -309,7 +309,7 @@ export function plantTightArrows(rows, cols, rng, count, { sizes = [[2, 0.45], [
  * the move only if the number of crossings goes down (or stays level, now and then, to cross plateaus). Returns
  * { holes, edges, stats } or null. Random loops almost never pass at 14x14 and above; this is what scales.
  */
-export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, maxIters = Infinity, clump = 0.5, check = true, preset = null, independent = false } = {}) {
+export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.42, budgetMs = 60000, maxIters = Infinity, clump = 0.5, check = true, preset = null, independent = false, symmetric = false } = {}) {
   const t0 = Date.now();
   const N = rows * cols;
   const b = makeLoopBuilder(rows, cols, rng, { independent });
@@ -319,6 +319,17 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
   let holes = 0;
   const forbid = preset ? preset.between : new Set();                 // cells that must stay on the loop
   const okc = (c, cl) => !forbid.has(c) && b.okCell(c, cl);
+  // symmetric: the holes come in four, a pair of opposite colors and the same pair turned half a way round the board (cell i <-> N - 1 - i;
+  // on a board with an even number of rows plus columns a half turn keeps the chessboard colors). Returns the number of holes made (0: nothing changed).
+  const addPair = (c1, c2) => {
+    if (!symmetric) return b.tryHoles(c1, c2) ? 2 : 0;
+    const d1 = N - 1 - c1, d2 = N - 1 - c2;
+    if (new Set([c1, c2, d1, d2]).size < 4 || !okc(d1, 0) || !okc(d2, 0)) return 0;
+    const snap = b.snapshot();
+    if (!b.tryHoles(c1, c2)) return 0;
+    if (!b.tryHoles(d1, d2)) { b.restore(snap); return 0; }
+    return 4;
+  };
   if (preset) {
     // the planted holes first, paired by chessboard color; an odd one out gets a random partner of the other color
     const presetSet = new Set(preset.holes);
@@ -335,7 +346,7 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
   }
   for (let attempt = 0; attempt < target * 150 && holes < target; attempt++) {
     const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0;
-    if (okc(c1, clump) && okc(c2, clump) && near(c1, c2, 6) && b.tryHoles(c1, c2)) holes += 2;
+    if (okc(c1, clump) && okc(c2, clump) && near(c1, c2, 6)) holes += addPair(c1, c2);
   }
   if (holes < target * 0.7) return null;
   const evaluate = () => { const { pos, length } = b.positions(); return crossingChords(rows, cols, b.hole, pos, length); };
@@ -348,7 +359,7 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
         return { holes: b.hole, edges: b.edges(), stats: { holePct: (100 * holes / N).toFixed(1), moves, accepted, iters, ms: Date.now() - t0 } };
       }
       // no local alternative but still not unique (a longer alternating cycle): add a random pair and look again
-      for (let k = 0; k < 400; k++) { const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0; if (okc(c1, clump) && okc(c2, clump) && near(c1, c2, 3) && b.tryHoles(c1, c2)) { holes += 2; break; } }
+      for (let k = 0; k < 400; k++) { const c1 = (rng() * N) | 0, c2 = (rng() * N) | 0; if (okc(c1, clump) && okc(c2, clump) && near(c1, c2, 3)) { const added = addPair(c1, c2); if (added) { holes += added; break; } } }
       cur = evaluate(); continue;
     }
     // pick one crossing pair and a hole pair beside it
@@ -364,9 +375,10 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
     if (!okc(c2, 0)) continue;
     moves++;
     const snap = b.snapshot();
-    if (!b.tryHoles(c1, c2)) continue;
+    const added = addPair(c1, c2);
+    if (!added) continue;
     const next = evaluate();
-    if (next.crossings < cur.crossings || (next.crossings === cur.crossings && rng() < 0.25)) { cur = next; holes += 2; accepted++; plateau = next.crossings < cur.crossings ? 0 : plateau + 1; }
+    if (next.crossings < cur.crossings || (next.crossings === cur.crossings && rng() < 0.25)) { cur = next; holes += added; accepted++; plateau = next.crossings < cur.crossings ? 0 : plateau + 1; }
     else b.restore(snap);
   }
   return null;
@@ -1106,3 +1118,6 @@ export function generateSparse(rows, cols, rng, { name = 'gen', maxClues = Infin
   }
   return best ? { puzzle: best.puzzle, stats: { clues: best.clues, tries, ms: Date.now() - t0 } } : null;
 }
+
+/** Helpers shared with js/generator_layouts.js (the symmetric and frame experiments). */
+export const _internals = { gridNeighbours, rayOf, undecidedScore, pickDirection, shuffle };
