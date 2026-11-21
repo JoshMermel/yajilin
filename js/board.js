@@ -17,6 +17,15 @@ const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 const BAD_DELAY_MS = 300; // how long a newly red arrow or box waits, so a double tap can finish first (see js/grace.js)
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+/** The arrows whose line counts cell i (their indexes in P.clues). The inverse of P.rays, made once per puzzle and remembered. */
+function pointersAt(P, i) {
+  if (!P._pointers) {
+    P._pointers = Array.from({ length: P.N }, () => []);
+    P.clues.forEach((cl, k) => { if (cl.n >= 0 && !cl.region) for (const j of P.rays[k]) P._pointers[j].push(k); });
+  }
+  return P._pointers[i];
+}
+
 export class Board {
   constructor(el, handlers) {
     this.el = el;
@@ -190,13 +199,17 @@ export class Board {
       for (const i of hint.wrongCells || []) g += `<rect class="wrong" x="${cellX(i) + 2}" y="${cellY(i) + 2}" width="${S - 4}" height="${S - 4}" rx="6"/>`;
       for (const x of hint.wrongEdges || []) { const [x1, y1, x2, y2] = seg(x); g += `<line class="wrong-seg" stroke-width="${S * 0.2}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; }
     }
-    if (this.hoverCell >= 0 && !this.gesture) {
-      g += `<rect class="hover" x="${cellX(this.hoverCell)}" y="${cellY(this.hoverCell)}" width="${S}" height="${S}"/>`;
+    const over = this.gesture ? -1 : this.hoverCell;
+    if (over >= 0) {
+      g += `<rect class="hover" x="${cellX(over)}" y="${cellY(over)}" width="${S}" height="${S}"/>`;
+      // every arrow that counts this cell gets an outline, so on a big board it is easy to see what points at the cell under the cursor
+      for (const k of pointersAt(P, over)) { const i = P.clues[k].r * P.cols + P.clues[k].c; g += `<rect class="hover-pointer" x="${cellX(i) + 1.5}" y="${cellY(i) + 1.5}" width="${S - 3}" height="${S - 3}" rx="3"/>`; }
     }
     g += `<rect class="frame" x="${PAD}" y="${PAD}" width="${P.cols * S}" height="${P.rows * S}"/>`;
     if (this.opts.labels) {
-      for (let c = 0; c < P.cols; c++) g += `<text class="axis-label" x="${cx(c)}" y="${PAD - 6}">${colName(c)}</text>`;
-      for (let r = 0; r < P.rows; r++) g += `<text class="axis-label side" x="${PAD - 6}" y="${cy(r)}">${r + 1}</text>`;
+      const hc = over >= 0 ? over % P.cols : -1, hr = over >= 0 ? (over / P.cols) | 0 : -1;      // the labels of the cell under the cursor stand out
+      for (let c = 0; c < P.cols; c++) g += `<text class="axis-label${c === hc ? ' here' : ''}" x="${cx(c)}" y="${PAD - 6}">${colName(c)}</text>`;
+      for (let r = 0; r < P.rows; r++) g += `<text class="axis-label side${r === hr ? ' here' : ''}" x="${PAD - 6}" y="${cy(r)}">${r + 1}</text>`;
     }
     const defs = '<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" class="hatch-bg"/><line x1="0" y1="0" x2="0" y2="8" class="hatch-line" stroke-width="4"/></pattern>'
       + '</defs>';

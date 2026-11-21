@@ -34,7 +34,7 @@ const state = {
 // Settings (all remembered in localStorage)
 const settings = {
   colorLines: store.get('yj_colorLines') === '1', // color each separate path differently
-  labels: store.get('yj_labels') === '1',         // number the rows and columns
+  labels: store.get('yj_labels') !== '0',         // number the rows and columns (on unless the player turned it off)
   autoDots: store.get('yj_autoDots') === '1',     // automatic dots: next to a box, and along a satisfied clue
   autoRotate: store.get('yj_autoRotate') !== '0', // show a tall board sideways when that fits the window better (js/rotate.js)
 };

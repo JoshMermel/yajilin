@@ -35,6 +35,8 @@
   --dot: #6b7a8c;
   --frame: #111;
   --cell-hover: rgba(0, 0, 0, 0.08);
+  --pointer: rgba(25, 118, 210, 0.75);       /* the outline of an arrow that counts the cell under the cursor */
+  --axis-here: #1976d2;                      /* the row and column labels of that cell */
 }
 
 :root[data-theme="dark"] {
@@ -72,6 +74,8 @@
   --dot: #8a99ab;
   --frame: #ccc;
   --cell-hover: rgba(255, 255, 255, 0.1);
+  --pointer: rgba(100, 181, 246, 0.85);
+  --axis-here: #64b5f6;
 }
 
 * { box-sizing: border-box; }
@@ -155,6 +159,8 @@ button.ghost { background: transparent; }
 .over { fill: none; stroke: var(--color-error); stroke-width: 3; pointer-events: none; }
 .axis-label { fill: var(--axis); font-size: 11px; text-anchor: middle; dominant-baseline: auto; pointer-events: none; }
 .axis-label.side { text-anchor: end; dominant-baseline: central; }
+.axis-label.here { fill: var(--axis-here); font-weight: 700; }
+.hover-pointer { fill: none; stroke: var(--pointer); stroke-width: 2; pointer-events: none; }
 .given-ring { fill: none; stroke: var(--cell-bg); stroke-width: 2.5; pointer-events: none; }
 .hint-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 0.75rem; opacity: 0.9; }
 .hint-legend .chip { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(255, 255, 255, 0.6); }
