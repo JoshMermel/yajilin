@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, solve, initialState, cluesFromString, SHADED, LOOP, E_ON, E_OFF, UNKNOWN } from '../js/logic.js';
-import { rate, RULES, RULE_IDS, SHORT_CHAIN, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules } from '../js/rating.js';
+import { rate, RULES, RULE_IDS, SHORT_CHAIN, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules, lineRoom } from '../js/rating.js';
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -658,4 +658,33 @@ test('clueTight: a clue with exactly 2r-1 open cells puts its boxes on every oth
   const r = RULES.find((q) => q.id === 'clueTight');
   assert.equal(r.tier, 'Beginner');
   assert.ok(r.weight < RULES.find((q) => q.id === 'cluePlacements').weight);
+});
+
+// ---- boxStarvesClueByPlacements: how many boxes a line has room for, counting the cells a box would starve
+test('lineRoom: two cells one apart on a line cannot both be boxes when the cell between them would keep one way out', () => {
+  // a 4x3 board: a 2-arrow at the top of the middle column, so its line is (1,1), (2,1), (3,1); a void beside the middle one, at (2,2)
+  const P = compile({ name: 'room', rows: 4, cols: 3, clues: [{ r: 0, c: 1, d: 2, n: 2 }, { r: 2, c: 2, d: 0, n: -1 }] });
+  assert.equal(lineRoom(P, initialState(P), 0).room, 1, 'rows 1 and 3 would leave (2,1) with only (2,0) as a way out');
+  const open = compile({ name: 'open', rows: 4, cols: 3, clues: [{ r: 0, c: 1, d: 2, n: 2 }] });
+  assert.equal(lineRoom(open, initialState(open), 0).room, 2, 'without the void the two ends of the line are fine');
+});
+
+// A 10x10 lattice-frame puzzle (found by search; arrows only on every third line, the rest of the border voids) where, once every cheaper rule
+// has run, a box at I2 and the lines it forces leave a clue without room for its boxes, and nothing cheaper sees it.
+const STARVED = '0:0:V:-1;0:1:V:-1;0:2:D:0;0:3:V:-1;0:4:V:-1;0:5:D:3;0:6:V:-1;0:7:V:-1;0:8:D:2;0:9:V:-1;1:0:V:-1;1:1:V:-1;1:9:V:-1;2:0:R:2;2:9:L:2;3:0:V:-1;3:5:V:-1;3:9:V:-1;4:0:V:-1;4:1:V:-1;4:4:V:-1;4:7:V:-1;4:9:V:-1;5:0:R:2;5:8:V:-1;5:9:L:2;6:0:V:-1;6:9:V:-1;7:0:V:-1;7:2:V:-1;7:9:V:-1;8:0:R:0;8:5:V:-1;8:9:L:0;9:0:V:-1;9:1:V:-1;9:2:U:0;9:3:V:-1;9:4:V:-1;9:5:U:3;9:6:V:-1;9:7:V:-1;9:8:U:2;9:9:V:-1';
+test('boxStarvesClueByPlacements (Hard): a box and its forced lines leave a clue without room; found only after the cheaper rules stall', () => {
+  const P = compile({ name: 'starved', rows: 10, cols: 10, clues: cluesFromString(STARVED) });
+  assert.equal(solve(P, { limit: 2 }).count, 1, 'a unique puzzle');
+  const rule = RULES.find((r) => r.id === 'boxStarvesClueByPlacements');
+  assert.equal(rule.tier, 'Hard');
+  const others = RULES.slice(0, FIRST_LOOKAHEAD).filter((r) => r.id !== rule.id).map((r) => r.id);
+  const st = initialState(P);
+  closure(P, st, others);                                            // every other rule first
+  const fs = rule.find(P, st, {});
+  assert.ok(fs.length >= 1, 'the rule fires');
+  const sol = solve(P, { limit: 1 }).solutions[0];
+  for (const f of fs) {
+    assert.ok(f.info.need > f.info.room, 'the clue still needs more boxes than the line has room for');
+    assert.equal(sol.cell[f.info.cell] === SHADED, false, 'the cell is a dot in the solution');
+  }
 });

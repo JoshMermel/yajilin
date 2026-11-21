@@ -886,6 +886,117 @@ function shadeForces(P, st, closes, cap = Infinity) {
 }
 const shadeForcesLines = (P, st) => shadeForces(P, st, false);   // a cell ends up with three lines or too few ways out
 const shadeClosesLoop = (P, st) => shadeForces(P, st, true);     // the forced lines close the loop too early
+
+// ---- how many boxes a line has room for, counting the cells a box would starve
+//
+// A clue's boxes never touch, and there is one more thing a person sees along a line: if the cell BETWEEN two boxes (one cell apart) is a loop cell
+// with fewer than two other ways out, those two boxes cannot both stand. cluePlacements knows only that boxes do not touch, and placementDeadEnd,
+// which does see this, lists every placement and gives up on a long line. Here the room is counted in one pass along the line.
+
+/** Ways out a loop cell m would have if the cells in `skip` (boxes) were taken away. */
+function exitsSkipping(P, st, m, skip) {
+  let n = 0;
+  for (let d = 0; d < 4; d++) {
+    const x = P.ed[m * 4 + d], j = P.nb[m * 4 + d];
+    if (x < 0 || j < 0 || skip.includes(j) || st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
+    if (st.e[x] !== E_ON && onCount(P, st, j) >= 2) continue;
+    n++;
+  }
+  return n;
+}
+
+/**
+ * The most boxes the line of an orthogonal clue can still take, in `st`: the open cells of the line (not touching a box) are lined up and the
+ * best choice is counted, where two cells cannot both be boxes when they touch, or when the cell between them would be left with fewer than
+ * two ways out, and a cell cannot be a box when it would leave a neighbour on the line with fewer than two. Returns { room, shaded }: the boxes
+ * the line can end up with are shaded + room at the most.
+ */
+function lineModel(P, st, k) {
+  const cl = P.clues[k], d = cl.d;
+  let shaded = 0;
+  const cand = [];
+  for (const i of P.rays[k]) {
+    if (st.cell[i] === SHADED) { shaded++; continue; }
+    if (st.cell[i] !== UNKNOWN || touchesShaded(P, st, i)) continue;
+    const back = P.nb[i * 4 + (d + 2) % 4], ahead = P.nb[i * 4 + d];
+    if ((back >= 0 && st.cell[back] !== SHADED && exitsSkipping(P, st, back, [i]) < 2) || (ahead >= 0 && st.cell[ahead] !== SHADED && exitsSkipping(P, st, ahead, [i]) < 2)) continue;
+    cand.push(i);
+  }
+  const conflict = (a, b) => {
+    if (adjacent(P, a, b)) return true;
+    const m = P.nb[a * 4 + d];                                    // one cell apart on the line, with a loop cell between
+    return m >= 0 && P.nb[m * 4 + d] === b && st.cell[m] !== SHADED && exitsSkipping(P, st, m, [a, b]) < 2;
+  };
+  return { shaded, cand, conflict };
+}
+
+export function lineRoom(P, st, k) {
+  const { shaded, cand, conflict } = lineModel(P, st, k);
+  // best[t]: most boxes among the cells so far, t = which of the last two cells are boxes (bit 0: the last one, bit 1: the one before)
+  let best = [0, -Infinity, -Infinity, -Infinity];
+  for (let p = 0; p < cand.length; p++) {
+    const next = [-Infinity, -Infinity, -Infinity, -Infinity];
+    for (let t = 0; t < 4; t++) {
+      const v = best[t];
+      if (v === -Infinity) continue;
+      const skip = (t & 1) << 1;                                  // the cell is not a box: the last one becomes "the one before"
+      if (v > next[skip]) next[skip] = v;
+      const clash = ((t & 1) && p > 0 && conflict(cand[p - 1], cand[p])) || ((t & 2) && p > 1 && conflict(cand[p - 2], cand[p]));
+      if (!clash && v + 1 > next[skip | 1]) next[skip | 1] = v + 1;
+    }
+    best = next;
+  }
+  return { room: Math.max(...best), shaded };
+}
+
+/**
+ * The open cells of a clue's line split into groups of cells that pairwise cannot both be boxes (for the hint: "each group holds at most one"),
+ * taken from the first cell on. The number of groups is an upper bound on the room; it equals it for the lines the hints are about.
+ */
+export function roomGroups(P, st, k) {
+  const { cand, conflict } = lineModel(P, st, k);
+  const groups = [];
+  for (const i of cand) {
+    const last = groups[groups.length - 1];
+    if (last && last.every((j) => conflict(j, i))) last.push(i); else groups.push([i]);
+  }
+  return groups;
+}
+
+const orthogonalClues = (P) => P._orthoClues || (P._orthoClues = P.clues.map((cl, k) => (cl.n >= 0 && !cl.region && cl.d < 4 ? k : -1)).filter((k) => k >= 0));
+
+/**
+ * Hard: imagine a box at a cell and follow only the lines it forces (the neighbours' dots, the cells left with two ways out, as in
+ * shadeForcesLines). If some clue's line is then left without room for the boxes it still needs, counting the room with lineRoom, the cell is a
+ * dot. The lines themselves are not contradictory here (that is shadeForcesLines): it is the clue that cannot place its boxes.
+ * info: { cell, clue, need, room, probe } where probe is the position after the box and its forced lines.
+ */
+function boxStarvesClueByPlacements(P, st) {
+  const out = [];
+  const clues = orthogonalClues(P);
+  const near = new Uint8Array(P.N);
+  for (let i = 0; i < P.N; i++) {
+    if (st.cell[i] !== UNKNOWN) continue;
+    const probe = cloneState(st);
+    probe.cell[i] = SHADED;
+    if (followLines(P, probe) >= 0) continue;                    // a contradiction of the lines alone: shadeForcesLines' business
+    // the clues whose line the probe changed, or whose line lies right next to a change (a cell's ways out depend on its neighbours)
+    near.fill(0);
+    for (let j = 0; j < P.N; j++) {
+      let changed = probe.cell[j] !== st.cell[j];
+      for (let d = 0; d < 4 && !changed; d++) { const x = P.ed[j * 4 + d]; if (x >= 0 && probe.e[x] !== st.e[x]) changed = true; }
+      if (!changed) continue;
+      near[j] = 1;
+      for (let d = 0; d < 4; d++) { const m = P.nb[j * 4 + d]; if (m >= 0) near[m] = 1; }
+    }
+    for (const k of clues) {
+      if (!P.rays[k].some((j) => near[j])) continue;
+      const { room, shaded } = lineRoom(P, probe, k), need = P.clues[k].n - shaded;
+      if (need > room) { out.push(firing([setCell(i, LOOP)], { cell: i, clue: k, need, room })); break; }
+    }
+  }
+  return out;
+}
 /**
  * The lines that matter when a box leads to a contradiction (for the explanation, and the cost of shadeShortChain): follow the forced
  * lines (followLines with its provenance) back from the contradiction and keep only the segments it depends on. A cell that had exactly
@@ -1572,6 +1683,7 @@ export const RULES = [
   { id: 'pairedEnds', tier: 'Hard', weight: 60, find: pairedEnds, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
   { id: 'boxStarvesClueByLines', tier: 'Hard', weight: 55, find: boxStarvesClueByLines, label: 'a box here would turn its neighbors into dots and force the lines of a neighbor left with two ways out, and that leaves a clue no room for its number: this cell is a dot' },
   { id: 'shadeForcesLines', tier: 'Hard', weight: 70, find: shadeForcesLines, label: 'a box here would force lines that leave a cell with three lines or too few ways out: this cell is a dot' },
+  { id: 'boxStarvesClueByPlacements', tier: 'Hard', weight: 72, find: boxStarvesClueByPlacements, label: 'a box here would force lines that leave a clue without room to place its boxes (counting the cells that would be left with one way out): this cell is a dot' },
   { id: 'shadeClosesLoop', tier: 'Hard', weight: 75, find: shadeClosesLoop, label: 'a box here would force lines that close the loop early: this cell is a dot' },
   { id: 'segmentForcesLines', tier: 'Hard', weight: 80, find: segmentForcesLines, label: 'a segment here (or its absence) would force lines that leave a cell with three lines or too few ways out' },
   { id: 'segmentClosesLoop', tier: 'Hard', weight: 85, find: segmentClosesLoop, label: 'a segment here (or its absence) would force lines that close the loop early' },

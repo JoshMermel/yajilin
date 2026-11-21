@@ -1,7 +1,7 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can color them differently) and the marks the step makes.
 import { SHADED, LOOP, CLUE, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
-import { ruleLabel, followLines, boxProof } from './rating.js';
+import { ruleLabel, followLines, boxProof, roomGroups } from './rating.js';
 
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 /** A cell's name like a spreadsheet's: column letter, then row number (E3). */
@@ -169,6 +169,23 @@ export function explainStep(P, step, st = null) {
         break;
       }
       text = `A box at ${N(info.cell)} would put ${info.dots.length === 1 ? 'a dot' : 'dots'} on ${list}, which violates the ${clueName(P, k)}.`;
+      break;
+    }
+    case 'boxStarvesClueByPlacements': {
+      const k = info.clue; role('focus', info.cell); role('clue', clueCell(P, k)); role('range', P.rays[k]);
+      const more = plural(info.need, 'more box', 'more boxes');
+      if (!st) { text = `A box at ${N(info.cell)} would force lines, and then the ${clueName(P, k)} could not fit its boxes: it would still need ${info.need}, but only ${info.room} fit.`; break; }
+      const s2 = cloneState(st); s2.cell[info.cell] = SHADED; followLines(P, s2);
+      chain = []; for (let x = 0; x < P.numEdges; x++) if (s2.e[x] === E_ON && st.e[x] !== E_ON) chain.push(x);
+      role('problem', ...P.rays[k].filter((j) => st.cell[j] === 0 && s2.cell[j] === LOOP));          // the cells of the line the box takes away
+      const groups = roomGroups(P, s2, k);
+      const forced = chain.length ? 'the dashed lines' : 'lines';
+      if (groups.length === info.room) {
+        const join = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0]);
+        const lead = `A box at ${N(info.cell)} would force ${forced}, and then the ${clueName(P, k)} could not fit its boxes: it would still need ${more}, but`;
+        if (groups.every((g) => g.length === 1)) text = `${lead} only ${join(groups.map((g) => N(g[0])))} ${groups.length === 1 ? 'is' : 'are'} left open on its line.`;
+        else text = `${lead} its open cells fall into only ${plural(groups.length, 'group')}: ${join(groups.map((g) => `{${g.map(N).join(', ')}}`))}. A group holds at most one box (its cells touch, or the cell between two of them would be left with one way out).`;
+      } else text = `A box at ${N(info.cell)} would force ${forced}, and then the ${clueName(P, k)} could not fit its boxes: it would still need ${more}, but only ${info.room} fit in what is left of its line.`;
       break;
     }
     case 'closingNeighbor':

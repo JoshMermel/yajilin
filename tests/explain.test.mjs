@@ -103,3 +103,18 @@ test('a box whose forced lines give a cell three lines draws just those lines: A
   assert.equal(c2.chain.length, 4);
   assert.match(text, /would force 2 line segments \(dashed\), which would give B5 three lines\.$/);
 });
+
+test('boxStarvesClueByPlacements says what the clue still needs against the room its line has, and draws the forced lines dashed', async () => {
+  const { RULES, closure, FIRST_LOOKAHEAD } = await import('../js/rating.js');
+  const { initialState, cluesFromString } = await import('../js/logic.js');
+  const S = '0:0:V:-1;0:1:V:-1;0:2:D:0;0:3:V:-1;0:4:V:-1;0:5:D:3;0:6:V:-1;0:7:V:-1;0:8:D:2;0:9:V:-1;1:0:V:-1;1:1:V:-1;1:9:V:-1;2:0:R:2;2:9:L:2;3:0:V:-1;3:5:V:-1;3:9:V:-1;4:0:V:-1;4:1:V:-1;4:4:V:-1;4:7:V:-1;4:9:V:-1;5:0:R:2;5:8:V:-1;5:9:L:2;6:0:V:-1;6:9:V:-1;7:0:V:-1;7:2:V:-1;7:9:V:-1;8:0:R:0;8:5:V:-1;8:9:L:0;9:0:V:-1;9:1:V:-1;9:2:U:0;9:3:V:-1;9:4:V:-1;9:5:U:3;9:6:V:-1;9:7:V:-1;9:8:U:2;9:9:V:-1';
+  const P = compile({ name: 's', rows: 10, cols: 10, clues: cluesFromString(S) });
+  const rule = RULES.find((r) => r.id === 'boxStarvesClueByPlacements');
+  const st = initialState(P);
+  closure(P, st, RULES.slice(0, FIRST_LOOKAHEAD).filter((r) => r.id !== rule.id).map((r) => r.id));
+  const f = rule.find(P, st, {})[0];
+  const ex = explainStep(P, { rule: rule.id, info: f.info, sets: f.sets }, st);
+  assert.match(ex.text, /^A box at I2 would force the dashed lines, and then the 2→ clue at A3 could not fit its boxes: it would still need 2 more boxes, but only D3 is left open on its line\.$/);
+  assert.ok(ex.chain.length > 0, 'the forced lines are drawn dashed');
+  assert.deepEqual(ex.roles.focus, [f.info.cell]);
+});
