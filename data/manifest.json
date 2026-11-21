@@ -267,40 +267,76 @@
       "blurb": "Arrows point along rows, columns and diagonals, and there are few of them: 9 to 13 on a 12×12 board (one cell in 13 on average). Beginner to Hard."
     },
     {
-      "id": "bonus-longway",
-      "name": "Bonus: the long way round",
-      "label": "The long way round",
+      "id": "bonus-longway-8x8",
+      "name": "Bonus: the long way round 8×8",
+      "file": "data/bonus-longway-8x8.csv",
+      "count": 250,
+      "label": "The long way round 8×8",
       "group": "Bonus",
-      "blurb": "Arrows point away from the nearest edge: long lines of sight.",
-      "file": "data/bonus-longway.csv",
-      "count": 100
+      "blurb": "Arrows point away from the nearest edge: long lines of sight."
     },
     {
-      "id": "bonus-onedir",
-      "name": "Bonus: one direction",
-      "label": "One direction",
+      "id": "bonus-longway-12x12",
+      "name": "Bonus: the long way round 12×12",
+      "file": "data/bonus-longway-12x12.csv",
+      "count": 250,
+      "label": "The long way round 12×12",
       "group": "Bonus",
-      "blurb": "Every arrow in a puzzle points the same way.",
-      "file": "data/bonus-onedir.csv",
-      "count": 100
+      "blurb": "Arrows point away from the nearest edge: long lines of sight."
     },
     {
-      "id": "bonus-zeros",
-      "name": "Bonus: all zeros",
-      "file": "data/bonus-zeros.csv",
-      "count": 100,
-      "label": "All zeros",
-      "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.",
-      "group": "Bonus"
+      "id": "bonus-onedir-8x8",
+      "name": "Bonus: one direction 8×8",
+      "file": "data/bonus-onedir-8x8.csv",
+      "count": 250,
+      "label": "One direction 8×8",
+      "group": "Bonus",
+      "blurb": "Every arrow in a puzzle points the same way."
     },
     {
-      "id": "bonus-bignum",
-      "name": "Bonus: big numbers",
-      "label": "Big numbers",
+      "id": "bonus-onedir-12x12",
+      "name": "Bonus: one direction 12×12",
+      "file": "data/bonus-onedir-12x12.csv",
+      "count": 250,
+      "label": "One direction 12×12",
       "group": "Bonus",
-      "blurb": "Large numbers on the arrows; some puzzles go further and every arrow says 2 or more.",
-      "file": "data/bonus-bignum.csv",
-      "count": 100
+      "blurb": "Every arrow in a puzzle points the same way."
+    },
+    {
+      "id": "bonus-zeros-8x8",
+      "name": "Bonus: all zeros 8×8",
+      "file": "data/bonus-zeros-8x8.csv",
+      "count": 250,
+      "label": "All zeros 8×8",
+      "group": "Bonus",
+      "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere."
+    },
+    {
+      "id": "bonus-zeros-12x12",
+      "name": "Bonus: all zeros 12×12",
+      "file": "data/bonus-zeros-12x12.csv",
+      "count": 250,
+      "label": "All zeros 12×12",
+      "group": "Bonus",
+      "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere."
+    },
+    {
+      "id": "bonus-nozeros-8x8",
+      "name": "Bonus: no zeros 8×8",
+      "file": "data/bonus-nozeros-8x8.csv",
+      "count": 250,
+      "label": "No zeros 8×8",
+      "group": "Bonus",
+      "blurb": "No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more."
+    },
+    {
+      "id": "bonus-nozeros-12x12",
+      "name": "Bonus: no zeros 12×12",
+      "file": "data/bonus-nozeros-12x12.csv",
+      "count": 250,
+      "label": "No zeros 12×12",
+      "group": "Bonus",
+      "blurb": "No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more."
     },
     {
       "id": "bonus-skinny",

@@ -23,7 +23,7 @@ const edgeBias = arg('edge-bias', '') === '' ? null : +arg('edge-bias');  // e.g
 const oneDirection = process.argv.includes('--one-dir');          // every arrow in a puzzle points the same way
 const dirsArg = arg('dirs', '');                                  // e.g. UR: only these directions
 const directions = dirsArg ? [...dirsArg].map((ch) => 'URDLECZQ'.indexOf(ch)) : null;
-const numbers = arg('numbers', '') || null;                       // 'big', 'small', 'zeros' (every number 0) or 'twos' (every number at least 2)
+const numbers = arg('numbers', '') || null;                       // 'big', 'small', 'zeros' (every number 0) or 'twos' (every number at least 2) or 'nozeros' (every number at least 1)
 const boxRange = arg('boxes', '') ? arg('boxes').split(',').map(Number) : null;   // e.g. 0,0.3: boxes are at most 30% of the non-loop cells; 0.7,1: at least 70%
 const minMean = +arg('min-mean', 2.0);                            // with --numbers big: required mean clue number
 const tightRate = +arg('tight-rate', 0);                          // tight arrows per 100 cells (Nikoli's own puzzles: about 0.65)

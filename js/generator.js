@@ -411,7 +411,7 @@ export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen') {
  *   dirs      allowed directions (indexes 0=U 1=R 2=D 3=L), e.g. [1] for "every arrow points right"
  *   numbers   'big' prefers directions whose line holds many boxes, 'small' prefers lines holding 0 or 1 (estimated from the
  *             solution's non-loop cells in the line that are not clues); 'zeros' wants every number 0, 'twos' wants every number
- *             at least 2 (both are hard requirements: the finished puzzle must have them)
+ *             at least 2, 'nozeros' every number at least 1 and otherwise leans big (all three are hard requirements: the finished puzzle must have them)
  */
 function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null, numbers = null, holes = null, diagonal = 0) {
   const withDiag = diagonal > 0 || (dirs && dirs.some((d) => d >= 4));
@@ -439,6 +439,7 @@ function pickDirection(rows, cols, i, isClue, rng, edgeBias = null, dirs = null,
       weights[d] *= numbers === 'big' ? (1 + est) ** 2
         : numbers === 'zeros' ? Math.exp(-2.5 * est)
         : numbers === 'twos' ? (est >= 2 ? 1 + est : 0.05)
+        : numbers === 'nozeros' ? (est >= 1 ? (1 + est) ** 2 : 0.05)
         : est <= 1 ? 1 : Math.exp(-1.2 * (est - 1));
     }
   }
@@ -471,6 +472,7 @@ function numberGap(P, numbers, minMean) {
   const mean = n.reduce((a, b) => a + b, 0) / n.length;
   if (numbers === 'zeros') return n.filter((v) => v > 0).length / n.length * 6;
   if (numbers === 'twos') return n.filter((v) => v < 2).length / n.length * 6;
+  if (numbers === 'nozeros') return n.filter((v) => v < 1).length / n.length * 6;
   if (numbers === 'big') return Math.max(0, minMean - mean) + Math.max(0, n.filter((v) => v === 0).length / n.length - 0.1) * 3;
   return Math.max(0, 0.85 - n.filter((v) => v <= 1).length / n.length) * 5; // 'small': mostly 0s and 1s
 }
@@ -650,7 +652,7 @@ export function generatePuzzle(rows, cols, rng, options = {}) {
 function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, onCheck, fixed, numbers = null, minMean = 2.0) {
   // a hard number style ('zeros', 'twos') is a requirement of the finished puzzle: a new box must not land in an arrow's line and spoil
   // a number (before this, such a prune was rejected only at the very end, so every pruned zeros puzzle was thrown away)
-  const hardStyle = numbers === 'zeros' || numbers === 'twos';
+  const hardStyle = numbers === 'zeros' || numbers === 'twos' || numbers === 'nozeros';
   const N = rows * cols;
   const order = shuffle([...clueDir.keys()].filter((i) => loop.holes[i]), rng);
   let P = buildPuzzle(rows, cols, loop, clueDir, name);

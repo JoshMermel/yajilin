@@ -529,7 +529,7 @@ import { FIRST_LOOKAHEAD } from '../js/rating.js';
 
 test('the newer rules reach the stored solution on real generated puzzles (soundness on whole puzzles)', () => {
   // for each bonus book, its hardest puzzles (by stored score) that are not huge: books get rebuilt, so no names here
-  const files = ['data/bonus-skinny.csv', 'data/bonus-longway.csv', 'data/bonus-bignum.csv', 'data/bonus-onedir.csv'];
+  const files = ['data/bonus-skinny.csv', 'data/bonus-longway-12x12.csv', 'data/bonus-nozeros-12x12.csv', 'data/bonus-onedir-12x12.csv'];
   let used = 0, checked = 0;
   for (const file of files) {
     const all = parseCsv(readFileSync(new URL('../' + file, import.meta.url), 'utf8')).filter((p) => p.rows * p.cols <= 260 && p.tier === 'Hard');
@@ -626,7 +626,7 @@ test('the order a person meets the rules in: cheapest first, bookkeeping costs s
 test('shadeClosesLoop and segmentClosesLoop are the "closes the loop early" halves of the forced-lines rules', () => {
   // books get rebuilt, so look for any puzzle in the bonus books that needs one of these rules
   let P = null, r = null;
-  search: for (const f of ['bonus-bignum', 'bonus-longway', 'bonus-onedir', 'bonus-zeros']) {
+  search: for (const f of ['bonus-nozeros-12x12', 'bonus-longway-12x12', 'bonus-onedir-12x12', 'bonus-zeros-12x12']) {
     for (const raw of parseCsv(readFileSync(new URL(`../data/${f}.csv`, import.meta.url), 'utf8')).filter((q) => q.rows * q.cols <= 260)) {
       const Q = compile(raw), q = rate(Q);
       if (q.counts.shadeClosesLoop || q.counts.segmentClosesLoop) { P = Q; r = q; break search; }

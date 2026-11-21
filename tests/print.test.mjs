@@ -27,9 +27,9 @@ test('the site is named in the booklet: the header link goes to the real play UR
 
 test('layout: boards are placed by cell size, and bigger boards mean fewer per page', () => {
   const small = layoutFor(load('bonus-intro').slice(0, 4), SIZES.comfortable.puzzle);         // 5x5 boards
-  const big = layoutFor(load('bonus-longway').slice(0, 4), SIZES.comfortable.puzzle);         // 10x10 and up
+  const big = layoutFor(load('bonus-longway-12x12').slice(0, 4), SIZES.comfortable.puzzle);         // 10x10 and up
   assert.ok(small.perPage > big.perPage, `${small.perPage} vs ${big.perPage}`);
-  assert.ok(layoutFor(load('bonus-longway').slice(0, 4), SIZES.compact.puzzle).perPage >= big.perPage);
+  assert.ok(layoutFor(load('bonus-longway-12x12').slice(0, 4), SIZES.compact.puzzle).perPage >= big.perPage);
   assert.equal(small.cols * small.rows, small.perPage);
 });
 
@@ -60,7 +60,7 @@ test('planPrint counts the pages of the puzzles and of the answer key', () => {
 });
 
 test('boardSvg: every clue has its number and an arrow; the answer adds the boxes and exactly the loop', () => {
-  for (const P of load('bonus-longway').slice(0, 3).concat(load('bonus-skinny').slice(0, 2))) {
+  for (const P of load('bonus-longway-12x12').slice(0, 3).concat(load('bonus-skinny').slice(0, 2))) {
     const blank = boardSvg(P);
     assert.equal((blank.match(/class="num"/g) || []).length, P.clues.length);
     assert.equal((blank.match(/class="arrow"/g) || []).length, P.clues.length);
