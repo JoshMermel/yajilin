@@ -108,10 +108,9 @@ export class Board {
         const x = PAD + c * S, y = PAD + r * S;
         const k = P.clueAt[i];
         if (k >= 0 && P.clues[k].n < 0) {
-          // a void cell: nothing goes here. Drawn like the player's boxes (same color, same inset) but square-cornered and
-          // crossed out, so it reads as "a box that is not yours to remove"
-          g += `<rect class="void-box" x="${x + 3}" y="${y + 3}" width="${S - 6}" height="${S - 6}"/>`
-            + `<path class="void-x" d="M${x + 14} ${y + 14}L${x + S - 14} ${y + S - 14}M${x + S - 14} ${y + 14}L${x + 14} ${y + S - 14}"/>`;
+          // a void cell: nothing goes here. Drawn like a clue cell (same gray, no number), not like the player's boxes: it is a given, part of the
+          // board's wall. The thick outline round the walls is drawn after the grid lines below.
+          g += `<rect class="void-bg" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
         } else if (k >= 0) {
           const cl = P.clues[k];
           g += `<rect class="clue-bg ${info.clueState[k] === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : info.clueState[k] || ''}" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
@@ -137,6 +136,24 @@ export class Board {
     }
     for (let r = 0; r <= P.rows; r++) g += `<line class="grid-line" x1="${PAD}" y1="${PAD + r * S}" x2="${PAD + P.cols * S}" y2="${PAD + r * S}"/>`;
     for (let c = 0; c <= P.cols; c++) g += `<line class="grid-line" x1="${PAD + c * S}" y1="${PAD}" x2="${PAD + c * S}" y2="${PAD + P.rows * S}"/>`;
+    // the walls: a thick line on every edge between a void (or a clue cell that touches a void, so a frame of arrows and voids is one wall) and a cell
+    // that is part of the board, so voids side by side read as one shape
+    {
+      const isVoid = (i) => i >= 0 && P.clueAt[i] >= 0 && P.clues[P.clueAt[i]].n < 0;
+      const isGray = (i) => i >= 0 && P.clueAt[i] >= 0;
+      let d = '';
+      for (let i = 0; i < P.N; i++) {
+        if (!isGray(i)) continue;
+        const r = (i / P.cols) | 0, c = i % P.cols, x = PAD + c * S, y = PAD + r * S;
+        // (P.nb leaves clue cells out, so the neighbours are found from the grid)
+        const nbr = [r > 0 ? i - P.cols : -1, c < P.cols - 1 ? i + 1 : -1, r < P.rows - 1 ? i + P.cols : -1, c > 0 ? i - 1 : -1];      // up, right, down, left
+        const walled = isVoid(i) || nbr.some(isVoid);
+        if (!walled) continue;
+        const sides = [[x, y, x + S, y], [x + S, y, x + S, y + S], [x, y + S, x + S, y + S], [x, y, x, y + S]];
+        for (let q = 0; q < 4; q++) { const j = nbr[q]; if (j >= 0 && !isGray(j)) d += `M${sides[q][0]} ${sides[q][1]}L${sides[q][2]} ${sides[q][3]}`; }
+      }
+      if (d) g += `<path class="void-wall" d="${d}"/>`;
+    }
     // regional puzzles: the regions' borders, heavier than the grid (one path for all of them)
     if (P.regional) {
       let d = '';

@@ -19,6 +19,7 @@
   --cell-bg: #fff;
   --cell-border: #ccc;
   --clue-bg: #e9ecef;
+  --void-bg: #e9ecef;
   --clue-ink: #111;
   --clue-ok-bg: #d7ecd9;
   --clue-ok-ink: #2e7d32;
@@ -59,6 +60,7 @@
   --cell-bg: #222;
   --cell-border: #444;
   --clue-bg: #343a40;
+  --void-bg: #343a40;
   --clue-ink: #eee;
   --clue-ok-bg: #28452c;
   --clue-ok-ink: #81c784;
@@ -121,8 +123,8 @@ button.ghost { background: transparent; }
 .grid-line { stroke: var(--cell-border); stroke-width: 1; }
 .frame { fill: none; stroke: var(--frame); stroke-width: 3; }
 .clue-bg { fill: var(--clue-bg); }
-.void-box { fill: var(--shaded); pointer-events: none; }
-.void-x { stroke: var(--cell-bg); stroke-width: 3; stroke-linecap: round; fill: none; pointer-events: none; }
+.void-bg { fill: var(--void-bg); pointer-events: none; }                                  /* a void: the gray of a clue cell */
+.void-wall { stroke: var(--frame); stroke-width: 3; stroke-linecap: square; fill: none; pointer-events: none; }   /* the thick outline round the voids */
 .clue-bg.ok { fill: var(--clue-ok-bg); }
 .clue-bg.bad { fill: var(--clue-bad-bg); }
 .region-line { fill: none; stroke: var(--frame); stroke-width: 3; stroke-linecap: square; pointer-events: none; }
