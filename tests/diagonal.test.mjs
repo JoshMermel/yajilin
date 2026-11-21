@@ -81,7 +81,7 @@ test('clue colours: a diagonal arrow is green when its boxes are there, and cove
   assert.deepEqual(clueStates(P, marks({})), ['', '']);
   assert.deepEqual(clueStates(P, marks({ 7: 1 })), ['ok', ''], 'the 2-arrow is covered: one box stands between it and the 1-arrow ahead, which supplies the second');
   assert.deepEqual(clueStates(P, marks({ 7: 1, 35: 1 })), ['ok', 'ok']);
-  assert.deepEqual(clueStates(P, marks({ 7: 1, 14: 1, 28: 1 })), ['bad', 'ok'], 'three boxes on the 2-arrow\'s diagonal');
+  assert.deepEqual(clueStates(P, marks({ 7: 1, 14: 1, 28: 1 })), ['bad', 'bad'], 'three boxes on the 2-arrow\'s diagonal: the 1-arrow ahead cannot agree with it either (two boxes between them, only 2 - 1 = 1 allowed)');
   assert.deepEqual(clueStates(P, marks({ 35: 1 })), ['', 'ok'], 'the 1-arrow is done; the 2-arrow has no box between it and the 1-arrow, so it is not covered');
 });
 

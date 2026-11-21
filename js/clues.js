@@ -14,7 +14,7 @@ export function clueStates(P, marks) {
     const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
     seg[a] = 1; if (b < P.N) seg[b] = 1;
   }
-  return P.clues.map((cl, k) => {
+  const states = P.clues.map((cl, k) => {
     if (cl.n < 0) return '';
     let boxes = 0, open = 0;
     for (const i of P.rays[k]) {
@@ -25,6 +25,33 @@ export function clueStates(P, marks) {
     if (boxes === cl.n) return 'ok';
     return cl.region ? '' : isCovered(P, marks, cl) ? 'ok' : '';       // (a region is not a line: no other number covers it)
   });
+  // two arrows that cannot both be right are both red, so the player sees "there is a problem between these two"
+  P.clues.forEach((cl, k) => {
+    if (cl.n < 0 || cl.region) return;
+    forEachBadPair(P, marks, seg, cl, (other) => { states[k] = 'bad'; states[P.clueAt[other]] = 'bad'; });
+  });
+  return states;
+}
+
+/**
+ * Calls `found(cell)` for every same-way arrow further along `cl`'s line (at `cell`) that cannot agree with `cl` any more. The line of
+ * the further arrow (n boxes) is a part of cl's line, so cl's K boxes are the X between the two plus that arrow's n: the X between must
+ * come to K - n. That fails when there are already more than K - n boxes between them, or when the boxes and the open cells between them
+ * together cannot come to K - n. (The same arithmetic as `isCovered`, which is the case where X is exactly K - n.)
+ */
+function forEachBadPair(P, marks, seg, cl, found) {
+  let boxes = 0, open = 0;                             // between cl and the arrow being looked at
+  for (let r = cl.r + DR[cl.d], c = cl.c + DC[cl.d]; r >= 0 && c >= 0 && r < P.rows && c < P.cols; r += DR[cl.d], c += DC[cl.d]) {
+    const i = r * P.cols + c, k = P.clueAt[i];
+    if (k >= 0) {
+      const other = P.clues[k];
+      if (other.d === cl.d && other.n >= 0 && other.n <= cl.n && !other.region) {
+        const need = cl.n - other.n;
+        if (boxes > need || boxes + open < need) found(i);
+      }
+    } else if (marks.cells[i] === 1) boxes++;
+    else if (marks.cells[i] === 0 && !seg[i]) open++;
+  }
 }
 
 import { DR, DC } from './logic.js';

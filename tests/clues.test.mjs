@@ -63,3 +63,24 @@ test('covered: arrows pointing other ways in between are skipped, and any same-w
   const m = marks(p, Array.from({ length: 18 }, (_, i) => ([1, 4].includes(i) ? 1 : 0)));        // boxes at columns 1 and 4: 2 between = 4 - 2
   assert.equal(clueStates(p, m)[0], 'ok');
 });
+
+// ---- two same-way arrows that cannot both be right are both red
+test('bad pair: a box between two arrows that need none turns both red (the 2-arrow and the 2-arrow further along)', () => {
+  const p = AB(2, 2);                                                // between them there must be 2 - 2 = 0 boxes
+  assert.deepEqual(clueStates(p, row(p, [])), ['ok', ''], 'nothing between them: fine');
+  assert.deepEqual(clueStates(p, row(p, [1])), ['bad', 'bad'], 'a box between them');
+  assert.deepEqual(clueStates(p, row(p, [7])), ['ok', ''], 'a box beyond the second arrow is not between them');
+});
+
+test('bad pair: too many boxes between them, or too few cells left to hold the boxes they still need', () => {
+  const p = AB(3, 1);                                                // 3 - 1 = 2 boxes between them (cells 1, 2, 3)
+  assert.deepEqual(clueStates(p, row(p, [1, 2, 3])), ['bad', 'bad'], 'three between');
+  assert.deepEqual(clueStates(p, row(p, [3], [1, 2])), ['bad', 'bad'], 'one box and two dots: only one box can ever stand between them');
+  assert.deepEqual(clueStates(p, row(p, [3], [1])), ['', ''], 'one box, one dot and one cell still open: undecided');
+  assert.deepEqual(clueStates(p, row(p, [1, 3])), ['ok', ''], 'exactly 2 between: covered, as before');
+});
+
+test('bad pair: an arrow pointing the other way is no partner', () => {
+  const p = AB(3, 1, 3);                                             // B points down: its line is not part of A's
+  assert.equal(clueStates(p, row(p, [1, 2, 3]))[0], 'ok', 'A has its three boxes and nothing else to say');
+});
