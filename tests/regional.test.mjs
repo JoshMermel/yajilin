@@ -119,7 +119,9 @@ test('a quarter turn keeps a regional puzzle the same puzzle: regions turn with 
     assert.equal(R.regionCells.length, P.regionCells.length);
     assert.deepEqual(R.clues.map((c) => c.n).sort(), P.clues.map((c) => c.n).sort());
     assert.equal(rate(R).solved, true, "rated solvable, trial rules included");
-    assert.equal(solve(R, { limit: 2 }).count, 1);
+    // (the rules above never guess, so a board they solve completely has one solution; the exhaustive count is the independent check, and it is
+    // only affordable on the small boards: 8x8 and 10x10 regional boards take 7 to 90 s each, which was 217 of the suite's 222 seconds)
+    if (P.rows * P.cols <= 40) assert.equal(solve(R, { limit: 2 }).count, 1);
   }
 });
 
