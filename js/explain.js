@@ -183,7 +183,8 @@ export function explainStep(P, step, st = null) {
       if (groups.length === info.room) {
         const join = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0]);
         const lead = `A box at ${N(info.cell)} would force ${forced}, and then the ${clueName(P, k)} could not fit its boxes: it would still need ${more}, but`;
-        if (groups.every((g) => g.length === 1)) text = `${lead} only ${join(groups.map((g) => N(g[0])))} ${groups.length === 1 ? 'is' : 'are'} left open on its line.`;
+        if (!groups.length) text = `${lead} no open cell is left on its line.`;
+        else if (groups.every((g) => g.length === 1)) text = `${lead} only ${join(groups.map((g) => N(g[0])))} ${groups.length === 1 ? 'is' : 'are'} left open on its line.`;
         else text = `${lead} its open cells fall into only ${plural(groups.length, 'group')}: ${join(groups.map((g) => `{${g.map(N).join(', ')}}`))}. A group holds at most one box (its cells touch, or the cell between two of them would be left with one way out).`;
       } else text = `A box at ${N(info.cell)} would force ${forced}, and then the ${clueName(P, k)} could not fit its boxes: it would still need ${more}, but only ${info.room} fit in what is left of its line.`;
       break;

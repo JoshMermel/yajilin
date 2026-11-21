@@ -10,6 +10,8 @@
 //                                                                       rule (writes docs/examples/candidates.json; --merge adds to it)
 //   node tools/how_to_examples.mjs build                                pick one example per rule from the candidates: writes
 //                                                                       data/armory.csv, docs/examples/examples.json and the manifest entry
+//   node tools/how_to_examples.mjs add <rule> [--rank 0 | --file F --name N]   add (or replace) the example of ONE rule from the candidates, leaving the
+//                                                                       other examples and the armory's puzzles as they are (for a new rule)
 //
 // Then tools/capture_how_to_images.py takes the screenshots and tools/build_how_to_solve.mjs writes docs/how_to_solve.md.
 import fs from 'node:fs';
@@ -123,6 +125,50 @@ async function scan() {
 
 // ------------------------------------------------------------ build
 
+/** What the Hint button says in the candidate's position, with the example's fields. */
+function exampleOf(rule, c, raw, num) {
+  const P = compile(raw);
+  const st = positionOf(P, Uint8Array.from(c.cells, Number), Uint8Array.from(c.edges, Number));
+  const nx = nextMarkableStep(P, st);
+  const f = nx.res.firings[0];
+  const e = explainStep(P, { rule: nx.res.rule, tier: nx.res.tier, weight: nx.res.weight, sets: f.sets, info: f.info }, st);
+  if (nx.res.rule !== rule.id) throw new Error(`${rule.id}: replay position shows ${nx.res.rule}`);
+  return { rule: rule.id, tier: rule.tier, weight: rule.weight, puzzle: num, name: raw.name, rows: raw.rows, cols: raw.cols, hints: c.at, firings: c.firings, hardest: c.hardest === c.weight, cells: c.cells, edges: c.edges, text: e.text };
+}
+
+function add(ruleId) {
+  const rule = RULES.find((r) => r.id === ruleId);
+  if (!rule) throw new Error(`no rule ${ruleId}`);
+  let c;
+  if (arg('name', '')) {                                                    // a chosen puzzle: replay it and take the first time the rule is shown
+    const file = arg('file', '');
+    const P0 = compile(parseCsv(fs.readFileSync(path.resolve(root, file), 'utf8')).find((p) => p.name === arg('name')));
+    const steps = replay(P0), s0 = steps && steps.find((q) => q.rule === ruleId);
+    if (!s0) throw new Error(`${arg('name')}: the replay never shows ${ruleId}`);
+    c = { file, name: arg('name'), at: s0.at, firings: s0.firings, hardest: Math.max(...steps.map((q) => q.weight)), weight: s0.weight, cells: s0.cells, edges: s0.edges };
+  } else {
+    const cand = JSON.parse(fs.readFileSync(root + 'docs/examples/candidates.json', 'utf8'))[ruleId];
+    if (!cand || !cand.length) throw new Error(`no candidates for ${ruleId}: run scan first`);
+    c = cand[+arg('rank', '0')];
+  }
+  const raw = parseCsv(fs.readFileSync(path.resolve(root, c.file), 'utf8')).find((p) => p.name === c.name);
+  const armoryPath = root + 'data/armory.csv', examplesPath = root + 'docs/examples/examples.json';
+  const puzzles = parseCsv(fs.readFileSync(armoryPath, 'utf8')), examples = JSON.parse(fs.readFileSync(examplesPath, 'utf8'));
+  let at = puzzles.findIndex((p) => p.name === raw.name);
+  if (at < 0) { const q = rate(compile(raw)); raw.rules = q.rules; raw.tier = q.tier; raw.score = q.score; at = puzzles.push(raw) - 1; }
+  const ex = exampleOf(rule, c, raw, at + 1);
+  const i = examples.findIndex((e) => e.rule === ruleId);
+  if (i >= 0) examples[i] = ex; else examples.push(ex);
+  const order = new Map(RULES.map((r, k) => [r.id, k]));
+  examples.sort((a, b) => order.get(a.rule) - order.get(b.rule));
+  fs.writeFileSync(armoryPath, toCsv(puzzles));
+  fs.writeFileSync(examplesPath, JSON.stringify(examples, null, 1) + '\n');
+  const mpath = root + 'data/manifest.json', manifest = JSON.parse(fs.readFileSync(mpath, 'utf8'));
+  const book = manifest.books.find((b) => b.id === 'armory');
+  if (book) { book.count = puzzles.length; fs.writeFileSync(mpath, JSON.stringify(manifest, null, 2) + '\n'); }
+  console.log(`${ruleId}: example is puzzle ${at + 1} (${raw.name}), after ${c.at} hints:\n${ex.text}`);
+}
+
 function build() {
   const cand = JSON.parse(fs.readFileSync(root + 'docs/examples/candidates.json', 'utf8'));
   const books = {};
@@ -130,7 +176,8 @@ function build() {
   const chosen = [], puzzles = [], examples = [];
   for (const rule of RULES) {
     if (rule.free || !cand[rule.id]) continue;
-    const c = cand[rule.id][+arg('rank', '0')];
+    const c = cand[rule.id].slice(+arg('rank', '0')).find((x) => fs.existsSync(root + x.file));       // (a candidate from a book that has since been rebuilt or removed is skipped)
+    if (!c) { console.log(`${rule.id}: no candidate left (its books are gone); keeping nothing`); continue; }
     const raw = bookOf(c.file).find((p) => p.name === c.name);
     const P = compile(raw);
     const have = puzzles.findIndex((p) => p.name === raw.name);
@@ -157,4 +204,5 @@ function build() {
 
 if (process.argv[2] === 'scan') await scan();
 else if (process.argv[2] === 'build') build();
-else if (process.argv[2] !== 'scan-file') console.log('usage: node tools/how_to_examples.mjs scan | build');
+else if (process.argv[2] === 'add') add(process.argv[3]);
+else if (process.argv[2] !== 'scan-file') console.log('usage: node tools/how_to_examples.mjs scan | build | add <rule>');

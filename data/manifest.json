@@ -375,10 +375,19 @@
       "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."
     },
     {
+      "id": "frame-experiment",
+      "name": "Experiment: frame",
+      "file": "data/frame-experiment.csv",
+      "count": 26,
+      "label": "Frame (experiment)",
+      "group": "Bonus",
+      "blurb": "Arrows only round the border, pointing in; the rest of the border and some cells inside are void. Names show the recipe: L3 arrows on every third line with their real counts, U1 / U2 every arrow says 1 or 2, OR made with a constraint solver."
+    },
+    {
       "id": "armory",
       "name": "Armory",
       "file": "data/armory.csv",
-      "count": 26,
+      "count": 27,
       "hidden": true,
       "blurb": "The worked examples of docs/how_to_solve.md (not listed in the app)."
     }

@@ -397,6 +397,21 @@ Hint says: "A box at E1 would force 4 line segments (dashed), which would give D
 
 ---
 
+### boxStarvesClueByPlacements
+
+*Hard, cost 72*
+
+Imagine a cell shaded and follow only the lines it forces (as in `shadeForcesLines`); if some clue's line is then left without room for the boxes it still needs, the cell is a dot. Room is counted along the whole line in one pass (so long lines work, unlike `placementDeadEnd`): boxes never touch, and two cells one apart cannot both be boxes when the loop cell between them would keep fewer than two ways out. Hint: names the starved clue, the groups of cells that each hold at most one box, and draws the forced lines dashed (the column F argument of the logic-masters 20×20 puzzle)
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=27">
+<img src="images/boxStarvesClueByPlacements.png" width="480" alt="boxStarvesClueByPlacements"></a>
+
+*LATTICE-10x10-s52p, 10×10: the board after 33 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "A box at E8 would force the dashed lines, and then the 2→ clue at A9 could not fit its boxes: it would still need 2 more boxes, but its open cells fall into only 1 group: {G9, I9}. A group holds at most one box (its cells touch, or the cell between two of them would be left with one way out)."
+
+---
+
 ### shadeClosesLoop
 
 *Hard, cost 75*

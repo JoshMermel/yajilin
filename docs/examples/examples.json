@@ -330,6 +330,21 @@
   "text": "A box at E1 would force 4 line segments (dashed), which would give D2 three lines."
  },
  {
+  "rule": "boxStarvesClueByPlacements",
+  "tier": "Hard",
+  "weight": 72,
+  "puzzle": 27,
+  "name": "LATTICE-10x10-s52p",
+  "rows": 10,
+  "cols": 10,
+  "hints": 33,
+  "firings": 1,
+  "hardest": false,
+  "cells": "0000000000002000220002210102200020020200002022002002212000000000020220002002002000200202000000000000",
+  "edges": "00000000000000000000000011101010100000000011000000000000000000100100000100000000000001000100000000000011000010000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000",
+  "text": "A box at E8 would force the dashed lines, and then the 2→ clue at A9 could not fit its boxes: it would still need 2 more boxes, but its open cells fall into only 1 group: {G9, I9}. A group holds at most one box (its cells touch, or the cell between two of them would be left with one way out)."
+ },
+ {
   "rule": "shadeClosesLoop",
   "tier": "Hard",
   "weight": 75,
