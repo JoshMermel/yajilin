@@ -263,16 +263,22 @@ function recordBookSolved() {
 let toastTimer = null;
 function toast(msg) {
   const t = $('toast');
-  t.classList.remove('hint', 'below');
+  t.classList.remove('hint', 'below', 'ghost');
   t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
 }
-function hideHintToast() { const t = $('toast'); if (t.classList.contains('hint')) { t.hidden = true; t.classList.remove('hint', 'below'); } }
+// A message that sits in the page under the board keeps its space when it goes away (invisible, not removed): taking it out would shorten the page,
+// the board would jump under the pointer, and the click that dismissed it would land on the wrong cell.
+function retireToast(t) {
+  if (t.classList.contains('below') && !t.hidden) { t.classList.add('ghost'); } else t.hidden = true;
+}
+function hideHintToast() { const t = $('toast'); if (t.classList.contains('hint')) retireToast(t); }
+function dropToast() { const t = $('toast'); t.hidden = true; t.classList.remove('hint', 'below', 'ghost'); }   // no message and no reserved space (a new puzzle)
 function dismissToast() {
   const t = $('toast');
-  if (t.hidden) return;
-  t.hidden = true;
+  if (t.hidden || t.classList.contains('ghost')) return;
+  retireToast(t);
   if (state.hint && state.hint.visible) { state.hint.visible = false; board.render(state.marks, analyse()); } // dismissed: keep our place in the cycle
 }
 // a click anywhere dismisses a message (the Hint button itself is exempt: pressing it again shows the next step)
@@ -355,6 +361,7 @@ function showHint() {
   const h = state.hint, P = state.P;
   const t = $('toast');
   clearTimeout(toastTimer);
+  t.classList.remove('ghost');
   t.classList.add('hint');
   t.replaceChildren();
   const line = (cls, text) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; t.appendChild(d); };
@@ -490,7 +497,7 @@ function reorient() {
   const conv = (m) => { const o = back(m); return P.rotated ? turn(o) : o; };
   state.marks = conv(state.marks);
   state.undo = state.undo.map(conv); state.redo = state.redo.map(conv);
-  state.P = P; state.hint = null; hideHintToast();
+  state.P = P; state.hint = null; dropToast();
   board.setPuzzle(P);
   fitBoard();
   showInfo();
