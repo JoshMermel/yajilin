@@ -49,7 +49,7 @@ const manifestPath = root + 'data/manifest.json';
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 manifest.books = manifest.books.filter((b) => b.id !== 'experiment-regional');          // the first sample book is replaced by this one
 const entry = {
-  id: 'regional-corpus', name: 'Experiment: regional corpus', file: 'data/regional-corpus.csv', count: out.length, label: 'Regional corpus (experiment)', group: 'Regional',
+  id: 'regional-corpus', name: 'Experiment: regional corpus', file: 'data/regional-corpus.csv', count: out.length, label: 'Regional corpus (experiment)', group: 'Bonus',
   blurb: 'No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques.',
 };
 const at = manifest.books.findIndex((b) => b.id === entry.id);

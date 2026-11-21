@@ -91,7 +91,7 @@ test('when there is nothing left to say (a finished board) there is no step', ()
 test('reliesOn names only the skipped facts a step needs, not every fact passed on the way', async () => {
   const { reliesOn } = await import('../js/hintstep.js');
   let withBackground = 0, kept = 0, dropped = 0, total = 0;
-  for (const P of load('8x8').slice(0, 25).concat(load('voidsonly-corpus').slice(0, 20))) {
+  for (const P of load('8x8').slice(0, 25).concat(load('bonus-longway').slice(0, 20))) {
     const m = blank(P);
     for (let step = 0; step < 400; step++) {
       const st = marksToState(P, m);

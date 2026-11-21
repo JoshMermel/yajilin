@@ -11,25 +11,6 @@
       "blurb": "The plain board sizes: a thousand puzzles each, easiest first."
     },
     {
-      "name": "Bonus",
-      "icon": "🎁",
-      "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
-      "subs": {
-        "Arrows": {
-          "icon": "🧭",
-          "blurb": "What the arrows point at, and what they say"
-        },
-        "Boxes": {
-          "icon": "⬛",
-          "blurb": "Few boxes, or a board packed with them"
-        },
-        "Odd boards": {
-          "icon": "🧩",
-          "blurb": "Ribbons and crossed-out cells"
-        }
-      }
-    },
-    {
       "name": "Diagonal",
       "icon": "↗️",
       "blurb": "Arrows that point along diagonals and count the boxes on them.",
@@ -52,16 +33,6 @@
       }
     },
     {
-      "name": "Regional",
-      "icon": "🗺️",
-      "blurb": "No arrows: a number says how many boxes its region holds. An experiment."
-    },
-    {
-      "name": "Voids only",
-      "icon": "🕳️",
-      "blurb": "No numbers and no arrows: only crossed-out cells. The shape of the board is the whole puzzle. An experiment."
-    },
-    {
       "name": "Sparse",
       "icon": "🔹",
       "blurb": "As few arrows as a search could find, each book running from Beginner to Hard: about one cell in ten or fewer, against one in six in the main books. An experiment.",
@@ -73,6 +44,11 @@
           "icon": "🔹"
         }
       }
+    },
+    {
+      "name": "Bonus",
+      "icon": "🎁",
+      "blurb": "Variations on the usual puzzle: the same rules, a different feel."
     }
   ],
   "books": [
@@ -129,95 +105,6 @@
       "label": "20×36",
       "group": "Default",
       "blurb": "The biggest board. Long solves."
-    },
-    {
-      "id": "bonus-longway",
-      "name": "Bonus: the long way round",
-      "label": "The long way round",
-      "group": "Bonus",
-      "blurb": "Arrows point away from the nearest edge: long lines of sight.",
-      "file": "data/bonus-longway.csv",
-      "count": 100,
-      "sub": "Arrows"
-    },
-    {
-      "id": "bonus-onedir",
-      "name": "Bonus: one direction",
-      "label": "One direction",
-      "group": "Bonus",
-      "blurb": "Every arrow in a puzzle points the same way.",
-      "file": "data/bonus-onedir.csv",
-      "count": 100,
-      "sub": "Arrows"
-    },
-    {
-      "id": "bonus-zeros",
-      "name": "Bonus: all zeros",
-      "file": "data/bonus-zeros.csv",
-      "count": 100,
-      "label": "All zeros",
-      "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.",
-      "group": "Bonus",
-      "sub": "Arrows"
-    },
-    {
-      "id": "bonus-bignum",
-      "name": "Bonus: big numbers",
-      "label": "Big numbers",
-      "group": "Bonus",
-      "blurb": "Large numbers on the arrows; some puzzles go further and every arrow says 2 or more.",
-      "file": "data/bonus-bignum.csv",
-      "count": 100,
-      "sub": "Arrows"
-    },
-    {
-      "id": "bonus-few",
-      "name": "Bonus: few boxes",
-      "file": "data/bonus-few.csv",
-      "count": 100,
-      "label": "Few boxes",
-      "blurb": "Under a third of the non-loop cells are boxes: lots of arrows, a long loop.",
-      "group": "Bonus",
-      "sub": "Boxes"
-    },
-    {
-      "id": "bonus-packed",
-      "name": "Bonus: packed with boxes",
-      "file": "data/bonus-packed.csv",
-      "count": 100,
-      "label": "Packed with boxes",
-      "blurb": "Over half the non-loop cells are boxes, with few arrows to say where.",
-      "group": "Bonus",
-      "sub": "Boxes"
-    },
-    {
-      "id": "bonus-skinny",
-      "name": "Bonus: skinny",
-      "label": "Skinny",
-      "group": "Bonus",
-      "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
-      "file": "data/bonus-skinny.csv",
-      "count": 100,
-      "sub": "Odd boards"
-    },
-    {
-      "id": "bonus-voids",
-      "name": "Bonus: voids",
-      "file": "data/bonus-voids.csv",
-      "count": 36,
-      "label": "Voids",
-      "group": "Bonus",
-      "blurb": "Crossed-out blocks are void: nothing goes there. The loop avoids them and arrows count straight through them.",
-      "sub": "Odd boards"
-    },
-    {
-      "id": "regional-corpus",
-      "name": "Experiment: regional corpus",
-      "file": "data/regional-corpus.csv",
-      "count": 54,
-      "label": "Regional corpus (experiment)",
-      "group": "Regional",
-      "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."
     },
     {
       "id": "diagonal-all-8x8",
@@ -320,15 +207,6 @@
       "blurb": "Some arrows point along diagonals and some straight up, down, left or right, in every mix. Beginner to Hard."
     },
     {
-      "id": "voidsonly-corpus",
-      "name": "Experiment: voids only",
-      "file": "data/voidsonly-corpus.csv",
-      "count": 84,
-      "label": "Voids only (experiment)",
-      "group": "Voids only",
-      "blurb": "Nothing but crossed-out cells: no numbers, no arrows. Every other cell is on the loop (the solution has no boxes at all), and the shape of the board allows only one loop."
-    },
-    {
       "id": "sparse-8x8-orthogonal",
       "name": "Sparse 8×8, orthogonal",
       "file": "data/sparse-8x8-orthogonal.csv",
@@ -387,6 +265,60 @@
       "group": "Sparse",
       "sub": "12×12",
       "blurb": "Arrows point along rows, columns and diagonals, and there are few of them: 9 to 13 on a 12×12 board (one cell in 13 on average). Beginner to Hard."
+    },
+    {
+      "id": "bonus-longway",
+      "name": "Bonus: the long way round",
+      "label": "The long way round",
+      "group": "Bonus",
+      "blurb": "Arrows point away from the nearest edge: long lines of sight.",
+      "file": "data/bonus-longway.csv",
+      "count": 100
+    },
+    {
+      "id": "bonus-onedir",
+      "name": "Bonus: one direction",
+      "label": "One direction",
+      "group": "Bonus",
+      "blurb": "Every arrow in a puzzle points the same way.",
+      "file": "data/bonus-onedir.csv",
+      "count": 100
+    },
+    {
+      "id": "bonus-zeros",
+      "name": "Bonus: all zeros",
+      "file": "data/bonus-zeros.csv",
+      "count": 100,
+      "label": "All zeros",
+      "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.",
+      "group": "Bonus"
+    },
+    {
+      "id": "bonus-bignum",
+      "name": "Bonus: big numbers",
+      "label": "Big numbers",
+      "group": "Bonus",
+      "blurb": "Large numbers on the arrows; some puzzles go further and every arrow says 2 or more.",
+      "file": "data/bonus-bignum.csv",
+      "count": 100
+    },
+    {
+      "id": "bonus-skinny",
+      "name": "Bonus: skinny",
+      "label": "Skinny",
+      "group": "Bonus",
+      "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
+      "file": "data/bonus-skinny.csv",
+      "count": 100
+    },
+    {
+      "id": "regional-corpus",
+      "name": "Experiment: regional corpus",
+      "file": "data/regional-corpus.csv",
+      "count": 54,
+      "label": "Regional corpus (experiment)",
+      "group": "Bonus",
+      "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."
     },
     {
       "id": "armory",
