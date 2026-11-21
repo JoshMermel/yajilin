@@ -8,7 +8,7 @@ widened (max/min 2.2 -> 3.4 and 1.6 -> 1.9) but the gap between sizes did not sh
 Later rule additions (closingNeighbor, pairedEnds, segmentForcesLines, the rangeFacing split, crossingParity moved to Hard) change some scores a little, so `report.md` and `range.json` are a snapshot from before them: rerun `node tools/range_report.mjs` to refresh (it re-picks the samples). The sweep in `../sweep/` was run with the old weights; its conclusions are about relative effects and still hold.
 
 101 Nikoli-style puzzles (`--edge-bias 0.8 --shade 0.7`, the settings of the "Large (Nikoli-style)" book): 60 at 16x16, 41 at 20x32.
-Reproduce: `bash experiments/range/run.sh` (it fills `pools/`), then `node tools/range_report.mjs`.
+Reproduce: `bash experiments/range/run.sh` (it fills `pools/`, which was removed from the repo on 2026-11-20 to save space; `samples.csv` and `range.json` keep the results), then `node tools/range_report.mjs`.
 Full numbers, histograms and the sample table are in `report.md`; per-puzzle stats in `range.json`.
 `samples.csv` holds five puzzles per size at evenly spaced difficulty quantiles; the same file is `data/range-samples.csv` (a book until 2026-11-14; no longer listed in the app's picker, the file is kept). Names say `d5` (hardest) to `d1` (easiest) within their size.
 
