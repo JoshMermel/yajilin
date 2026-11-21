@@ -506,11 +506,22 @@ function reorient() {
 let resizeTimer = 0;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(reorient, 200); });
 
+// A CSV the player loaded from disk is remembered (the latest one), so a reload, or a link with ?book=file:name.csv, finds it again.
+function rememberFileBook(name, text) { store.set('yj_file_book', JSON.stringify({ name, text })); }
+function restoreFileBook() {
+  try {
+    const f = JSON.parse(store.get('yj_file_book') || 'null');
+    const puzzles = f && parseCsv(f.text);
+    if (puzzles && puzzles.length) state.books.push({ id: `file:${f.name}`, name: f.name, puzzles });
+  } catch { /* unreadable: forget it */ }
+}
+
 async function init() {
   let manifest = { books: [] };
   try { manifest = await (await fetch('data/manifest.json')).json(); } catch { /* none yet */ }
   state.books = manifest.books || [];
   state.groups = manifest.groups || [];
+  restoreFileBook();
   if (!state.books.length) { $('puz-info').textContent = 'No puzzle books yet. Load a CSV in Settings.'; return; }
   const params = new URLSearchParams(location.search);
   let last = null;
@@ -809,8 +820,9 @@ $('csv-file').addEventListener('change', async (e) => {
   const f = e.target.files[0];
   e.target.value = '';
   if (!f) return;
-  const puzzles = parseCsv(await f.text());
+  const text = await f.text(), puzzles = parseCsv(text);
   if (!puzzles.length) { toast('No puzzles found in that file.'); return; }
+  rememberFileBook(f.name, text);
   const id = `file:${f.name}`;
   state.books = state.books.filter((b) => b.id !== id);
   state.books.push({ id, name: f.name, puzzles });
