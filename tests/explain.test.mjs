@@ -60,15 +60,15 @@ test('a lookahead step says how many lines the box forces and hands the board th
   assert.equal(explainStep(P, seen.step).chain.length, 0, 'without a position there is nothing to draw');
 });
 
-test('boxStarvesClue through a forced neighbour talks about the lines the box forces, dashed', async () => {
+test('boxStarvesClueByLines talks about the lines the box forces, dashed', async () => {
   const { compile, initialState, LOOP } = await import('../js/logic.js');
   const { RULES } = await import('../js/rating.js');
   // a 1-arrow pointing left along the bottom row of a 3x5 board, with B3 on the loop: a box at B2 would force A3-B3 and B3-C3
   const P = compile({ name: 'bsc2', rows: 3, cols: 5, clues: [{ r: 2, c: 3, d: 3, n: 1 }] });
   const st = initialState(P); st.cell[2 * 5 + 1] = LOOP;
-  const f = RULES.find((r) => r.id === 'boxStarvesClue').find(P, st, {}).find((x) => x.info.cell === 1 * 5 + 1);
-  const e = explainStep(P, { rule: 'boxStarvesClue', info: f.info, sets: f.sets }, st);
-  assert.match(e.text, /would force \d+ line segments \(dashed\) that put dots on .* room for at most 0 boxes/);
+  const f = RULES.find((r) => r.id === 'boxStarvesClueByLines').find(P, st, {}).find((x) => x.info.cell === 1 * 5 + 1);
+  const e = explainStep(P, { rule: 'boxStarvesClueByLines', info: f.info, sets: f.sets }, st);
+  assert.match(e.text, /^A box at B2 would force the dashed lines, which violates the 1← clue at D3\.$/);
   assert.ok(e.chain.length >= 2 && e.chain.every((x) => x >= 0 && x < P.numEdges));
 });
 
@@ -92,14 +92,14 @@ test('a box whose forced lines give a cell three lines draws just those lines: A
     if (/^A box at C2 would force/.test(e.text)) c2 = e;
     if (/^A box at A4 would force/.test(e.text)) { text = e.text; 
       const names = e.chain.map((x) => edgeCells(P, x).map((c) => `${'ABCDEFGH'[c % 8]}${((c / 8) | 0) + 1}`).sort().join('-')).sort();
-      assert.deepEqual(names, ['A5-A6', 'A5-B5', 'B3-B4', 'B4-B5'], 'B4 up and down, A5 right and down');
+      assert.deepEqual(names, ['A5-B5', 'B4-B5'], 'only the two lines into B5: the partner lines of B4 and A5 are not needed');
       assert.deepEqual(e.roles.problem, [P.cols * 4 + 1], 'B5 is the trouble spot'); }
     for (const [k, i, v] of f.sets) { if (k === 'c') cells[i] = v === SHADED ? 1 : 2; else if (v === E_ON) edges[i] = 1; }
   }
   assert.ok(text, 'the A4 hint comes up');
   assert.ok(c2, 'the C2 hint comes up');
-  // C2 forces nine segments, but the contradiction (A2 and B3 full, so A3 has one way out) rests on five of them: only those are drawn
-  assert.match(c2.text, /^A box at C2 would force 5 line segments \(dashed\), which would put two lines in A2 and B3\. A3 could not join them/);
-  assert.equal(c2.chain.length, 5);
-  assert.match(text, /would force 4 line segments \(dashed\), which would give B5 three lines\. So A4 gets a dot\./);
+  // C2 forces nine segments, but the contradiction (A2 and B3 full, so A3 has one way out) rests on four of them: only those are drawn
+  assert.match(c2.text, /^A box at C2 would force 4 line segments \(dashed\), which would put two lines in A2 and B3\. A3 could not join them/);
+  assert.equal(c2.chain.length, 4);
+  assert.match(text, /would force 2 line segments \(dashed\), which would give B5 three lines\.$/);
 });

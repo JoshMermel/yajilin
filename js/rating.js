@@ -19,9 +19,10 @@
 //   placementDeadEnd cluePlacements again, throwing out placements whose boxes would leave a neighbouring cell with fewer than two exits
 //   boxStarvesClue   shading a cell would turn its neighbours into dots, and a clue would be left with too few open cells to reach its
 //                    number: the cell is loop
-//   shadeShortChain  shadeForcesLines and shadeClosesLoop when the imagined box forces only a few segments (SHORT_CHAIN): a chain short
-//                    enough to follow by eye. Cheaper than they are; it sits after the lookahead rules in the table because it is
-//                    contained in them (closure never needs it) and only the rating and the hints try it
+//   boxStarvesClueByLines  the same, when the dots also come from lines the box forces: a neighbour left with two ways out uses both
+//   shadeShortChain  shadeForcesLines when one cell ends up with three lines and only a couple of the forced lines (SHORT_CHAIN, counting
+//                    just the ones the contradiction depends on) are needed to get there: easy to see at a glance. A Medium-tier rule
+//                    that costs less than boxStarvesClue; the longer or messier contradictions are left to shadeForcesLines
 //   shadeForcesLines imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if that
 //                    makes a line end do two incompatible things (a cell gets three lines, or is left with fewer than
 //                    two exits), the cell is loop
@@ -351,10 +352,10 @@ function deadEndNeighbor(P, st) {
 /**
  * Imagine a box at a cell: boxes never touch, so its open neighbours would be dots. If that takes so many open cells out of a clue's
  * line that it could no longer reach its number (the boxes it has plus the open cells it has left are fewer than it needs), the cell
- * is a dot. Seen at a glance next to a clue: "a box here leaves the clue no room". A neighbour of the box that is left with exactly two
- * ways out (a dot on the edge, a box on its other side) uses both, so those two cells are dots too.
+ * is a dot. Seen at a glance next to a clue: "a box here leaves the clue no room". With `withLines`, a neighbour of the box that is left
+ * with exactly two ways out (a dot on the edge, a box on its other side) uses both, so the cells at the ends of those lines are dots too.
  */
-function boxStarvesClue(P, st) {
+function boxStarves(P, st, withLines) {
   const cluesAt = Array.from({ length: P.N }, () => []);         // the clues whose line (or region) holds each cell
   const have = new Int16Array(P.clues.length), open = new Int16Array(P.clues.length);
   P.clues.forEach((cl, k) => {
@@ -381,7 +382,7 @@ function boxStarvesClue(P, st) {
         if (st.e[x] !== E_ON && onCount(P, st, m) >= 2) continue;
         outs.push(m);
       }
-      if (outs.length === 2) for (const m of outs) if (st.cell[m] === UNKNOWN) { if (!viaOf.has(m)) { viaOf.set(m, []); forced.push(m); } viaOf.get(m).push(j); }
+      if (withLines && outs.length === 2) for (const m of outs) if (st.cell[m] === UNKNOWN) { if (!viaOf.has(m)) { viaOf.set(m, []); forced.push(m); } viaOf.get(m).push(j); }
     }
     touched.push(...forced);
     const lost = new Map();                                      // clue -> how many of its open cells the box takes away
@@ -398,6 +399,17 @@ function boxStarvesClue(P, st) {
   }
   return out;
 }
+
+/** Medium: a box's open neighbours are dots (boxes never touch), and that alone leaves a clue short of room. */
+const boxStarvesClue = (P, st) => boxStarves(P, st, false);
+/**
+ * Hard: the same, but the dots come further: a neighbour of the box left with exactly two ways out must use both, and the cells at the far
+ * ends of those lines are dots too. Only the cells the plain rule (boxStarvesClue) misses; info.chain/through say how the lines lead there.
+ */
+const boxStarvesClueByLines = (P, st) => {
+  const plain = new Set(boxStarves(P, st, false).map((f) => f.info.cell));
+  return boxStarves(P, st, true).filter((f) => !plain.has(f.info.cell));
+};
 
 // ---- ranges of cells with a known number of shaded cells
 
@@ -874,9 +886,68 @@ function shadeForces(P, st, closes, cap = Infinity) {
 }
 const shadeForcesLines = (P, st) => shadeForces(P, st, false);   // a cell ends up with three lines or too few ways out
 const shadeClosesLoop = (P, st) => shadeForces(P, st, true);     // the forced lines close the loop too early
-/** DRAFT cap: the most forced segments a box may lead to for shadeShortChain (a chain a person can follow by eye). */
-export const SHORT_CHAIN = 3;
-const shadeShortChain = (P, st) => shadeForces(P, st, null, SHORT_CHAIN);
+/**
+ * The lines that matter when a box leads to a contradiction (for the explanation, and the cost of shadeShortChain): follow the forced
+ * lines (followLines with its provenance) back from the contradiction and keep only the segments it depends on. A cell that had exactly
+ * two ways out draws both, but a person only needs the one that feeds the contradiction, so its partner is not counted. Returns
+ *   { edges, bad, three, cells, s2 }: `edges` the segments that matter (as edge indexes, none of them drawn yet), `s2` the position after
+ *   the box and everything it forces, `bad` the cell followLines found stranded. `three` is true when the picture is "some cells end up
+ *   with three lines" (`cells`): `bad` itself gets three, or it has just two ways out, both forced, and one leads into a cell the forced
+ *   lines already filled (the line into that cell is counted too: it is the third). Otherwise `three` is false and `cells` is empty.
+ * Null when there is no contradiction, or the loop closes early. `cap`: give up on a box whose lines take more than this many segments.
+ */
+export function boxProof(P, st, box, cap = Infinity) {
+  const s2 = cloneState(st); s2.cell[box] = SHADED;
+  const why = { off: new Map(), ev: new Map(), events: [] };
+  const bad = followLines(P, s2, cap, why);
+  if (bad < 0 || s2.closedEarly || !why.fail) return null;
+  const need = new Set(), stack = [...why.fail.deps];
+  while (stack.length) {
+    const x = stack.pop(), id = why.ev.get(x);
+    if (id === undefined || need.has(x)) continue;
+    need.add(x);
+    stack.push(...why.events[id].deps);
+  }
+  const out = { edges: [], bad, three: false, cells: [], s2 };
+  if (why.fail.kind === 'three') { out.three = true; out.cells = [bad]; }
+  else {
+    const ways = [];                                             // everywhere `bad` could go, if the box's lines did not fill cells
+    for (let d = 0; d < 4; d++) {
+      const x = P.ed[bad * 4 + d]; if (x < 0) continue;
+      const j = P.nb[bad * 4 + d];
+      if (st.e[x] === E_OFF || s2.cell[j] === SHADED || s2.cell[j] === CLUE) continue;
+      if (st.e[x] !== E_ON && onCount(P, st, j) >= 2) continue;       // already full before the box: not a way out anyway
+      ways.push([x, j]);
+    }
+    const full = ways.filter(([x, j]) => s2.e[x] !== E_ON && onCount(P, s2, j) >= 2);
+    if (ways.length === 2 && full.length) {
+      for (const [x] of full) need.add(x);
+      out.three = true; out.cells = full.map(([, j]) => j);
+    }
+  }
+  out.edges = [...need].filter((x) => st.e[x] === E_UNKNOWN).sort((a, b) => a - b);
+  return out;
+}
+
+/** DRAFT: the most segments a contradiction may need (see boxProof) for shadeShortChain: two lines you can see at once. */
+export const SHORT_CHAIN = 2;
+const SHORT_SEARCH = 8;                       // the most segments followLines draws (needed or not) before shadeShortChain gives up on a box
+/**
+ * A box makes some cell end up with three lines, and only a couple of lines are needed to get there (SHORT_CHAIN). The firings come
+ * fewest lines first; the cell is a dot. A contradiction of another kind (a cell left stranded, the loop closing) is left to the
+ * unlimited rules, shadeForcesLines and shadeClosesLoop, which are Hard.
+ */
+function shadeShortChain(P, st) {
+  const out = [];
+  for (let i = 0; i < P.N; i++) {
+    if (st.cell[i] !== UNKNOWN) continue;
+    const probe = cloneState(st); probe.cell[i] = SHADED;
+    if (followLines(P, probe, SHORT_SEARCH) < 0) continue;       // (cheap check first; the trace below costs more)
+    const pr = boxProof(P, st, i, SHORT_SEARCH);
+    if (pr && pr.three && pr.edges.length <= SHORT_CHAIN) out.push(firing([setCell(i, LOOP)], { cell: i, stranded: pr.bad, forced: pr.edges.length }));
+  }
+  return out.sort((a, b) => a.info.forced - b.info.forced || a.info.cell - b.info.cell);
+}
 
 /**
  * Like shadeForcesLines, for a segment: imagine it missing (or drawn) next to a loop cell, add the lines that forces, and if
@@ -1490,6 +1561,7 @@ export const RULES = [
   { id: 'deadEndNeighbor', tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
   { id: 'cluePlacements', tier: 'Medium', weight: 12, find: cluePlacements, label: 'every way to place a clue\'s boxes includes (or leaves out) this cell' },
   { id: 'placementDeadEnd', tier: 'Medium', weight: 14, find: placementDeadEnd, label: 'every way to place a clue\'s boxes that leaves no neighbor stranded includes (or leaves out) this cell' },
+  { id: 'shadeShortChain', tier: 'Medium', weight: 15, find: shadeShortChain, label: `a box here would force a couple of lines (at most ${SHORT_CHAIN} that matter) that give some cell three lines: this cell is a dot` },
   { id: 'boxStarvesClue', tier: 'Medium', weight: 16, find: boxStarvesClue, label: 'a box here would turn its neighbors into dots and leave a clue no room for its number of boxes: this cell is a dot' },
   { id: 'closingNeighbor', tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
   { id: 'rangeSame', tier: 'Medium', weight: 24, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
@@ -1498,6 +1570,7 @@ export const RULES = [
   { id: 'colorBalance', tier: 'Hard', weight: 50, find: colorBalance, label: 'the loop alternates colours, so the boxes leave light and dark cells level: that fixes how many boxes each colour holds' },
   { id: 'regionPairs', tier: 'Hard', weight: 45, find: regionPairs, label: 'two neighbouring numbered regions together: every way to place both numbers of boxes without touching includes (or leaves out) this cell' },
   { id: 'pairedEnds', tier: 'Hard', weight: 60, find: pairedEnds, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
+  { id: 'boxStarvesClueByLines', tier: 'Hard', weight: 55, find: boxStarvesClueByLines, label: 'a box here would turn its neighbors into dots and force the lines of a neighbor left with two ways out, and that leaves a clue no room for its number: this cell is a dot' },
   { id: 'shadeForcesLines', tier: 'Hard', weight: 70, find: shadeForcesLines, label: 'a box here would force lines that leave a cell with three lines or too few ways out: this cell is a dot' },
   { id: 'shadeClosesLoop', tier: 'Hard', weight: 75, find: shadeClosesLoop, label: 'a box here would force lines that close the loop early: this cell is a dot' },
   { id: 'segmentForcesLines', tier: 'Hard', weight: 80, find: segmentForcesLines, label: 'a segment here (or its absence) would force lines that leave a cell with three lines or too few ways out' },
@@ -1506,7 +1579,6 @@ export const RULES = [
   { id: 'rangeFacing', tier: 'Hard', weight: 105, find: rangeFacing, label: 'two clues point at each other: how many boxes fit in each part of the line fixes how many it holds' },
   { id: 'tryCell', tier: 'Hard', weight: 140, lookahead: true, find: lookahead('cell'), label: 'trying a cell one way leads to a contradiction' },
   { id: 'tryEdge', tier: 'Hard', weight: 160, lookahead: true, find: lookahead('edge'), label: 'trying a segment one way leads to a contradiction' },
-  { id: 'shadeShortChain', tier: 'Hard', weight: 55, find: shadeShortChain, label: `a box here would force only a few lines (at most ${SHORT_CHAIN} segments) that leave a cell with three lines or too few ways out, or close the loop early: this cell is a dot` },
   { id: 'uniqueRoute', tier: 'Hard', weight: 125, assumesUnique: true, find: uniqueRoute, label: 'a way of joining the open ends here could be drawn two ways, which would give two solutions: so it is not the way' },
 ];
 

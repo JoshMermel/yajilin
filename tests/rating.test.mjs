@@ -183,21 +183,24 @@ test('pattern: a box would turn neighbours into dots and leave a clue no room (b
   assert.deepEqual(ruleSets('boxStarvesClue', compile({ name: 'ok', rows: 4, cols: 7, clues: [{ r: 0, c: 0, d: 5, n: 1 }] })), []);
 });
 
-test('boxStarvesClue also follows a neighbour left with two ways out', () => {
+test('boxStarvesClueByLines (Hard) follows a neighbour left with two ways out; boxStarvesClue (Medium) does not', () => {
   // a 1-arrow pointing left along the bottom row of a 3x5 board; (2,1) is on the loop. A box at (1,1) would leave (2,1) with only
   // (2,0) and (2,2) as ways out, so both become dots and the arrow has nothing left to shade.
   const P = compile({ name: 'bsc2', rows: 3, cols: 5, clues: [{ r: 2, c: 3, d: 3, n: 1 }] });
   const st = initialState(P);
   st.cell[2 * 5 + 1] = LOOP;
-  const fs = RULES.find((r) => r.id === 'boxStarvesClue').find(P, st, {});
+  assert.ok(!RULES.find((r) => r.id === 'boxStarvesClue').find(P, st, {}).some((x) => x.info.cell === 1 * 5 + 1), 'the dots next to the box are not enough');
+  const fs = RULES.find((r) => r.id === 'boxStarvesClueByLines').find(P, st, {});
   const f = fs.find((x) => x.info.cell === 1 * 5 + 1);
   assert.ok(f, 'a box above the dot is ruled out');
   assert.deepEqual(f.info.dots, [2 * 5 + 0, 2 * 5 + 2]);
   assert.deepEqual(f.info.chain, [2 * 5 + 0, 2 * 5 + 2]);
   assert.deepEqual(f.info.through, [1 * 5 + 0, 2 * 5 + 1]);                  // the left-edge neighbour (1,0) forces (2,0) too
   // (2,1) is a dot-to-be even when unknown, since it touches the box; the same chain then shows without the starting dot
-  const g = RULES.find((r) => r.id === 'boxStarvesClue').find(P, initialState(P), {}).find((x) => x.info.cell === 1 * 5 + 1);
+  const g = RULES.find((r) => r.id === 'boxStarvesClueByLines').find(P, initialState(P), {}).find((x) => x.info.cell === 1 * 5 + 1);
   assert.deepEqual(g.info.dots, [2 * 5 + 0, 2 * 5 + 1, 2 * 5 + 2]);
+  assert.equal(RULES.find((r) => r.id === 'boxStarvesClue').tier, 'Medium');
+  assert.equal(RULES.find((r) => r.id === 'boxStarvesClueByLines').tier, 'Hard');
 });
 
 test('lookahead hints: the shortest chain comes first, and shadeShortChain only takes short ones', () => {
@@ -215,7 +218,10 @@ test('lookahead hints: the shortest chain comes first, and shadeShortChain only 
   const all = ['shadeForcesLines', 'shadeClosesLoop'].flatMap((id) => rule(id).find(P, initialState(P), {})).map((f) => f.info.cell);
   for (const f of near) assert.ok(all.includes(f.info.cell));
   assert.ok(checked + near.length > 0);
-  assert.ok(rule('shadeShortChain').weight < rule('shadeForcesLines').weight && rule('shadeShortChain').tier === 'Hard');
+  assert.ok(rule('shadeShortChain').weight < rule('shadeForcesLines').weight);
+  // a chain you can follow by eye is a Medium-tier step, tried before boxStarvesClue
+  assert.equal(rule('shadeShortChain').tier, 'Medium');
+  assert.ok(HUMAN_ORDER.findIndex((r) => r.id === 'shadeShortChain') < HUMAN_ORDER.findIndex((r) => r.id === 'boxStarvesClue'));
 });
 
 test('pattern: clues pointing the same way share a range with a known box count (rangeSame)', () => {
@@ -297,14 +303,14 @@ test('every rule is sound on random partial positions of true solutions', () => 
     }
   }
   console.log(`    ${positions} positions; firings: ${JSON.stringify(fired)}`);
-  for (const id of ['cluePlacements', 'placementDeadEnd', 'rangeSame', 'rangeFacingKnown', 'deadEndNeighbor', 'boxStarvesClue', 'shadeForcesLines']) {
+  for (const id of ['cluePlacements', 'placementDeadEnd', 'rangeSame', 'rangeFacingKnown', 'deadEndNeighbor', 'boxStarvesClue', 'boxStarvesClueByLines', 'shadeForcesLines']) {
     assert.ok(fired[id] > 0, `${id} never fired in the sample`);
   }
 });
 
 test('pattern: imagine a box, add the forced lines, a cell gets three lines (shadeForcesLines)', () => {
-  // A 5x4 puzzle with two clues whose solve needs this rule (and nothing harder), found by search.
-  const P = compile({ name: 'sfl', rows: 5, cols: 4, clues: [{ r: 1, c: 2, d: 2, n: 1 }, { r: 0, c: 0, d: 2, n: 0 }] });
+  // A 6x6 puzzle with three clues whose solve needs this rule (and nothing harder; the shorter contradictions go to shadeShortChain), found by search.
+  const P = compile({ name: 'sfl', rows: 6, cols: 6, clues: [{ r: 2, c: 0, d: 1, n: 0 }, { r: 2, c: 2, d: 5, n: 1 }, { r: 5, c: 2, d: 0, n: 0 }] });
   assert.equal(solve(P, { limit: 2 }).count, 1);
   const r = rate(P);
   assert.ok(r.solved);

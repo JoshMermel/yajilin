@@ -5,7 +5,7 @@
 //              tools/capture_how_to_images.py             take the screenshots (docs/images/<rule>.png)
 //              node tools/build_how_to_solve.mjs          this file: the markdown (rule descriptions come from the README's rules table)
 import fs from 'node:fs';
-import { RULES, TIERS, TIER_INFO } from '../js/rating.js';
+import { RULES, TIERS, TIER_INFO, HUMAN_ORDER } from '../js/rating.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const SITE = 'https://joshmermelstein.com/yajilin/index.html';
@@ -85,7 +85,7 @@ for (const tier of TIERS.filter((t) => RULES.some((r) => r.tier === t && !r.free
   const info = TIER_INFO && TIER_INFO[tier];
   say(`## ${tier}`, '');
   if (info && info.blurb) say(`A puzzle is rated ${tier} when the hardest thing it needs is this: ${info.blurb}.`, '');
-  for (const r of RULES.filter((x) => x.tier === tier && !x.free)) {
+  for (const r of HUMAN_ORDER.filter((x) => x.tier === tier)) {                 // cheapest first, as the rating tries them
     say(`### ${r.id}`, '', `*${tier}, cost ${r.weight}*`, '');
     say(about[r.id] || cap(r.label), '');
     if (byRule.has(r.id)) say(...ex(r));

@@ -1,7 +1,7 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can color them differently) and the marks the step makes.
 import { SHADED, LOOP, CLUE, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
-import { ruleLabel, followLines } from './rating.js';
+import { ruleLabel, followLines, boxProof } from './rating.js';
 
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 /** A cell's name like a spreadsheet's: column letter, then row number (E3). */
@@ -69,48 +69,6 @@ function filledNeighbours(P, st, s2, bad) {
     if (s2.e[x] === E_ON || s2.cell[j] === SHADED || st.e[x] === E_OFF) continue;
     if (linesAt(P, s2, j) >= 2 && linesAt(P, st, j) < 2) out.push(j);
   }
-  return out;
-}
-
-/**
- * The lines that matter when a box leads to a contradiction: follow the forced lines (rating.js followLines, with its provenance) back from
- * the contradiction and keep only the segments it rests on, instead of every segment the box forces. Returns
- *   { edges, bad, three, cells, s2 }: `edges` the segments to draw dashed; `three`: the picture is "these cells end up with three lines"
- *   (`cells`), true when `bad` itself gets three, or when it has just two ways to go, both forced, and one leads into a cell the forced
- *   lines already filled (those lines are drawn too: B5 would then have its two and the one A5 needs);
- *   otherwise `three` is false and `cells` is empty (the stranded cell has fewer than two ways out, whichever way you count).
- * Null when there is no contradiction to trace (or the loop closes early).
- */
-function proofLines(P, st, box) {
-  const s2 = cloneState(st); s2.cell[box] = SHADED;
-  const why = { off: new Map(), ev: new Map(), events: [] };
-  const bad = followLines(P, s2, Infinity, why);
-  if (bad < 0 || s2.closedEarly || !why.fail) return null;
-  const shown = new Set(), seen = new Set(), stack = [...why.fail.deps];
-  while (stack.length) {
-    const id = why.ev.get(stack.pop());
-    if (id === undefined || seen.has(id)) continue;
-    seen.add(id);
-    for (const y of why.events[id].edges) shown.add(y);
-    stack.push(...why.events[id].deps);
-  }
-  const out = { edges: [], bad, three: false, cells: [], s2 };
-  if (why.fail.kind === 'three') { out.three = true; out.cells = [bad]; }
-  else {
-    const ways = [];                                             // everywhere `bad` could go, if the lines forced so far did not fill cells
-    for (let d = 0; d < 4; d++) {
-      const x = P.ed[bad * 4 + d]; if (x < 0) continue;
-      const j = P.nb[bad * 4 + d];
-      if (st.e[x] === E_OFF || s2.cell[j] === SHADED || s2.cell[j] === CLUE) continue;
-      ways.push([x, j]);
-    }
-    const full = ways.filter(([x, j]) => s2.e[x] !== E_ON && linesAt(P, s2, j) >= 2).map(([, j]) => j);
-    if (ways.length === 2 && full.length) {
-      for (const [x] of ways) if (st.e[x] === E_UNKNOWN) shown.add(x);
-      out.three = true; out.cells = full;
-    }
-  }
-  out.edges = [...shown].filter((x) => st.e[x] === E_UNKNOWN).sort((a, b) => a - b);
   return out;
 }
 
@@ -187,15 +145,16 @@ export function explainStep(P, step, st = null) {
     case 'tightCell':
       role('focus', info.cell); role('problem', info.neighbor);
       if (st) role('exit', waysOut(P, st, info.neighbor).filter((j) => j !== info.cell));
-      text = `A box at ${N(info.cell)} would turn ${N(info.neighbor)} into a dot with just one way out. So ${N(info.cell)} gets a dot.`;
+      text = `A box at ${N(info.cell)} would leave ${N(info.neighbor)} with just one way out.`;
       break;
     case 'deadEndNeighbor':
       role('focus', info.cell); role('problem', info.neighbor);
       if (st) role('exit', waysOut(P, st, info.neighbor, info.cell));
       const left = st ? waysOut(P, st, info.neighbor, info.cell).length : -1;
-      text = `A box at ${N(info.cell)} would turn ${N(info.neighbor)} into a dot with ${left === 0 ? 'no way out' : left === 1 ? 'just one way out' : 'fewer than two ways out'}. So ${N(info.cell)} gets a dot.`;
+      text = `A box at ${N(info.cell)} would leave ${N(info.neighbor)} with ${left === 0 ? 'no way out' : left === 1 ? 'just one way out' : 'fewer than two ways out'}.`;
       break;
-    case 'boxStarvesClue': {
+    case 'boxStarvesClue':
+    case 'boxStarvesClueByLines': {
       const k = info.clue; role('focus', info.cell); role('clue', clueCell(P, k)); role('range', P.rays[k]); role('problem', info.dots);
       const names = info.dots.map(N), list = names.length > 2 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join(' and ');
       if (info.chain) {
@@ -206,15 +165,15 @@ export function explainStep(P, step, st = null) {
           if (x >= 0 && info.chain.includes(m) && st.e[x] === E_UNKNOWN) segs.add(x);       // the new segments that lead to the dots in the clue's line
         }
         chain = [...segs].sort((a, b) => a - b);
-        text = `A box at ${N(info.cell)} would force ${chain.length ? `${plural(chain.length, 'line segment')} (dashed)` : 'lines'} that put dots on ${list}, and that would leave the ${clueName(P, k)} room for at most ${plural(info.most, 'box', 'boxes')}, but it needs ${P.clues[k].n}. So ${N(info.cell)} gets a dot.`;
+        text = `A box at ${N(info.cell)} would force ${chain.length ? 'the dashed lines' : 'lines'}, which violates the ${clueName(P, k)}.`;
         break;
       }
-      text = `A box at ${N(info.cell)} would turn ${list} into ${info.dots.length === 1 ? 'a dot' : 'dots'}, leaving the ${clueName(P, k)} room for at most ${plural(info.most, 'box', 'boxes')}, but it needs ${P.clues[k].n}. So ${N(info.cell)} gets a dot.`;
+      text = `A box at ${N(info.cell)} would put ${info.dots.length === 1 ? 'a dot' : 'dots'} on ${list}, which violates the ${clueName(P, k)}.`;
       break;
     }
     case 'closingNeighbor':
       role('focus', info.cell); role('problem', info.neighbor); role('path', info.a, info.b);
-      text = `A box at ${N(info.cell)} would turn ${N(info.neighbor)} into a dot whose only two ways out, ${N(info.a)} and ${N(info.b)}, are the ends of one path: using both would close the loop early. So ${N(info.cell)} gets a dot.`;
+      text = `A box at ${N(info.cell)} would leave ${N(info.neighbor)} with only two ways out, ${N(info.a)} and ${N(info.b)}, the ends of one path: using both would close the loop early.`;
       break;
     case 'pairedEnds': {
       const [u, v] = info.pair, [fu, fv] = info.far;
@@ -224,15 +183,15 @@ export function explainStep(P, step, st = null) {
         : `However the ${info.k} open ends of this sealed-off area pair up, ${N(fu)} and ${N(fv)} end up as the two ends of one line.`;
       if (info.kind === 'box') {
         role('focus', info.cell);
-        text = `${lead} ${N(info.cell)} has only those two ways out, and using both would close the loop early. So ${N(info.cell)} is a box.`;
+        text = `${lead} ${N(info.cell)} has only those two ways out, and using both would close the loop early.`;
       } else if (info.kind === 'third') {
         role('focus', info.cell);
         text = `${lead} ${N(info.cell)} has three ways out; using both of those would close the loop early, so it uses ${N(info.third)}.`;
       } else if (info.kind === 'dot') {
         role('focus', info.cell); role('problem', info.neighbor);
-        text = `${lead} A box at ${N(info.cell)} would leave ${N(info.neighbor)} with only those two ways out, closing the loop early. So ${N(info.cell)} gets a dot.`;
+        text = `${lead} A box at ${N(info.cell)} would leave ${N(info.neighbor)} with only those two ways out, closing the loop early.`;
       } else {
-        text = `${lead} A segment between them would close the loop early. So there is none.`;
+        text = `${lead} A segment between them would close the loop early.`;
       }
       break;
     }
@@ -310,25 +269,25 @@ export function explainStep(P, step, st = null) {
       role('focus', info.cell); role('problem', info.stranded);
       chain = st ? forcedLines(P, st, info.cell) : [];      // drawn dashed, so the player can follow the box to where it goes wrong
       const closes = rule === 'shadeClosesLoop' || (rule === 'shadeShortChain' && st && cloneStateClosed(P, st, info.cell));
-      const proof = st && !closes ? proofLines(P, st, info.cell) : null;
+      const proof = st && !closes ? boxProof(P, st, info.cell) : null;
       if (proof && proof.edges.length) {
         chain = proof.edges;                                    // just the lines the contradiction rests on
         const s2 = proof.s2;                                    // (the box and everything it forces)
         const forcedText = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed)`;
         if (proof.three) {
           delete roles.problem; role('problem', ...proof.cells);
-          text = `${forcedText}, which would give ${proof.cells.map(N).join(' and ')} three lines. So ${N(info.cell)} gets a dot.`;
+          text = `${forcedText}, which would give ${proof.cells.map(N).join(' and ')} three lines.`;
         } else {
           const filled = filledNeighbours(P, st, s2, proof.bad);
           if (filled.length) {
             role('problem', ...filled);
-            text = `${forcedText}, which would put two lines in ${filled.map(N).join(' and ')}. ${N(proof.bad)} could not join ${filled.length === 1 ? 'it' : 'them'}, so it would ${failureAt(P, s2, proof.bad).replace(/^leave \S+ with /, 'be left with ')}. So ${N(info.cell)} gets a dot.`;
-          } else text = `${forcedText}, and that would ${failureAt(P, s2, proof.bad)}. So ${N(info.cell)} gets a dot.`;
+            text = `${forcedText}, which would put two lines in ${filled.map(N).join(' and ')}. ${N(proof.bad)} could not join ${filled.length === 1 ? 'it' : 'them'}, so it would ${failureAt(P, s2, proof.bad).replace(/^leave \S+ with /, 'be left with ')}.`;
+          } else text = `${forcedText}, and that would ${failureAt(P, s2, proof.bad)}.`;
         }
       } else if (chain.length) {
         const s2 = cloneState(st); s2.cell[info.cell] = SHADED;
-        text = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed), and that would ${failureAt(P, s2, followLines(P, s2))}. So ${N(info.cell)} gets a dot.`;
-      } else text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info, closes)}. So ${N(info.cell)} gets a dot.`;
+        text = `A box at ${N(info.cell)} would force ${plural(chain.length, 'line segment')} (dashed), and that would ${failureAt(P, s2, followLines(P, s2))}.`;
+      } else text = `A box at ${N(info.cell)} would force lines ${strandedResult(P, st, info, closes)}.`;
       break;
     }
     case 'uniqueRoute': {
@@ -341,8 +300,8 @@ export function explainStep(P, step, st = null) {
     case 'segmentClosesLoop': {
       const [a, b] = edgeCells(P, info.edge); role('focus', a, b); role('problem', info.stranded);
       text = info.assumed === 'off'
-        ? `Without a segment between ${N(a)} and ${N(b)}, the forced lines would ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}. So there is one.`
-        : `A segment between ${N(a)} and ${N(b)} would force lines that ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}. So there is none.`;
+        ? `Without a segment between ${N(a)} and ${N(b)}, the forced lines would ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}.`
+        : `A segment between ${N(a)} and ${N(b)} would force lines that ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}.`;
       break;
     }
     case 'parityForces': {
@@ -351,12 +310,12 @@ export function explainStep(P, step, st = null) {
       const odd = `${plural(k, 'open end')} (purple), which can't be paired up`;
       if (info.cell !== undefined) {
         role('focus', info.cell);
-        text = `A box at ${N(info.cell)} would cut off an area with ${odd}. So ${N(info.cell)} gets a dot.`;
+        text = `A box at ${N(info.cell)} would cut off an area with ${odd}.`;
       } else {
         const [a, b] = edgeCells(P, info.edge); role('focus', a, b);
         text = info.assumed === 'off'
-          ? `No segment between ${N(a)} and ${N(b)} would cut off an area with ${odd}. So there is one.`
-          : `A segment between ${N(a)} and ${N(b)} would cut off an area with ${odd}. So there is none.`;
+          ? `No segment between ${N(a)} and ${N(b)} would cut off an area with ${odd}.`
+          : `A segment between ${N(a)} and ${N(b)} would cut off an area with ${odd}.`;
       }
       break;
     }
