@@ -1,6 +1,7 @@
 #!/bin/sh
 # Pools for the split bonus books (2026-11-20): the long way round, one direction, all zeros and no zeros, each at 8x8 and 12x12.
-# Run from the project root (WORKERS=9 by default), then:  node tools/build_bonus_split.mjs
+# Run from the project root (WORKERS=9 by default; CAP=3600 is the hard limit in seconds of one job: a killed job keeps the puzzles it had made), then:
+#   node tools/build_bonus_split.mjs [--sizes 16x16]
 # Output: tools/library/bs_<recipe>_<size>_s<seed>.csv. A job line never ends in a blank (xargs -L would join it to the next).
 mkdir -p tools/library
 JOBS=$(mktemp)
@@ -15,13 +16,19 @@ emit() {   # recipe size total per-job budget flags...
   done
 }
 {
-  for s in "8x8 400" "12x12 400"; do set -- $s
+  for s in "8x8 400" "12x12 400" "16x16 300"; do set -- $s
     [ -n "$ONLYSIZE" ] && [ "$ONLYSIZE" != "$1" ] && continue     # ONLYSIZE=12x12 SEED=9300 sh tools/make_bonus_split.sh: just that size
-    emit longway $1 $2 20 300 --edge-bias 0.1
-    emit onedir  $1 $2 20 300 --one-dir
-    emit zeros   $1 $2 20 300 --numbers zeros
+    per=20; [ "$1" = 16x16 ] && per=10
+    emit longway $1 $2 $per 300 --edge-bias 0.1
+    emit onedir  $1 $2 $per 300 --one-dir
+    emit zeros   $1 $2 $per 300 --numbers zeros
     # no zeros: four recipes, mixed in the book. "nz" leans big with the classic big-numbers knobs, "nzd" with the defaults, and the two "t"
     # ones ask for every arrow to say 2 or more. (Not at 8x8: there are very few such puzzles and each job just burns its whole budget.)
+    if [ "$1" = 16x16 ]; then    # (16x16: the pools are 300 puzzles, half that for each of the two slow no-zeros recipes, and no arrows-at-least-2 at all)
+      emit nz   $1 150 10 300 --numbers nozeros --density 0.36 --shade 0.6
+      emit nzd  $1 150 10 300 --numbers nozeros
+      continue
+    fi
     emit nz   $1 $2 20 300 --numbers nozeros --density 0.36 --shade 0.6
     emit nzd  $1 $2 20 300 --numbers nozeros
     [ "$1" = 8x8 ] && continue
@@ -30,5 +37,6 @@ emit() {   # recipe size total per-job budget flags...
   done
 } > "$JOBS"
 wc -l < "$JOBS"
-xargs -P "${WORKERS:-9}" -L 1 sh -c 'node tools/generate.mjs --size $1 --count $2 --seed $3 --budget $4 --out $0 $5 $6 $7 $8 $9 > /dev/null 2>&1; echo done $0' < "$JOBS"
+[ -n "$DRY" ] && { cat "$JOBS"; rm -f "$JOBS"; exit 0; }      # DRY=1: only list the jobs
+xargs -P "${WORKERS:-9}" -L 1 sh -c 'perl -e "alarm ${CAP:-3600}; exec @ARGV" node tools/generate.mjs --size $1 --count $2 --seed $3 --budget $4 --out $0 $5 $6 $7 $8 $9 > /dev/null 2>&1; echo done $0' < "$JOBS"
 rm -f "$JOBS"

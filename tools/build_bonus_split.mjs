@@ -1,6 +1,6 @@
 // Build the split bonus books (the long way round, one direction, all zeros, no zeros; each at 8x8 and 12x12) from the pools that
 // tools/make_bonus_split.sh writes (tools/library/bs_<recipe>_<size>_s<seed>.csv), replacing the old one-book-per-theme versions.
-//   node tools/build_bonus_split.mjs [--limit 250]
+//   node tools/build_bonus_split.mjs [--limit 250] [--sizes 8x8,12x12]     (only those sizes are rebuilt; the other sizes' books stay as they are)
 // A book is the same number of puzzles from each of its recipes (the no-zeros books mix four), each recipe's share thinned evenly by
 // score so the spread is kept; a recipe with too few puzzles hands its share to the others. Puzzles are deduplicated across turns and mirrors.
 import fs from 'node:fs';
@@ -16,13 +16,15 @@ const THEMES = [
   { key: 'zeros', old: 'bonus-zeros', name: 'Bonus: all zeros', label: 'All zeros', recipes: ['zeros'], blurb: 'Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.' },
   { key: 'nozeros', old: 'bonus-bignum', name: 'Bonus: no zeros', label: 'No zeros', recipes: ['nz', 'nzd', 't2', 't2d'], blurb: 'No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more.' },
 ];
-const SIZES = ['8x8', '12x12'];
+const si = process.argv.indexOf('--sizes'), SIZES = si > 0 ? process.argv[si + 1].split(',') : ['8x8', '12x12'];
 const need = (c) => ({ rows: +c.split('x')[1], cols: +c.split('x')[0] });
 
 const manifestPath = root + 'data/manifest.json';
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 for (const th of THEMES) {
-  const slot = manifest.books.findIndex((b) => b.id === th.old || b.id.startsWith(`bonus-${th.key}-`));
+  const mine = (b) => b.id === th.old || b.id.startsWith(`bonus-${th.key}-`);
+  const ids = SIZES.map((z) => `bonus-${th.key}-${z}`);
+  const slotOf = (books) => { const last = books.map((b, i) => (mine(b) ? i : -1)).filter((i) => i >= 0).pop(); return last === undefined ? -1 : last; };
   const entries = [];
   for (const size of SIZES) {
     const [c, r] = size.split('x').map(Number);
@@ -55,8 +57,11 @@ for (const th of THEMES) {
     console.log(`${id}: ${chosen.length} puzzles (pool ${pools.map((p) => p.length).join('/')}), tiers ${JSON.stringify(tiers)}`);
     entries.push({ id, name: `${th.name} ${nice}`, file: `data/${id}.csv`, count: chosen.length, label: `${th.label} ${nice}`, group: 'Bonus', blurb: th.blurb });
   }
-  manifest.books = manifest.books.filter((b) => b.id !== th.old && !b.id.startsWith(`bonus-${th.key}-`));
-  manifest.books.splice(slot < 0 ? manifest.books.length : Math.min(slot, manifest.books.length), 0, ...entries);
+  manifest.books = manifest.books.filter((b) => b.id !== th.old && !ids.includes(b.id));      // (the old one-book version and the books about to be rebuilt)
+  // the rebuilt books go after the theme's other books, which keeps the sizes in order (8x8, 12x12, 16x16)
+  const after = slotOf(manifest.books);
+  const at = after >= 0 ? after + 1 : (manifest.books.findIndex((b) => b.group === 'Bonus') + 1 || manifest.books.length);
+  manifest.books.splice(at, 0, ...entries);
   if (fs.existsSync(`${root}data/${th.old}.csv`)) fs.unlinkSync(`${root}data/${th.old}.csv`);
 }
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
