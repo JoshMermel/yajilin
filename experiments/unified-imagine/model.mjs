@@ -1,6 +1,6 @@
 import { RULES, applySets, contradiction, isComplete, nextStep, rate, tierOfRule, UNDETERMINED_WEIGHT } from '../../js/rating.js';
 import { initialState, SHADED, LOOP, UNKNOWN, checkSolved, E_ON } from '../../js/logic.js';
-import { run, scan, pruned, fullContradiction, STATS } from './imagine.mjs';
+import { run, scan, scanSlow, pruned, fullContradiction, STATS } from './imagine.mjs';
 export { STATS };
 export const AREA_PENALTY = 12;
 
@@ -27,15 +27,24 @@ const counted = (P) => {
 
 /** the cheapest imagined box or dot that ends in a contradiction: { cell, pol, cost, pr } or null */
 export function bestImagine(P, st, { maxCand = +(process.env.MAXCAND || 8), maxRaw = 30 } = {}) {
-  const cnt = counted(P), cands = [], r0 = STATS.runs, i0 = STATS.iters, tS = performance.now();
+  const cnt = counted(P), cands = [], pending = [], r0 = STATS.runs, i0 = STATS.iters, tS = performance.now();
   for (let i = 0; i < P.N; i++) {
     if (st.cell[i] !== UNKNOWN) continue;
     for (const pol of [SHADED, LOOP]) {
       if (pol === LOOP && !cnt[i]) continue;
-      const r = scan(P, st, [['c', i, pol]], maxRaw, 12);   // an area argument (cut off, odd open ends) counts after a short chain
-      if (!r) continue;
-      const area = r.area;
-      cands.push({ cell: i, pol, area, rawE: r.facts.filter((f) => f.k === 'e').length, raw: r.facts.length });
+      const r = scan(P, st, [['c', i, pol]], maxRaw, 12, true);
+      if (r === null) continue;
+      if (r.ok) cands.push({ cell: i, pol, area: false, rawE: r.facts.filter((f) => f.k === 'e').length, raw: r.facts.length });
+      else if (r.areaState) pending.push({ cell: i, pol, state: r.areaState });
+    }
+  }
+  // The candidates are taken easy ones first and only the first maxCand are priced, so an area argument (cut off, odd open ends) is only looked for
+  // when there are fewer easy chains than that.
+  if (cands.length < maxCand) {
+    for (const q of pending) {
+      if (!fullContradiction(P, q.state)) continue;
+      const r = scanSlow(P, st, [['c', q.cell, q.pol]], maxRaw, 12);
+      if (r && r.ok) cands.push({ cell: q.cell, pol: q.pol, area: true, rawE: r.facts.filter((f) => f.k === 'e').length, raw: r.facts.length });
     }
   }
   STATS.scanMs = (STATS.scanMs || 0) + (performance.now() - tS); STATS.scanIters = (STATS.scanIters || 0) + (STATS.iters - i0);

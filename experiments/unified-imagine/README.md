@@ -43,3 +43,10 @@ Ideas left: reuse scan results between steps (a hypothesis that contradicted sta
 Big boards (> 256 cells; `bigprof.mjs <shard> <shards> [perBook]`, 14 puzzles, 4 shards in parallel on a busy machine, frozen corpus): the Beginner ones cost
 about the same as before (no imagining needed), the others took 1.8x to 16x the old time (20x20: 1.8x and 4.2x; 20x36: 5x to 16x), worst 35 s against 4.5 s
 (a Hard 20x36). Total 103 s against 15 s. The 20x36 boards are where the next optimization has to land.
+
+Round 3 (aimed at the 20x36 boards, where the scan was 75% of the time; `prof1.mjs <book> [i]` times one puzzle with the phase counters), all exact (identical on the 40-puzzle check set):
+6. the "easy contradiction" check after a rule fires only looks where the new facts are (their cells and neighbours, the clues counting them, the cycle if a segment
+   went on): `easyContradictionAfter`, used by the scan and the ablation runs. `CHECK_EASY=1` verifies it against the full check at every generation (no disagreement on the check set or on a 20x36);
+7. the area arguments (cut-off areas, odd open ends) are only looked for when there are fewer easy chains than `maxCand`: candidates are taken easy ones first and only the
+   first `maxCand` are priced, so area candidates could not be picked anyway. The scan hands back the state to check and `bestImagine` decides later.
+One 20x36 (Medium to Hard): 11.6 s, then 5.2 s (old rules 1.6 s). Big boards again (14 puzzles, 4 shards): total 103 s, then 62 s against 14 s (ratio 6.9 then 4.5); worst case 35 s then 20 s.
