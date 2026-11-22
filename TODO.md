@@ -30,6 +30,10 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
 
 ## Generator and books
 
+- [ ] **Frame by constraint solving** (`tools/cpsat_frame.py`, holes from `tools/frame_holes.mjs`): numbers are chosen first (every arrow N, or one number per line), OR-tools plants boxes that give them,
+  the loop builder makes a loop that is unique for holes that include those boxes, then a local search over which holes are voids looks for one solution. Works on small boards (10×10 with 2s, 14×14
+  with 1s), but at 12×12 and up the nearest other solution stays 8 or more edges away, and planting many boxes often leaves the loop builder with no loop. Ideas: let the solver also change which cells are
+  on the loop (CEGAR on the loop set), or build the voids around the solution (sparse arrows first, then add voids that kill the nearest alternative). Samples: `data/frame-experiment.csv`.
 - [ ] **Layout experiments** (`js/generator_layouts.js`, `generate.mjs --layout symmetric|frame`). Symmetric is in as two small Bonus books. Frame (every border cell an
   inward arrow or a void, only boxes and voids inside) generates unique puzzles at 8×8 to 12×12, but its numbers stay 0 to 2 and the arrow at one end of a row repeats
   the one at the other. The logic-masters.de example Josh remembers had mostly voids and all clues 6 on a big board; a local search for "every arrow says N" found nothing

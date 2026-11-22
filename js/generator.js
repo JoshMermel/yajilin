@@ -335,10 +335,21 @@ export function tightLoop(rows, cols, rng, { startDensity = 0.2, maxDensity = 0.
     const presetSet = new Set(preset.holes);
     const A = preset.holes.filter((c) => b.color(c) === 0), B = preset.holes.filter((c) => b.color(c) === 1);
     const pairs = [];
-    while (A.length && B.length) pairs.push([A.pop(), B.pop()]);
+    // each planted hole with the nearest unpaired one of the other color: tryHoles repairs the loop locally, so far-apart pairs are refused
+    const dist = (x, y) => Math.abs(((x / cols) | 0) - ((y / cols) | 0)) + Math.abs((x % cols) - (y % cols));
+    const [small, big] = A.length <= B.length ? [A, B] : [B, A];
+    while (small.length) {
+      const x = small.pop(); let bi = 0;
+      for (let k = 1; k < big.length; k++) if (dist(x, big[k]) < dist(x, big[bi])) bi = k;
+      pairs.push([x, big.splice(bi, 1)[0]]);
+    }
+    A.length = 0; B.length = 0; for (const c of big) (b.color(c) === 0 ? A : B).push(c);
     for (const c of [...A, ...B]) {
       let partner = -1;
-      for (let k = 0; k < 400 && partner < 0; k++) { const q = (rng() * N) | 0; if (b.color(q) !== b.color(c) && !presetSet.has(q) && !b.hole[q] && okc(q, 0)) partner = q; }
+      for (let q = 0; q < N; q++) {            // the nearest cell of the other color that can be a hole
+        if (b.color(q) === b.color(c) || presetSet.has(q) || b.hole[q] || !okc(q, 0)) continue;
+        if (partner < 0 || dist(c, q) < dist(c, partner) || (dist(c, q) === dist(c, partner) && rng() < 0.5)) partner = q;
+      }
       if (partner < 0) return null;
       pairs.push([c, partner]);
     }
