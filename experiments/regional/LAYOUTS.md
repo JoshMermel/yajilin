@@ -79,3 +79,8 @@ Pentominoes 10x6 (2026-11-22): 120 layouts (`START=101`, best of 4, 15 minutes),
 
 Jigsaw (`--kind jigsaw`): irregular pieces of 3 to 6 cells (`--min`, `--max`), never a rectangle or a straight bar; a first sample is running.
 
+Later the same day: the two pentomino sizes became one book of 200 (`merge: true` in `tools/build_regional_books.mjs`; easiest first, and
+the two sizes interleave), and every Regional book was rebuilt under the unified imagine rule (507ab85). That rule rates these books much
+harder: Dominoes 8x8 went from 53 Medium to 25 Medium / 26 Hard, Rooms 10x10 from 35 / 23 to 16 / 44, Pentominoes 135 / 65 of 200. Fewer
+puzzles need trial and error under it (Pentominoes 8 of 238, against 33).
+
