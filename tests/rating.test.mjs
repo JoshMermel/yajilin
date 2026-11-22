@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compile, solve, initialState, cluesFromString, SHADED, LOOP, E_ON, E_OFF, UNKNOWN } from '../js/logic.js';
-import { rate, RULES, RULE_IDS, SHORT_CHAIN, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules, lineRoom } from '../js/rating.js';
+import { compile, solve, initialState, cloneState, cluesFromString, SHADED, LOOP, E_ON, E_OFF, UNKNOWN } from '../js/logic.js';
+import { chokepointCheck, rate, RULES, RULE_IDS, SHORT_CHAIN, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules, lineRoom } from '../js/rating.js';
 // The rules added in the 2026-11-21 review (dot hypotheses, segment starvation, the Medium splits of the chain and parity rules). Some older
 // pattern tests leave them out (rate(P, { without })), so they still show the rule they were written for; the new rules get their own tests.
 const NEW_RULES = ['dotShortChain', 'dotForcesLines', 'twoEndsJoin', 'shadeFewLines', 'segmentShortChain', 'parityPocket', 'segmentStarvesClue', 'chokepoint', 'chokepointArea'];
@@ -764,8 +764,38 @@ test('chokepoint (Medium): one cell as the only way into an area with loop cells
   assert.deepEqual(f.sets, [['e', 2 * I3 + 1, E_ON]]);
   assert.equal(f.info.cut, G3);
   assert.ok(f.info.part.includes(cellIdx(P, 'H2')) && f.info.part.length <= 6, JSON.stringify(f.info.part));
-  assert.match(explainStep(P, { rule: 'chokepoint', info: f.info, sets: f.sets }, st).text, /^Without a segment between I3 and I4, G3 would be the only way into the marked area/);
+  assert.match(explainStep(P, { rule: 'chokepoint', info: f.info, sets: f.sets }, st).text, /^Without a segment between I3 and I4, the only way into the marked area \(\d+ cells?\) would be through G3\./);
   assert.equal(rule.tier, 'Medium');
   assert.equal(RULES.find((r) => r.id === 'chokepointArea').tier, 'Hard');
   void I4;
+});
+
+test('chokepoint: the part reported is the smaller real side of the cut, not just what the search had visited when it found the cut', () => {
+  // BONUS-SYMMETRY-MIX-120 (the book before the exact-symmetry rebuild), mid-solve. The puzzle is symmetric about the main diagonal, so the
+  // two hints "no C7-C8 -> D7 is the only way into the bottom-left" and "no G3-H3 -> G4 is the only way into the top-right" must show the same
+  // 38-cell area, transposed. (The second used to show the 13-cell purple chain: the search stopped at G4 having seen only that.)
+  const P = compile({ name: 'mix120', rows: 12, cols: 12, clues: cluesFromString('0:8:L:0;1:10:D:1;2:2:V:-1;2:5:R:0;3:3:V:-1;3:8:L:0;3:11:D:1;4:5:U:0;5:2:D:0;5:4:L:0;5:10:L:1;6:6:V:-1;7:7:V:-1;8:0:U:0;8:3:U:0;8:8:V:-1;8:9:U:0;9:8:L:0;9:9:V:-1;10:1:R:1;10:5:U:1;10:10:V:-1;11:3:R:1;11:11:V:-1') });
+  const st = initialState(P);
+  const idx = (n) => cellIdx(P, n);
+  const edge = (a, b) => { a = idx(a); b = idx(b); const lo = Math.min(a, b); return Math.abs(a - b) === 1 ? 2 * lo : 2 * lo + 1; };
+  for (const c of [
+    'A8 A7 A6 B6 B5 A5 A4 A3 A2 A1 B1 C1 D1 E1 E2 F2 F1 G1 H1 H2 G2 G3', 'A8 B8 B7 C7', 'G4 F4 E4 E3 D3 D2 C2 B2 B3 B4 C4 C5 D5 D6 D7',
+    'I3 I2 J2 J1 K1 L1 L2 L3 K3', 'J3 J4', 'J5 J6 I6', 'G5 G6 H6', 'K5 L5 L6 L7 L8 L9 L10 K10 K9 K8 K7 J7 J8 I8 I7',
+    'G9 H9 H10 G10 G11 H11 I11 J11 J12 I12 H12 G12 F12 E12 E11', 'F9 F10 E10', 'C10 D10', 'E7 F7 E8 F8'.replace(' E8', ''), 'C9 B9 B10 A10 A11 A12 B12 C12 C11',
+  ].map((s) => s.split(' '))) for (let i = 0; i + 1 < c.length; i++) st.e[edge(c[i], c[i + 1])] = E_ON;
+  for (const c of ['E5', 'F6', 'L11', 'K12']) st.cell[idx(c)] = SHADED;
+  for (const c of ['C8', 'D8', 'E8', 'D11', 'H3', 'H4', 'H5', 'K4']) st.cell[idx(c)] = LOOP;
+  const area = (a, b) => {
+    const t = cloneState(st); t.e[edge(a, b)] = E_OFF;
+    const c = chokepointCheck(P, t);
+    assert.ok(c, `${a}-${b} off is impossible`);
+    return c;
+  };
+  const down = area('C7', 'C8'), right = area('G3', 'H3');
+  assert.equal(down.cut, idx('D7'));
+  assert.equal(right.cut, idx('G4'));
+  assert.equal(down.part.length, 38);
+  assert.equal(right.part.length, 38, `the top-right area, not a sliver: ${right.part.length}`);
+  const transposed = (i) => (i % P.cols) * P.cols + Math.floor(i / P.cols);
+  assert.deepEqual(right.part.map(transposed).sort((a, b) => a - b), down.part.slice().sort((a, b) => a - b));
 });

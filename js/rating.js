@@ -1759,8 +1759,11 @@ export function chokepointCheck(P, st) {
   }
   const subtree = (v) => order.slice(order.indexOf(v), order.indexOf(v) + size[v]);
   if (found) {
-    const inside = subtree(found.inside), insideSet = new Set(inside);
-    const outside = order.filter((i) => i !== found.cut && !insideSet.has(i));
+    const inside = subtree(found.inside);
+    // the other side: everything the root can reach without the cut. (The DFS stopped when it found the cut, so `order` holds only part
+    // of it: comparing against that picked a sliver of the root's side as the "smaller part".)
+    const outside = [root], seen = new Set([root, found.cut]);
+    for (let q = 0; q < outside.length; q++) for (let d = 0; d < 4; d++) { const j = step(outside[q], d); if (j >= 0 && !seen.has(j)) { seen.add(j); outside.push(j); } }
     return { cut: found.cut, part: inside.length <= outside.length ? inside : outside };
   }
   if (rootLoopKids.length >= 2) {                                 // the root itself is the cut: its smallest loop-holding branch

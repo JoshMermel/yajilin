@@ -430,8 +430,8 @@ export function explainStep(P, step, st = null) {
       const area = rule === 'chokepoint' ? `the marked area (${plural(info.part.length, 'cell')})` : `a large area (${plural(info.part.length, 'cell')}, marked)`;
       const result = info.cell !== undefined ? `So ${N(info.cell)} is a dot.` : info.assumed === 'off' ? 'So the segment is there.' : 'So there is no segment there.';
       text = info.cut >= 0
-        ? `${move}, ${N(info.cut)} would be the only way into ${area}, which holds loop cells, as does the rest of the board. The loop passes through a cell once, so it could not get in and back out. ${result}`
-        : `${move}, ${area} would be cut off from the rest of the board, and both hold loop cells. ${result}`;
+        ? `${move}, the only way into ${area} would be through ${N(info.cut)}. It holds loop cells, but the loop passes through a cell only once, so it could not get in and back out: those cells would have no way to join the rest of the loop. ${result}`
+        : `${move}, ${area} would be cut off from the rest of the board: its loop cells would have no way to join the rest of the loop. ${result}`;
       if (info.cell !== undefined) text = text.replace(/^A box at (\S+), /, 'With a box at $1, ');
       break;
     }
