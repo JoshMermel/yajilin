@@ -136,10 +136,9 @@ export class Board {
     }
     for (let r = 0; r <= P.rows; r++) g += `<line class="grid-line" x1="${PAD}" y1="${PAD + r * S}" x2="${PAD + P.cols * S}" y2="${PAD + r * S}"/>`;
     for (let c = 0; c <= P.cols; c++) g += `<line class="grid-line" x1="${PAD + c * S}" y1="${PAD}" x2="${PAD + c * S}" y2="${PAD + P.rows * S}"/>`;
-    // the walls: a thick line on every edge between a void (or a clue cell that touches a void, so a frame of arrows and voids is one wall) and a cell
-    // that is part of the board, so voids side by side read as one shape
+    // the walls: a thick line on every edge between a gray cell (a void or a clue) and a cell that is part of the board, so gray cells side by side
+    // (voids, arrows, or a frame of both) read as one shape, and an arrow looks the same whether or not it touches a void
     {
-      const isVoid = (i) => i >= 0 && P.clueAt[i] >= 0 && P.clues[P.clueAt[i]].n < 0;
       const isGray = (i) => i >= 0 && P.clueAt[i] >= 0;
       let d = '';
       for (let i = 0; i < P.N; i++) {
@@ -147,8 +146,6 @@ export class Board {
         const r = (i / P.cols) | 0, c = i % P.cols, x = PAD + c * S, y = PAD + r * S;
         // (P.nb leaves clue cells out, so the neighbours are found from the grid)
         const nbr = [r > 0 ? i - P.cols : -1, c < P.cols - 1 ? i + 1 : -1, r < P.rows - 1 ? i + P.cols : -1, c > 0 ? i - 1 : -1];      // up, right, down, left
-        const walled = isVoid(i) || nbr.some(isVoid);
-        if (!walled) continue;
         const sides = [[x, y, x + S, y], [x + S, y, x + S, y + S], [x, y + S, x + S, y + S], [x, y, x, y + S]];
         for (let q = 0; q < 4; q++) { const j = nbr[q]; if (j >= 0 && !isGray(j)) d += `M${sides[q][0]} ${sides[q][1]}L${sides[q][2]} ${sides[q][3]}`; }
       }

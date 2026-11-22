@@ -461,6 +461,8 @@ function openPuzzle(idx) {
   board.setPuzzle(P);
   fitBoard();
   $('puz-num').value = idx + 1;
+  $('prev-puz').disabled = idx === 0;
+  $('next-puz').disabled = idx === book.puzzles.length - 1;
   showInfo();
   store.set('yj_last', JSON.stringify({ book: book.id, idx }));
   const url = new URL(location.href);
@@ -535,7 +537,8 @@ async function init() {
 
 // ------------------------------------------------------------ wiring
 
-const step = (d) => { if (state.book) openPuzzle((state.idx + d + state.book.puzzles.length) % state.book.puzzles.length); };
+// the arrows (and the arrow keys) stop at either end of the book rather than wrapping round
+const step = (d) => { if (!state.book) return; const j = state.idx + d; if (j >= 0 && j < state.book.puzzles.length) openPuzzle(j); };
 $('prev-puz').addEventListener('click', () => step(-1));
 $('next-puz').addEventListener('click', () => step(1));
 $('puz-num').addEventListener('change', (e) => { if (state.book) openPuzzle(Math.min(Math.max((+e.target.value || 1) - 1, 0), state.book.puzzles.length - 1)); });
