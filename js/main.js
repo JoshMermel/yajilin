@@ -5,7 +5,7 @@ import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, init
 import { RULES } from './rating.js';
 import { nextMarkableStep, reliesOn } from './hintstep.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
-import { Board } from './board.js';
+import { Board, LABEL } from './board.js';
 import { clueStates } from './clues.js';
 import { nextMark, reconcile as reconcileDots, applyAutoDots } from './marks.js';
 import { PRESETS, CUSTOM, MIN_CUSTOM, MAX_CUSTOM, sanitizeCustom, validId, lightColors, resolvePalette, eyesOf, alikeMatrix } from './palettes.js';
@@ -38,9 +38,7 @@ const settings = {
   colorLines: store.get('yj_colorLines') === '1', // color each separate path differently
   palette: validId(store.get('yj_pathPalette'), savedCustom), // ... with this palette: a preset's id, or 'custom' (js/palettes.js)
   custom: savedCustom,                                         // the player's own palette: a list of '#rrggbb' for the white board
-  labels: store.get('yj_labels') !== '0',         // number the rows and columns (on unless the player turned it off)
   autoDots: store.get('yj_autoDots') === '1',     // automatic dots: next to a box, and along a satisfied clue
-  autoRotate: store.get('yj_autoRotate') !== '0', // show a tall board sideways when that fits the window better (js/rotate.js)
 };
 
 const board = new Board($('board'), {
@@ -53,7 +51,7 @@ const board = new Board($('board'), {
 const themeName = () => (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
 const pathColors = () => resolvePalette(settings.palette, settings.custom, themeName());
 const paletteOptions = () => { const pathColorList = pathColors(); return { pathColors: pathColorList, pathAlike: alikeMatrix(pathColorList, eyesOf(settings.palette)) }; };
-board.setOptions({ colorLines: settings.colorLines, labels: settings.labels, ...paletteOptions() });
+board.setOptions({ colorLines: settings.colorLines, ...paletteOptions() });
 
 // ------------------------------------------------------------ marks
 
@@ -188,7 +186,7 @@ function isSolved() {
 function fitBoard() {
   const P = state.P;
   if (!P) return;
-  const off = settings.labels ? 16 : 0;
+  const off = LABEL;
   const avail = Math.min(window.innerWidth - 24, 1500);
   const px = Math.max(26, Math.min(46, Math.floor(avail / (P.cols + 0.5))));
   const width = Math.round(((P.cols * 44 + 8 + off) * px) / 44);
@@ -487,13 +485,13 @@ function showInfo() {
 
 /** How big a cell could be if a rows x cols board had the window to itself (the width AND the height count). */
 function cellFit(rows, cols) {
-  const off = settings.labels ? 16 : 0;
+  const off = LABEL;
   const w = Math.min(window.innerWidth - 24, 1500) - off, h = window.innerHeight - 230;
   return Math.min(46, w / (cols + 0.5), h / (rows + 0.5));
 }
-/** The puzzle as it is shown: a quarter turn if "turn tall boards sideways" is on and that gives bigger cells, flipped by the Rotate button. */
+/** The puzzle as it is shown: a quarter turn if that gives bigger cells, flipped by the Rotate button. */
 function shownPuzzle(orig) {
-  const sideways = settings.autoRotate && orig.rows !== orig.cols && cellFit(orig.cols, orig.rows) > cellFit(orig.rows, orig.cols) * 1.1;
+  const sideways = orig.rows !== orig.cols && cellFit(orig.cols, orig.rows) > cellFit(orig.rows, orig.cols) * 1.1;
   return sideways !== !!state.flip ? rotated(orig, puzzleHash(orig)) : orig;
 }
 /** Show the current puzzle the other way up (or back), keeping the marks and the undo history. */
@@ -800,16 +798,14 @@ $('setting-dark-mode').addEventListener('change', (e) => {
   board.setOptions(paletteOptions());
   renderPaletteUI();
 });
-$('setting-auto-rotate').checked = settings.autoRotate;
-$('setting-auto-rotate').addEventListener('change', (e) => { settings.autoRotate = e.target.checked; store.set('yj_autoRotate', e.target.checked ? '1' : '0'); reorient(); });
 $('rotate-btn').addEventListener('click', () => { state.flip = !state.flip; reorient(); });
-for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_colorLines'], ['setting-labels', 'labels', 'yj_labels'], ['setting-auto-dots', 'autoDots', 'yj_autoDots']]) {
+for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_colorLines'], ['setting-auto-dots', 'autoDots', 'yj_autoDots']]) {
   const el = $(id);
   el.checked = settings[key];
   el.addEventListener('change', () => {
     settings[key] = el.checked;
     store.set(store_key, el.checked ? '1' : '0');
-    board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
+    board.setOptions({ colorLines: settings.colorLines });
     if (key === 'colorLines') renderPaletteUI();
     fitBoard();
     if (key === 'autoDots' && state.P) {      // on: dots for everything already on the board; off: the automatic ones go (yours stay)

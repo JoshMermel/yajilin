@@ -8,10 +8,11 @@
 import { colName } from './logic.js';
 import { makeColorKeeper, assignPathColors } from './pathcolors.js';
 import { makeGrace } from './grace.js';
+import { otherEnd } from './lineends.js';
 
 const S = 44;     // cell size in SVG units
 const PAD = 4;    // room for the frame
-const LABEL = 16; // extra room at the top and left for row/column numbers
+export const LABEL = 16; // extra room at the top and left for row/column numbers
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 const BAD_DELAY_MS = 300; // how long a newly red arrow or box waits, so a double tap can finish first (see js/grace.js)
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -33,7 +34,7 @@ export class Board {
     this.gesture = null;
     this.hoverCell = -1;
     this.pinned = -1;                                  // an arrow tapped or clicked: its line stays tinted (see pinArrow())
-    this.opts = { colorLines: false, labels: false, pathColors: null, pathAlike: null };
+    this.opts = { colorLines: false, pathColors: null, pathAlike: null };
     this.grace = makeGrace(); this._badTimer = 0; this._graceNow = true;
     el.addEventListener('pointerdown', (e) => this.down(e));
     el.addEventListener('pointermove', (e) => this.move(e));
@@ -48,7 +49,7 @@ export class Board {
   /**
    * Display options: { colorLines: color each separate path differently, pathColors: the colors to use for that (a list of '#rrggbb', see
    * js/palettes.js), pathAlike: how much those colors look alike (alikeMatrix in js/palettes.js; used to give a new line a color that
-   * stands out from its neighbors), labels: number the rows and columns }.
+   * stands out from its neighbors) }.
    */
   setOptions(opts) {
     // a palette of another size: the colors lines were given are indexes into the old one, so every line gets a fresh one
@@ -57,7 +58,7 @@ export class Board {
     if (this.marks) this.render(this.marks, this.info, this.hint);
   }
 
-  get offset() { return this.opts.labels ? LABEL : 0; }
+  get offset() { return LABEL; }
 
   /** Number of loop segments at each cell, and the color index of the path each segment belongs to. */
   analyseLines(marks) {
@@ -230,12 +231,16 @@ export class Board {
       // every arrow that counts this cell gets an outline, so on a big board it is easy to see what points at the cell under the cursor
       for (const k of pointersAt(P, over)) { const i = P.clues[k].r * P.cols + P.clues[k].c; g += `<rect class="hover-pointer" x="${cellX(i) + 1.5}" y="${cellY(i) + 1.5}" width="${S - 3}" height="${S - 3}" rx="3"/>`; }
     }
-    g += `<rect class="frame" x="${PAD}" y="${PAD}" width="${P.cols * S}" height="${P.rows * S}"/>`;
-    if (this.opts.labels) {
-      const hc = over >= 0 ? over % P.cols : -1, hr = over >= 0 ? (over / P.cols) | 0 : -1;      // the labels of the cell under the cursor stand out
-      for (let c = 0; c < P.cols; c++) g += `<text class="axis-label${c === hc ? ' here' : ''}" x="${cx(c)}" y="${PAD - 6}">${colName(c)}</text>`;
-      for (let r = 0; r < P.rows; r++) g += `<text class="axis-label side${r === hr ? ' here' : ''}" x="${PAD - 6}" y="${cy(r)}">${r + 1}</text>`;
+    // the pointer on the end of a line: ring both ends of it, to help follow it across the board (not on a line that branches, see otherEnd())
+    if (over >= 0 && deg[over] === 1) {
+      const far = otherEnd(P, marks.edges, over);
+      if (far >= 0) for (const i of [over, far]) g += `<circle class="line-end-halo" cx="${cx(i % P.cols)}" cy="${cy((i / P.cols) | 0)}" r="${S * 0.19}"/><circle class="line-end" cx="${cx(i % P.cols)}" cy="${cy((i / P.cols) | 0)}" r="${S * 0.19}"/>`;
     }
+    g += `<rect class="frame" x="${PAD}" y="${PAD}" width="${P.cols * S}" height="${P.rows * S}"/>`;
+    // row and column labels; those of the cell under the cursor stand out
+    const hc = over >= 0 ? over % P.cols : -1, hr = over >= 0 ? (over / P.cols) | 0 : -1;
+    for (let c = 0; c < P.cols; c++) g += `<text class="axis-label${c === hc ? ' here' : ''}" x="${cx(c)}" y="${PAD - 6}">${colName(c)}</text>`;
+    for (let r = 0; r < P.rows; r++) g += `<text class="axis-label side${r === hr ? ' here' : ''}" x="${PAD - 6}" y="${cy(r)}">${r + 1}</text>`;
     const defs = '<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" class="hatch-bg"/><line x1="0" y1="0" x2="0" y2="8" class="hatch-line" stroke-width="4"/></pattern>'
       + '</defs>';
     this.el.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img">${defs}<g transform="translate(${OFF} ${OFF})">${g}</g></svg>`;

@@ -80,3 +80,45 @@ test('hovering an arrow, or tapping it on a touch screen, tints the cells it cou
   b.pinArrow({ start: cell, mouse: false });
   assert.equal(b.pinned, -1, 'tapping the arrow again clears it');
 });
+
+// ---- the ring on both ends of the line under the pointer (js/lineends.js)
+{
+  const { otherEnd } = await import('../js/lineends.js');
+  // a 4x4 board with no clues: edge 2a joins cell a to the right, 2a+1 joins it to the one below
+  const P = { cols: 4, rows: 4, N: 16, numEdges: 32 };
+  const draw = (...pairs) => { const e = new Uint8Array(32); for (const [a, b] of pairs) e[b === a + 1 ? 2 * a : 2 * a + 1] = 1; return e; };
+
+  test('otherEnd: the far end of a plain line, from either end', () => {
+    const e = draw([0, 1], [1, 2], [2, 6], [6, 10]);      // 0 - 1 - 2, down to 6, down to 10
+    assert.equal(otherEnd(P, e, 0), 10);
+    assert.equal(otherEnd(P, e, 10), 0);
+  });
+  test('otherEnd: nothing for the middle of a line, a lone cell, a closed loop or an empty board', () => {
+    const e = draw([0, 1], [1, 2]);
+    assert.equal(otherEnd(P, e, 1), -1);
+    assert.equal(otherEnd(P, e, 5), -1);
+    assert.equal(otherEnd(P, draw([0, 1], [1, 5], [4, 5], [0, 4]), 0), -1);
+    assert.equal(otherEnd(P, new Uint8Array(32), 0), -1);
+  });
+  test('otherEnd: nothing when the line branches (more than two ends)', () => {
+    const e = draw([0, 1], [1, 2], [1, 5]);               // a T: three ends
+    for (const end of [0, 2, 5]) assert.equal(otherEnd(P, e, end), -1);
+  });
+  test('the board rings both ends under the pointer, and nothing during a drag or on a branch', () => {
+    const el = stubEl(), b = new Board(el, {});
+    b.setPuzzle(P);
+    const marks = { cells: new Uint8Array(16), edges: draw([0, 1], [1, 2]), auto: new Uint8Array(16) };
+    const info = { clueState: [], badShaded: new Set() };
+    P.clueAt = new Int32Array(16).fill(-1); P.clues = []; P.rays = [];
+    b.render(marks, info);
+    assert.equal(count(el.innerHTML, /class="line-end"/g), 0);
+    b.hoverCell = 0; b.render(marks, info);
+    assert.equal(count(el.innerHTML, /class="line-end"/g), 2);
+    b.hoverCell = 1; b.render(marks, info);
+    assert.equal(count(el.innerHTML, /class="line-end"/g), 0);
+    b.hoverCell = 0; b.gesture = {}; b.render(marks, info);
+    assert.equal(count(el.innerHTML, /class="line-end"/g), 0);
+    b.gesture = null; marks.edges = draw([0, 1], [1, 2], [1, 5]); b.render(marks, info);
+    assert.equal(count(el.innerHTML, /class="line-end"/g), 0);
+  });
+}

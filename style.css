@@ -158,6 +158,8 @@ button.ghost { background: transparent; }
 .axis-label.side { text-anchor: end; dominant-baseline: central; }
 .axis-label.here { fill: var(--axis-here); font-weight: 700; }
 .hover-pointer { fill: none; stroke: var(--pointer); stroke-width: 2; pointer-events: none; }
+.line-end { fill: none; stroke: var(--clue-ink); stroke-width: 2.5; pointer-events: none; }   /* ringed at both ends of the line under the pointer */
+.line-end-halo { fill: none; stroke: var(--cell-bg); stroke-width: 6; pointer-events: none; }
 .given-ring { fill: none; stroke: var(--cell-bg); stroke-width: 2.5; pointer-events: none; }
 .hint-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 0.75rem; opacity: 0.9; }
 .hint-legend .chip { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(255, 255, 255, 0.6); }
@@ -202,6 +204,7 @@ button.ghost { background: transparent; }
 .modal-body li { margin: 6px 0; }
 
 .settings-list { display: flex; flex-direction: column; }
+.settings-section { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--border-light); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
 .settings-row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0;
   border-bottom: 1px solid var(--border-subtle); cursor: pointer;
