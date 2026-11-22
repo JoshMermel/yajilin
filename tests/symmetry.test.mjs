@@ -64,3 +64,27 @@ test('transpose: no arrow on the diagonal', () => {
   assert.ok(res);
   for (const c of res.puzzle.clues) if (c.r === c.c) assert.ok(c.n < 0, 'a diagonal clue is a void');
 });
+
+// symmetric LAYOUT: every clue cell has an image that is a clue cell; arrows, numbers, boxes and the loop are free
+for (const mode of SYMMETRY_MODES) {
+  test(`layout-${mode}: the clue cells are symmetric (and the puzzle is not forced to be more), and it has exactly one solution`, () => {
+    let made = 0, notExact = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const res = generateLayout(8, 8, makeRng(seed), { mode: `layout-${mode}`, budgetMs: 20000 });
+      if (!res) continue;
+      made++;
+      const P = res.puzzle, s = symmetryOf(mode, 8, 8), at = new Map(P.clues.map((c) => [c.r * 8 + c.c, c]));
+      let exact = true;
+      for (const [i, c] of at) {
+        const o = at.get(s.map[i]);
+        assert.ok(o, `${mode}: clue at ${i} has no image`);
+        if (o.n !== c.n || o.d !== s.dir(c.d)) exact = false;
+      }
+      if (!exact) notExact++;
+      assert.equal(solvedByRules(P).solved, true);
+      assert.equal(solve(P, { limit: 2 }).count, 1);
+    }
+    assert.ok(made >= 3, `made ${made} of 4`);
+    assert.ok(notExact >= 1, 'arrows and numbers are free, so some puzzle is not exactly symmetric');
+  });
+}

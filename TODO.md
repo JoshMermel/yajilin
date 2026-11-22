@@ -39,6 +39,7 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
   the one at the other. The logic-masters.de example Josh remembers had mostly voids and all clues 6 on a big board; a local search for "every arrow says N" found nothing
   (0 of 6 at 10×10 to 14×14), so try building the box pattern first (N per line) or a mostly-void frame. Also wanted: at-least / at-most arrows, two-way and four-way
   arrows, number-only clues, regional plus arrows (order agreed 2026-11-21).
+- [ ] **16×16 symmetry books** (planned for the night of 2026-11-22; `nohup sh tools/run_symmetry_16x16.sh > /dev/null 2>&1 &` starts the wait for 22:00): a 16×16 Symmetry mix (exact: mirror, diagonal mirror, quarter turn, half turn; 60) and a 16×16 Symmetric layout book (clue cells symmetric: half turn, quarter turn, mirror, diagonal mirror; 120), pools in `tools/library/xsym_*` and `lsym_*`, log `tools/library/symmetry16.log`. Check the tier spread (everything at 16×16 tends to be Hard), the audit and the tests, then ask before committing.
 - [x] **16×16 bonus books** (done 2026-11-22): the long way round, one direction, all zeros, no zeros; 250 each, built overnight by `tools/run_bonus_16x16.sh`
   (Medium/Hard about half and half; all zeros 43/136/71). The Bonus picker is grouped by gimmick again. Not tried: 20×20 (expect several times the 16×16 cost).
 - Larger boards (14x14 up to Nikoli's 20x36). Measured 2026-11-14: 10x10 takes seconds, 12x12 about 10-50 s, but 14x14 and 16x16 did

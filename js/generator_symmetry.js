@@ -18,7 +18,7 @@
 // orbits of the symmetry, as js/generator_layouts.js does for the layout experiments.
 import { solve, compile, initialState, LOOP, E_ON, UNKNOWN } from './logic.js';
 import { solvedByRules } from './rating.js';
-import { buildPuzzle, _internals } from './generator.js';
+import { buildPuzzle, tightLoop, _internals } from './generator.js';
 
 const { gridNeighbours, undecidedScore, pickDirection, shuffle } = _internals;
 const BOX = -2, VOID = -1;
@@ -141,13 +141,30 @@ export function symmetricHoles(rows, cols, symName, rng, { density = 0.1, maxIte
 }
 
 /**
- * A symmetric puzzle: { puzzle, stats } or null. options: name, budgetMs, edgeBias, shadeShare, upto, prune, verbose, maxIter, numbers.
+ * A symmetric puzzle: { puzzle, stats } or null. options: name, budgetMs, edgeBias, shadeShare, upto, prune, verbose, maxIter, numbers, and
+ *   layoutOnly  only the CLUE CELLS are symmetric: every clue cell has an image that is a clue cell, but the arrows point any way they like, the numbers
+ *               are whatever the loop gives, and the boxes and the loop are not symmetric. (If the boxes were symmetric too, the loop would have to be: with
+ *               every non-loop cell mapped to a non-loop cell, a unique loop is its own image, and so are the numbers when the arrows are twinned.
+ *               That is how the half-turn 'symmetric' books, which twin their arrows, come out exactly symmetric.) A cell that is its own image may hold an arrow.
+ *               The method: tightLoop makes some symmetric orbits of holes (the clue cells to be), then adds the other holes it needs for a unique loop, then climb over
+ *               which whole orbits (the ones whose cells are all holes) are clues, and which way every arrow points; every other hole is a box.
  */
-export function generateSymmetric(rows, cols, symName, rng, { name = 'gen', budgetMs = 60000, edgeBias = 0.8, shadeShare = 0.6, upto, prune = true, verbose = false, maxIter = 4000, numbers = null, density = 0.1 } = {}) {
+function generateOnce(rows, cols, symName, rng, { name = 'gen', budgetMs = 60000, edgeBias = 0.8, shadeShare = 0.6, upto, prune = true, verbose = false, maxIter = 4000, numbers = null, density = 0.1, layoutOnly = false, clueShare = 0.16 } = {}) {
   const t0 = Date.now(), N = rows * cols;
   const say = (...a) => { if (verbose) console.error('  symmetric:', ...a); };
   const sym = symmetryOf(symName, rows, cols), g = sym.map;
-  const loop = symmetricHoles(rows, cols, symName, rng, { density, budgetMs: Math.min(30000, budgetMs) });
+  let loop = null;
+  const fixedBox = new Uint8Array(N);                             // layoutOnly: holes that no orbit of holes covers: boxes for good
+  if (layoutOnly) {
+    for (let tries = 0; tries < 60 && !loop && Date.now() - t0 < budgetMs; tries++) {
+      const l = tightLoop(rows, cols, rng, { startDensity: 0.28, symmetric: sym, symmetricHoles: Math.round(clueShare * N), maxIters: 8 * N + 400, budgetMs: Math.min(20000, budgetMs - (Date.now() - t0)) });
+      if (!l) continue;
+      for (let i = 0; i < N; i++) fixedBox[i] = l.holes[i] && orbitOf(sym, i).some((o) => !l.holes[o.cell]) ? 1 : 0;
+      let touching = false;                                       // two boxes that must stay boxes cannot touch
+      for (let i = 0; i < N && !touching; i++) if (fixedBox[i] && gridNeighbours(rows, cols, i).some((j) => fixedBox[j])) touching = true;
+      if (!touching) loop = l;
+    }
+  } else loop = symmetricHoles(rows, cols, symName, rng, { density, budgetMs: Math.min(30000, budgetMs) });
   if (!loop) { say('no symmetric loop'); return null; }
   say(`loop after ${Date.now() - t0} ms`);
   const holes = []; for (let i = 0; i < N; i++) if (loop.holes[i]) holes.push(i);
@@ -156,17 +173,20 @@ export function generateSymmetric(rows, cols, symName, rng, { name = 'gen', budg
   const isClue = new Uint8Array(N);
   const put = (i, v) => { val[i] = v; isClue[i] = v === BOX ? 0 : 1; };
   /** Set the whole orbit of i: i takes v, the others its image. */
-  const putOrbit = (i, v) => { for (const o of orbitOf(sym, i, v)) put(o.cell, o.dir); };
+  const putOrbit = (i, v) => {
+    if (!layoutOnly) { for (const o of orbitOf(sym, i, v)) put(o.cell, o.dir); return; }
+    for (const o of orbitOf(sym, i)) put(o.cell, v < 0 || o.cell === i ? v : aim(o.cell));   // the arrows of an orbit are chosen one by one
+  };
   const boxAround = (j) => gridNeighbours(rows, cols, j).some((k) => loop.holes[k] && val[k] === BOX);
   const canBox = (i) => { const cells = orbitOf(sym, i).map((o) => o.cell); return cells.every((j) => !boxAround(j) && cells.every((k) => k === j || !gridNeighbours(rows, cols, j).includes(k))); };
-  const arrowOK = (i, d) => orbitOf(sym, i, d).every((o) => g[o.cell] !== o.cell || sym.dir(o.dir) === o.dir) && orbitOf(sym, i, d).every((o) => o.dir >= 0);
+  const arrowOK = (i, d) => layoutOnly || orbitOf(sym, i, d).every((o) => g[o.cell] !== o.cell || sym.dir(o.dir) === o.dir) && orbitOf(sym, i, d).every((o) => o.dir >= 0);
   const aim = (i) => {
     for (let k = 0; k < 8; k++) { const d = pickDirection(rows, cols, i, isClue, rng, edgeBias, null, numbers, loop.holes, 0); if (d >= 0 && arrowOK(i, d)) return d; }
     return -1;
   };
   const rep = (i) => Math.min(...orbitOf(sym, i).map((o) => o.cell));   // each orbit is dealt with at its smallest cell
-  for (const i of holes) put(i, VOID);
-  for (const i of shuffle([...holes], rng)) {
+  for (const i of holes) put(i, fixedBox[i] ? BOX : VOID);
+  for (const i of shuffle(holes.filter((h) => !fixedBox[h]), rng)) {
     if (rep(i) !== i) continue;
     if (rng() < shadeShare && canBox(i)) { putOrbit(i, BOX); continue; }
     const d = aim(i);
@@ -183,21 +203,29 @@ export function generateSymmetric(rows, cols, symName, rng, { name = 'gen', budg
   let cur = evaluate(), iter = 0, checks = 1;
   const dist = (a, b) => Math.abs(((a / cols) | 0) - ((b / cols) | 0)) + Math.abs((a % cols) - (b % cols));
   const options = (i) => {
-    const out = [VOID];
+    const out = layoutOnly ? [] : [VOID];
     if (canBox(i)) out.push(BOX);
     for (let d = 0; d < 4; d++) if (arrowOK(i, d)) out.push(d);
     return out.filter((v) => v !== val[i]);
   };
-  const reps = holes.filter((i) => rep(i) === i);
+  const free = holes.filter((i) => !fixedBox[i]);                 // (layoutOnly: the holes that can be clues)
+  const reps = free.filter((i) => rep(i) === i);
   for (; iter < maxIter && cur.u > 0 && Date.now() - t0 < budgetMs; iter++) {
     const temp = 0.6 * (1 - iter / maxIter) + 0.05;
     const und = [];
     for (let i = 0; i < N; i++) if (cur.P.clueAt[i] < 0 && (cur.r.state.cell[i] === UNKNOWN || cur.r.state.cell[i] === LOOP)) und.push(i);
     const target = und.length ? und[(rng() * und.length) | 0] : (rng() * N) | 0;
     let cand = [];
-    for (let radius = 3; radius <= 8 && !cand.length; radius++) cand = reps.filter((i) => orbitOf(sym, i).some((o) => dist(o.cell, target) <= radius));
+    for (let radius = 3; radius <= 8 && !cand.length; radius++) cand = layoutOnly ? free.filter((i) => dist(i, target) <= radius) : reps.filter((i) => orbitOf(sym, i).some((o) => dist(o.cell, target) <= radius));
     if (!cand.length) break;
     const i = cand[(rng() * cand.length) | 0];
+    if (layoutOnly && val[i] >= 0 && rng() < 0.6) {                // one arrow turns, its images stay
+      const nv = [0, 1, 2, 3].filter((d) => d !== val[i])[(rng() * 3) | 0], was = val[i];
+      put(i, nv);
+      const next = evaluate(); checks++;
+      if (next.u <= cur.u || rng() < Math.exp(-(next.u - cur.u) / temp)) cur = next; else put(i, was);
+      continue;
+    }
     const opts = options(i);
     if (!opts.length) continue;
     const nv = opts[(rng() * opts.length) | 0];
@@ -221,4 +249,15 @@ export function generateSymmetric(rows, cols, symName, rng, { name = 'gen', budg
     }
   }
   return { puzzle, stats: { iterations: iter, checks, ms: Date.now() - t0 } };
+}
+
+/** See generateOnce. A symmetric-layout puzzle whose climb stalls is started again from a new loop (a stalled climb rarely recovers). */
+export function generateSymmetric(rows, cols, symName, rng, opts = {}) {
+  if (!opts.layoutOnly) return generateOnce(rows, cols, symName, rng, opts);
+  const t0 = Date.now(), budgetMs = opts.budgetMs ?? 60000;
+  while (Date.now() - t0 < budgetMs) {
+    const r = generateOnce(rows, cols, symName, rng, { ...opts, maxIter: Math.min(opts.maxIter ?? 4000, 500), budgetMs: budgetMs - (Date.now() - t0) });
+    if (r) return r;
+  }
+  return null;
 }

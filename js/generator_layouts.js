@@ -1,9 +1,10 @@
 // Layout experiments: puzzles whose clue layout follows a pattern.
 //
 //   'symmetric'  the cells that are not on the loop (boxes, arrows) are the same after a half turn of the board, and so are the arrows
-//                (an arrow at i pointing d has a twin at N - 1 - i pointing the opposite way). The numbers come from the solution, which
-//                need not be symmetric itself. Boards with an even number of rows plus columns.
+//                (an arrow at i pointing d has a twin at N - 1 - i pointing the opposite way). Boards with an even number of rows plus columns.
+//                (Exactly symmetric: with every non-loop cell mapped to a non-loop cell a unique loop is its own image, so the numbers match too.)
 //   'mirror', 'transpose', 'rot90', 'rot180'   exactly symmetric, numbers and loop too: js/generator_symmetry.js
+//   'layout-mirror', 'layout-transpose', 'layout-rot90', 'layout-rot180'   only the clue cells are symmetric: boxes, arrows, numbers and the loop are free
 //   'frame'      every border cell is an arrow pointing inward or a void; the inside holds boxes and voids only, no arrows. So the clues
 //                are the row and column counts, seen from both ends, and the voids are the shape.
 //
@@ -27,7 +28,8 @@ const BOX = -2, VOID = -1;
  *            a lattice (tools/generate.mjs --lines 2,4,7,11/3,6,9,12; one list for both axes, or rows/cols)
  */
 export function generateLayout(rows, cols, rng, { mode = 'symmetric', name = 'gen', budgetMs = 60000, edgeBias = 0.8, shadeShare = 0.6, upto, prune = true, verbose = false, maxIter = 4000, numbers = null, uniform = null, lattice = 0, lines = null } = {}) {
-  if (SYMMETRY_MODES.includes(mode)) return generateSymmetric(rows, cols, mode, rng, { name, budgetMs, edgeBias, shadeShare, upto, prune, verbose, maxIter, numbers });   // exact symmetry: js/generator_symmetry.js
+  if (SYMMETRY_MODES.includes(mode)) return generateSymmetric(rows, cols, mode, rng, { name, budgetMs, edgeBias, shadeShare, upto, prune, verbose, maxIter, numbers });
+  if (mode.startsWith('layout-') && SYMMETRY_MODES.includes(mode.slice(7))) return generateSymmetric(rows, cols, mode.slice(7), rng, { name, budgetMs, edgeBias, shadeShare, upto, prune, verbose, maxIter, numbers, layoutOnly: true });   // only the layout is symmetric   // exact symmetry: js/generator_symmetry.js
   if (mode === 'frame' && (uniform !== null || lattice || lines)) return generateSparseFrame(rows, cols, rng, { name, budgetMs, shadeShare, upto, prune, verbose, maxIter, uniform, lattice, lines });
   const t0 = Date.now(), N = rows * cols;
   const say = (...a) => { if (verbose) console.error('  layout:', ...a); };

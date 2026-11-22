@@ -81,7 +81,11 @@
         },
         "Exact symmetry": {
           "icon": "🪞",
-          "blurb": "The whole puzzle is its own image: every clue has twins, pointing the matching way and saying the same number. Left to right, across the diagonal, or turned a quarter."
+          "blurb": "The whole puzzle is its own image: every clue has twins, pointing the matching way and saying the same number. Left to right, across the diagonal, turned a quarter or turned a half."
+        },
+        "Symmetric layout": {
+          "icon": "🧩",
+          "blurb": "The clue cells sit in matching pairs (or fours): reflect or turn the board and every clue lands on a clue. The arrows point any way and the numbers are free; the boxes are not symmetric."
         }
       }
     }
@@ -442,14 +446,44 @@
       "blurb": "12×12 boards. Beginner to Hard."
     },
     {
-      "id": "bonus-symmetry-mix",
-      "name": "Bonus: symmetry mix",
-      "file": "data/bonus-symmetry-mix.csv",
-      "count": 120,
-      "label": "Symmetry mix",
+      "id": "bonus-symmetry-mix-8x8",
+      "name": "Bonus: symmetry mix 8×8",
+      "file": "data/bonus-symmetry-mix-8x8.csv",
+      "count": 60,
+      "label": "Symmetry mix 8×8",
       "group": "Bonus",
       "sub": "Exact symmetry",
-      "blurb": "Mirror, diagonal-mirror and quarter-turn puzzles, 8×8 and 12×12, mixed. Beginner to Hard."
+      "blurb": "Mirror, diagonal-mirror, quarter-turn and half-turn puzzles mixed. 8×8 boards. Beginner to Hard."
+    },
+    {
+      "id": "bonus-symmetry-mix-12x12",
+      "name": "Bonus: symmetry mix 12×12",
+      "file": "data/bonus-symmetry-mix-12x12.csv",
+      "count": 60,
+      "label": "Symmetry mix 12×12",
+      "group": "Bonus",
+      "sub": "Exact symmetry",
+      "blurb": "Mirror, diagonal-mirror, quarter-turn and half-turn puzzles mixed. 12×12 boards. Beginner to Hard."
+    },
+    {
+      "id": "bonus-symmetric-layout-8x8",
+      "name": "Bonus: symmetric layout 8×8",
+      "file": "data/bonus-symmetric-layout-8x8.csv",
+      "count": 120,
+      "label": "Symmetric layout 8×8",
+      "group": "Bonus",
+      "sub": "Symmetric layout",
+      "blurb": "8×8 boards. Beginner to Hard."
+    },
+    {
+      "id": "bonus-symmetric-layout-12x12",
+      "name": "Bonus: symmetric layout 12×12",
+      "file": "data/bonus-symmetric-layout-12x12.csv",
+      "count": 120,
+      "label": "Symmetric layout 12×12",
+      "group": "Bonus",
+      "sub": "Symmetric layout",
+      "blurb": "12×12 boards. Beginner to Hard."
     },
     {
       "id": "bonus-skinny",
