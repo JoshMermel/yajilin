@@ -22,7 +22,8 @@ for (const line of fs.readFileSync(root + 'README.md', 'utf8').split('\n')) {
 
 const NO_EXAMPLE = {
   noEarlyClose: 'It only ever rules a segment out ("no line joins these two ends"), and the Hint button has nothing to show for that, since you cannot mark "no segment". It appears in a hint as the "Relies on" line instead, and `sameSegmentExits` and `closingCell` are its two visible forms.',
-  crossingParity: 'It is rare enough that none of the puzzles I searched shows it as the next hint.',
+  pairedEnds: 'Only the versions with four or six open ends are left under this name (with two open ends it is `twoEndsJoin`), and since 2026-11-21 none of the puzzles I searched (every book, plus the generator\'s library) reaches one as the next hint: the cheaper rules finish those positions first.',
+  tryEdge: 'It is the most expensive rule, and none of the puzzles I searched needs it as the next hint any more: `tryCell` and the cheaper rules finish them first.',
   regionPairs: 'It applies to puzzles with regions, and none of the regional puzzles I searched shows it as the next hint.',
 };
 

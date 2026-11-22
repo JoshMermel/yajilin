@@ -111,7 +111,8 @@ test('boxStarvesClueByPlacements says what the clue still needs against the room
   const P = compile({ name: 's', rows: 10, cols: 10, clues: cluesFromString(S) });
   const rule = RULES.find((r) => r.id === 'boxStarvesClueByPlacements');
   const st = initialState(P);
-  closure(P, st, RULES.slice(0, FIRST_LOOKAHEAD).filter((r) => r.id !== rule.id).map((r) => r.id));
+  const NEW_RULES = ['dotShortChain', 'dotForcesLines', 'twoEndsJoin', 'shadeFewLines', 'segmentShortChain', 'parityPocket', 'segmentStarvesClue', 'chokepoint', 'chokepointArea'];   // (they would get there first)
+  closure(P, st, RULES.slice(0, FIRST_LOOKAHEAD).filter((r) => r.id !== rule.id && !NEW_RULES.includes(r.id)).map((r) => r.id));
   const f = rule.find(P, st, {})[0];
   const ex = explainStep(P, { rule: rule.id, info: f.info, sets: f.sets }, st);
   assert.match(ex.text, /^A box at I2 would force the dashed lines, and then the 2→ clue at A3 could not fit its boxes: it would still need 2 more boxes, but only D3 is left open on its line\.$/);

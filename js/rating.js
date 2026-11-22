@@ -5,54 +5,20 @@
 // value is the hardest rule it needed ('unsolved' if the rules got stuck); its `tier` is that rule's tier and its
 // `score` the weighted sum of every step taken (plus a penalty per cell left undetermined).
 //
-// Rules, easiest first (cells are "loop" = on the loop, "shaded"; an "exit" of a cell is a neighbour it could connect to):
-//   clueDone         a clue already has all its shaded cells: the rest of its row/column is loop
-//   clueFull         a clue needs exactly as many shaded cells as it has open cells left: shade them all
-//   shadedNeighbor   a cell next to a shaded cell is loop (shaded cells never touch)
-//   deadEnd          a cell with fewer than two exits cannot be on the loop: it is shaded
-//   forcedExits      a loop cell with exactly two exits left uses both
-//   tightCell        a neighbour has only two cells it can ever connect to (board edge and clue cells around it): the
-//                    cell is loop. Instantly visible: corners, clues touching diagonally, a gap between two clues
-//   deadEndNeighbor  shading a cell would leave a neighbour with fewer than two exits: the cell is loop
-//   cluePlacements   try every way to place a clue's shaded cells without two touching: a cell they all use is shaded,
-//                    a cell none uses is loop
-//   placementDeadEnd cluePlacements again, throwing out placements whose boxes would leave a neighbouring cell with fewer than two exits
-//   boxStarvesClue   shading a cell would turn its neighbours into dots, and a clue would be left with too few open cells to reach its
-//                    number: the cell is loop
-//   boxStarvesClueByLines  the same, when the dots also come from lines the box forces: a neighbour left with two ways out uses both
-//   shadeShortChain  shadeForcesLines when one cell ends up with three lines and only a couple of the forced lines (SHORT_CHAIN, counting
-//                    just the ones the contradiction depends on) are needed to get there: easy to see at a glance. A Medium-tier rule
-//                    that costs less than boxStarvesClue; the longer or messier contradictions are left to shadeForcesLines
-//   shadeForcesLines imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if that
-//                    makes a line end do two incompatible things (a cell gets three lines, or is left with fewer than
-//                    two exits), the cell is loop
-//   sameSegmentExits a loop cell has three ways out and two of them lead to the two ends of one path: using both would
-//                    close the loop early, so it uses the third
-//   closingCell      a cell has only two ways out and both lead to the two ends of one path: using them would close the
-//                    loop early, so it is shaded
-//   noEarlyClose     a segment joining the two ends of one path would close the loop while other loop cells are
-//                    outside it: no segment there
-//   parityForces     a move (a cell shaded, a segment drawn or missing) would cut off a group of cells holding an odd
-//                    number of open ends, which can never be completed: it is the other way
-//   segmentForcesLines  shadeForcesLines for a segment: imagine it missing (or drawn), add the forced lines, and a cell is left with
-//                    three lines or too few ways out
-//   uniqueRoute      (assumes ONE solution) a way of pairing the open ends of a group that can be drawn two ways is not the real one
-//   closingNeighbor  imagine a cell shaded: its neighbour would be a dot whose only two ways out are the ends of one path
-//   pairedEnds       the open ends of a group of cells that can still be joined pair up inside it: whatever pairings do not close
-//                    the loop early, two far ends always end up as the ends of one line, so no segment joins them
-//   crossingParity   the loop crosses the border of any rectangle an even number of times: when all but one crossing is
-//                    settled, the last is forced
-//   clueTight        a clue needs r boxes and its open cells are odd runs that hold exactly r: boxes on every other cell of each (Beginner)
-//   rangeSameOne     the special case of rangeSame with exactly one cell between the clues (Beginner)
-//   rangeSame        two clues in a line point the same way: the cells between them hold (first - second) shaded cells
-//   rangeFacingKnown two clues point at each other and one of the three parts of the line (between them, beyond either)
-//                    holds a known number of boxes: that fixes the other two
-//   rangeFacing      the same when no part is exact: the room between them, and at each end, bounds how many shaded
-//                    cells each part holds
-//   tryCell          assume a cell is shaded (or loop), follow the consequences with the rules above, and meet
-//                    a contradiction: it is the other
-//   tryEdge          the same for a segment (on / off)
-// Bookkeeping that is not counted as a step (weight 0): a segment touching a shaded cell is off, a segment makes its
+// The rules are in the RULES table at the bottom (each with its tier, cost and a one-line label) and in README.md, "Difficulty", which
+// lists them in the order a person meets them (cheapest first) with an example each. In short, by tier:
+//   Beginner  clue counting (clueDone, clueFull, clueTight, rangeSameOne), boxes never touch (shadedNeighbor), dead ends and forced exits,
+//             corners and corridors (tightCell), not closing the loop early (noEarlyClose, sameSegmentExits, closingCell)
+//   Medium    placing a clue's boxes (cluePlacements, placementDeadEnd, rangeSame, rangeFacingKnown), and imagining ONE box, dot or segment
+//             and following a short chain: deadEndNeighbor, shadeShortChain, boxStarvesClue, closingNeighbor, dotShortChain, twoEndsJoin,
+//             shadeFewLines, segmentShortChain, boxStarvesClueByLines, parityPocket, chokepoint
+//   Hard      counting with bounds (rangeFacing), colour balance, chokepoints around large areas (chokepointArea), the long chains (shadeForcesLines, boxStarvesClueByPlacements,
+//             segmentStarvesClue, shadeClosesLoop, dotForcesLines, segmentForcesLines, segmentClosesLoop), parity of large areas
+//             (crossingParity, parityForces), pairing four or six open ends (pairedEnds), uniqueRoute (assumes one solution), and trial
+//             and error (tryCell, tryEdge)
+// The rules whose arguments grow add an extra cost per line, open end or step (the `extra` functions), and the costly "imagine" rules are
+// left out of prefix closures (see closure()).
+// Bookkeeping (cost 1, charged once per step in which it had something to do): a segment touching a shaded cell is off, a segment makes its
 // two cells loop, a loop cell with two segments has no others.
 import {
   UNKNOWN, SHADED, LOOP, CLUE, E_UNKNOWN, E_ON, E_OFF, oppositeDir,
@@ -62,9 +28,9 @@ import {
 export const TIERS = ['Beginner', 'Medium', 'Hard', 'Expert'];
 
 export const TIER_INFO = {
-  Beginner: { name: 'Beginner', blurb: 'clues that are already full or must be filled, dead ends and cells next to shaded cells' },
-  Medium: { name: 'Medium', blurb: 'needs a clue that exactly fills the room it has, or spotting a segment that would close the loop too early' },
-  Hard: { name: 'Hard', blurb: 'needs trying one cell or segment and following what it forces until something breaks' },
+  Beginner: { name: 'Beginner', blurb: 'clue counting, cells next to boxes, dead ends, corners and corridors, and not closing the loop early' },
+  Medium: { name: 'Medium', blurb: "placing a clue's boxes, and imagining one box, dot or segment and following a short chain of forced lines" },
+  Hard: { name: 'Hard', blurb: 'long chains of forced lines, counting with bounds along facing clues, parity of large areas, and at worst trial and error' },
   Expert: { name: 'Expert', blurb: "the hint rules can't finish it: somewhere you have to look further ahead than Hint can explain" },
 };
 
@@ -181,6 +147,21 @@ export function oddOpenEnds(P, st) {
   return best ? ends.filter((i) => find(i) === best[0]) : null;
 }
 
+/** oddOpenEnds with the size of the area: { ends, area } (area = the cells of that group, the cells that still need lines), or null. */
+export function oddOpenGroup(P, st) {
+  const g = openEndGroups(P, st);
+  if (!g) return null;
+  const { find, ends, needy } = g;
+  const count = new Map();
+  for (const i of ends) { const r = find(i); count.set(r, (count.get(r) || 0) + 1); }
+  let best = null;
+  for (const [r, c] of count) if (c % 2 && (!best || c < best[1])) best = [r, c];
+  if (!best) return null;
+  let area = 0;
+  for (let i = 0; i < P.N; i++) if (needy[i] && find(i) === best[0]) area++;
+  return { ends: ends.filter((i) => find(i) === best[0]), area };
+}
+
 /** Is the position impossible? (Used by the lookahead rules.) */
 export function contradiction(P, st) {
   const { N, nb } = P;
@@ -206,7 +187,8 @@ export function contradiction(P, st) {
     for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) u++; }
     if (s > P.clues[k].n || s + u < P.clues[k].n) return true;
   }
-  if (P.regional && balanceBroken(P, st)) return true;
+  if (balanceBroken(P, st)) return true;
+  if (chokepointCheck(P, st)) return true;              // a single cell between two parts that both hold loop cells
   const { find, cycleRoot } = components(P, st);
   if (cycleRoot >= 0) {
     // a closed loop is only allowed if nothing else is on the loop
@@ -1008,7 +990,13 @@ function boxStarvesClueByPlacements(P, st) {
  * Null when there is no contradiction, or the loop closes early. `cap`: give up on a box whose lines take more than this many segments.
  */
 export function boxProof(P, st, box, cap = Infinity) {
-  const s2 = cloneState(st); s2.cell[box] = SHADED;
+  return hypothesisProof(P, st, [setCell(box, SHADED)], cap);
+}
+
+/** boxProof for any imagined move (`sets`, as in a firing: a box, a dot, a segment drawn or ruled out). */
+export function hypothesisProof(P, st, sets, cap = Infinity) {
+  const s2 = cloneState(st);
+  for (const [kind, idx, v] of sets) (kind === 'c' ? s2.cell : s2.e)[idx] = v;
   const why = { off: new Map(), ev: new Map(), events: [] };
   const bad = followLines(P, s2, cap, why);
   if (bad < 0 || s2.closedEarly || !why.fail) return null;
@@ -1077,7 +1065,7 @@ function segmentForces(P, st, closes) {
       st2.e[x] = v;
       const bad = followLines(P, st2);
       if (bad >= 0) {
-        if (!!st2.closedEarly === closes) out.push(firing([setEdge(x, v === E_OFF ? E_ON : E_OFF)], { edge: x, assumed: v === E_OFF ? 'off' : 'on', stranded: bad }));
+        if (!!st2.closedEarly === closes) out.push(firing([setEdge(x, v === E_OFF ? E_ON : E_OFF)], { edge: x, assumed: v === E_OFF ? 'off' : 'on', stranded: bad, forced: st2.forced }));
         break;
       }
     }
@@ -1512,7 +1500,7 @@ export function colorBalanceFirings(P, st) {
   if (sets.length) out.push(firing(sets, { cells: sets.map((x) => x[1]), light: [light.box, light.box + light.cells.length], dark: [dark.box, dark.box + dark.cells.length], diff: D, range: [lo, hi] }));
   return out;
 }
-const colorBalance = (P, st) => (P.regional ? colorBalanceFirings(P, st) : []);
+const colorBalance = (P, st) => colorBalanceFirings(P, st);         // regional puzzles, and arrow puzzles too (rare there: no total box count)
 
 
 /**
@@ -1601,19 +1589,258 @@ function parityForces(P, st) {
     const st2 = cloneState(st);
     st2.cell[i] = SHADED;
     for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && st2.e[x] === E_UNKNOWN) st2.e[x] = E_OFF; }
-    const ends = oddOpenEnds(P, st2);
-    if (ends) out.push(firing([setCell(i, LOOP)], { cell: i, assumed: 'shaded', ends }));
+    const g = oddOpenGroup(P, st2);
+    if (g) out.push(firing([setCell(i, LOOP)], { cell: i, assumed: 'shaded', ends: g.ends, area: g.area }));
   }
   for (let x = 0; x < P.numEdges; x++) {
     if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
     const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
     if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
     const off = cloneState(st); off.e[x] = E_OFF;
-    const endsOff = oddOpenEnds(P, off);
-    if (endsOff) { out.push(firing([setEdge(x, E_ON)], { edge: x, assumed: 'off', ends: endsOff })); continue; }
+    const gOff = oddOpenGroup(P, off);
+    if (gOff) { out.push(firing([setEdge(x, E_ON)], { edge: x, assumed: 'off', ends: gOff.ends, area: gOff.area })); continue; }
     const on = cloneState(st); on.e[x] = E_ON; on.cell[a] = LOOP; on.cell[b] = LOOP;
-    const endsOn = oddOpenEnds(P, on);
-    if (endsOn) out.push(firing([setEdge(x, E_OFF)], { edge: x, assumed: 'on', ends: endsOn }));
+    const gOn = oddOpenGroup(P, on);
+    if (gOn) out.push(firing([setEdge(x, E_OFF)], { edge: x, assumed: 'on', ends: gOn.ends, area: gOn.area }));
+  }
+  // smallest areas first: the easiest to see
+  return out.sort((p, q) => p.info.ends.length - q.info.ends.length || p.info.area - q.info.area);
+}
+
+// ---- splits by size: the easy cases of the forced-lines and parity rules are Medium (see the table)
+
+/** The most lines that may matter (boxProof) for shadeFewLines, and how far followLines may draw before it gives up on a box. */
+export const FEW_LINES = 3;
+const FEW_SEARCH = 16;
+/** shadeForcesLines (three lines or a stranded cell, not the loop closing) when at most FEW_LINES of the forced lines matter. */
+function shadeFewLines(P, st) {
+  const out = [];
+  for (let i = 0; i < P.N; i++) {
+    if (st.cell[i] !== UNKNOWN) continue;
+    const probe = cloneState(st); probe.cell[i] = SHADED;
+    if (followLines(P, probe, FEW_SEARCH) < 0 || probe.closedEarly) continue;
+    const pr = boxProof(P, st, i, FEW_SEARCH);
+    if (pr && pr.edges.length <= FEW_LINES) out.push(firing([setCell(i, LOOP)], { cell: i, stranded: pr.bad, forced: pr.edges.length }));
+  }
+  return out.sort((a, b) => a.info.forced - b.info.forced || a.info.cell - b.info.cell);
+}
+
+/** The lines a segment hypothesis needs to reach its contradiction (hypothesisProof), or Infinity. */
+function segmentNeeded(P, st, info) {
+  const pr = hypothesisProof(P, st, [setEdge(info.edge, info.assumed === 'off' ? E_OFF : E_ON)]);
+  return pr ? pr.edges.length : Infinity;
+}
+/** The most lines that may matter for segmentShortChain. */
+export const SEGMENT_SHORT = 2;
+/** segmentForcesLines when at most SEGMENT_SHORT of the forced lines matter. */
+function segmentShortChain(P, st) {
+  return segmentForcesLines(P, st)
+    .filter((f) => f.info.forced <= 4 * SEGMENT_SHORT && segmentNeeded(P, st, f.info) <= SEGMENT_SHORT)
+    .sort((a, b) => a.info.forced - b.info.forced);
+}
+
+/** parityForces when the area cut off is a small pocket: at most POCKET_ENDS open ends and POCKET_AREA cells. */
+export const POCKET_ENDS = 3, POCKET_AREA = 9;
+const parityPocket = (P, st) => parityForces(P, st).filter((f) => f.info.ends.length <= POCKET_ENDS && f.info.area <= POCKET_AREA);
+
+/** pairedEnds with just two open ends: they must join each other (Medium); pairedEnds itself keeps the areas with four or six. */
+const twoEndsJoin = (P, st) => pairedEnds(P, st).filter((f) => f.info.k === 2);
+const pairedEndsMany = (P, st) => pairedEnds(P, st).filter((f) => f.info.k > 2);
+
+// ---- imagine a dot
+//
+// The mirror of the "imagine a box" rules: put a dot on a cell that a clue counts, follow the easy consequences (a clue then needing every
+// open cell it has left, or exactly every other one; dots next to boxes; dead ends; a cell with two ways out using both), and if that ends in a
+// contradiction the cell is a box. dotShortChain allows DOT_SHORT steps (Medium); dotForcesLines follows them to the end (Hard).
+
+const DOT_RULES = ['shadedNeighbor', 'clueDone', 'clueFull', 'clueTight', 'deadEnd', 'forcedExits'];
+export const DOT_SHORT = 4;
+/**
+ * Put a dot at `cell` and apply DOT_RULES (with the bookkeeping) until they stop, a contradiction appears, or `cap` steps are taken.
+ * Returns { contradiction, steps, trace: [{ rule, sets, infos }], s2 }.
+ */
+export function dotTrace(P, st, cell, cap = Infinity) {
+  const s2 = cloneState(st); s2.cell[cell] = LOOP;
+  const trace = [];
+  let steps = 0;
+  for (let guard = 0; guard < 500; guard++) {
+    if (contradiction(P, s2)) return { contradiction: true, steps, trace, s2 };
+    let fired = false;
+    for (const r of RULES) {
+      if (!(r.free || DOT_RULES.includes(r.id))) continue;
+      const fs = r.find(P, s2, {});
+      if (!fs.length) continue;
+      const sets = fs.flatMap((f) => f.sets).filter(([k, i, v]) => (k === 'c' ? s2.cell : s2.e)[i] !== v);
+      let ok = true;
+      for (const f of fs) if (!applySets(s2, f.sets)) ok = false;
+      if (!r.free) { steps++; trace.push({ rule: r.id, sets, infos: fs.map((f) => f.info) }); }
+      if (!ok) return { contradiction: true, steps, trace, s2 };
+      fired = true;
+      break;
+    }
+    if (!fired || steps > cap) return { contradiction: false, steps, trace, s2 };
+  }
+  return { contradiction: false, steps, trace, s2 };
+}
+
+/** The cells some clue counts (where a dot changes what a clue can do). */
+const countedCells = (P) => {
+  if (P._counted) return P._counted;
+  const c = new Uint8Array(P.N);
+  P.clues.forEach((cl, k) => { if (cl.n >= 0) for (const i of P.rays[k]) c[i] = 1; });
+  return (P._counted = c);
+};
+
+function dotChain(P, st, cap) {
+  const out = [], counted = countedCells(P);
+  for (let i = 0; i < P.N; i++) {
+    if (st.cell[i] !== UNKNOWN || !counted[i]) continue;
+    const t = dotTrace(P, st, i, cap);
+    if (t.contradiction && t.steps <= cap) out.push(firing([setCell(i, SHADED)], { cell: i, steps: t.steps }));
+  }
+  return out.sort((a, b) => a.info.steps - b.info.steps || a.info.cell - b.info.cell);
+}
+const dotShortChain = (P, st) => dotChain(P, st, DOT_SHORT);
+const dotForcesLines = (P, st) => dotChain(P, st, Infinity);
+
+// ---- chokepoints (Josh's "two gates" idea, 2026-11-21)
+//
+// The loop is one cycle, so it passes through any cell once: it can never go into a part of the board through a single cell and come back
+// out through the same cell. So if one cell is the only way between two parts of the board that both hold loop cells, the position is
+// impossible (in graph terms: a cycle lies inside one block, and that cell is a cut vertex). The rules imagine a move (a segment ruled out,
+// a box) and look for that. Like the other "imagine" rules they are split by size: chokepoint when the part cut off is small enough to see
+// (at most CHOKE_AREA cells), chokepointArea otherwise.
+
+/**
+ * Is there a cut cell between loop cells, or are the loop cells not even connected? Returns null when the position is fine, else
+ * { cut, part }: `cut` the cell that is the only way in (-1 when there is no way at all), `part` the cells of the smaller side (the cells that
+ * can still be on the loop, other than the cut). Cells that can still be on the loop: not clues, not boxes; a step between two of them is
+ * possible unless the segment is ruled out or one of them already has two segments (and this is not one of them).
+ */
+export function chokepointCheck(P, st) {
+  const N = P.N, onc = new Int8Array(N);
+  for (let x = 0; x < P.numEdges; x++) if (st.e[x] === E_ON) { const a = x >> 1; onc[a]++; onc[(x & 1) ? a + P.cols : a + 1]++; }
+  const live = (i) => st.cell[i] !== CLUE && st.cell[i] !== SHADED;
+  const isLoop = (i) => st.cell[i] === LOOP || onc[i] > 0;
+  const step = (i, d) => {
+    const x = P.ed[i * 4 + d], j = P.nb[i * 4 + d];
+    if (x < 0 || j < 0 || !live(j) || st.e[x] === E_OFF) return -1;
+    if (st.e[x] !== E_ON && (onc[i] >= 2 || onc[j] >= 2)) return -1;
+    return j;
+  };
+  let total = 0, root = -1;
+  for (let i = 0; i < N; i++) if (live(i) && isLoop(i)) { total++; if (root < 0) root = i; }
+  if (total < 2) return null;
+  // iterative DFS (Tarjan): discovery time, low link, loop cells in each subtree, and the order of discovery (a subtree is a run of it)
+  const disc = new Int32Array(N).fill(-1), low = new Int32Array(N), sub = new Int32Array(N), size = new Int32Array(N), parent = new Int32Array(N).fill(-1), it = new Int8Array(N);
+  const order = [];
+  let t = 0;
+  const visit = (j, par) => { parent[j] = par; disc[j] = low[j] = t++; sub[j] = isLoop(j) ? 1 : 0; size[j] = 1; order.push(j); };
+  visit(root, -1);
+  const stack = [root];
+  let found = null, rootLoopKids = [];
+  while (stack.length && !found) {
+    const v = stack[stack.length - 1];
+    if (it[v] < 4) {
+      const j = step(v, it[v]++);
+      if (j < 0) continue;
+      if (disc[j] < 0) { visit(j, v); stack.push(j); } else if (j !== parent[v]) low[v] = Math.min(low[v], disc[j]);
+      continue;
+    }
+    stack.pop();
+    const u = parent[v];
+    if (u < 0) continue;
+    low[u] = Math.min(low[u], low[v]);
+    if (low[v] >= disc[u] && sub[v] > 0) {                       // u is the only way into v's subtree, which holds loop cells
+      if (u === root) rootLoopKids.push(v);
+      else if (total - sub[v] - (isLoop(u) ? 1 : 0) > 0) found = { cut: u, inside: v };
+    }
+    sub[u] += sub[v]; size[u] += size[v];
+  }
+  const subtree = (v) => order.slice(order.indexOf(v), order.indexOf(v) + size[v]);
+  if (found) {
+    const inside = subtree(found.inside), insideSet = new Set(inside);
+    const outside = order.filter((i) => i !== found.cut && !insideSet.has(i));
+    return { cut: found.cut, part: inside.length <= outside.length ? inside : outside };
+  }
+  if (rootLoopKids.length >= 2) {                                 // the root itself is the cut: its smallest loop-holding branch
+    const parts = rootLoopKids.map(subtree).sort((a, b) => a.length - b.length);
+    return { cut: root, part: parts[0] };
+  }
+  if (sub[root] < total) {                                        // some loop cells cannot be reached at all: no way in
+    const reached = new Set(order);
+    const other = [];
+    const start = [...Array(N).keys()].find((i) => live(i) && isLoop(i) && !reached.has(i));
+    const seen = new Set([start]), queue = [start];
+    while (queue.length) { const v = queue.shift(); other.push(v); for (let d = 0; d < 4; d++) { const j = step(v, d); if (j >= 0 && !seen.has(j)) { seen.add(j); queue.push(j); } } }
+    return { cut: -1, part: other.length <= order.length ? other : order };
+  }
+  return null;
+}
+
+export const CHOKE_AREA = 12;
+function chokepoints(P, st) {
+  const out = [];
+  for (let x = 0; x < P.numEdges; x++) {
+    if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
+    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
+    if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
+    const t = cloneState(st); t.e[x] = E_OFF;
+    const c = chokepointCheck(P, t);
+    if (c) out.push(firing([setEdge(x, E_ON)], { edge: x, assumed: 'off', cut: c.cut, part: c.part, area: c.part.length }));
+  }
+  for (let i = 0; i < P.N; i++) {
+    if (st.cell[i] !== UNKNOWN) continue;
+    const t = cloneState(st); t.cell[i] = SHADED;
+    for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && t.e[x] === E_UNKNOWN) t.e[x] = E_OFF; }
+    const c = chokepointCheck(P, t);
+    if (c) out.push(firing([setCell(i, LOOP)], { cell: i, assumed: 'shaded', cut: c.cut, part: c.part, area: c.part.length }));
+  }
+  return out.sort((p, q) => p.info.area - q.info.area);
+}
+const chokepoint = (P, st) => chokepoints(P, st).filter((f) => f.info.area <= CHOKE_AREA);
+const chokepointArea = (P, st) => chokepoints(P, st).filter((f) => f.info.area > CHOKE_AREA);
+
+// ---- imagine a segment, and a clue runs out of room
+
+/** Cells that changed between `st` and `probe` (a cell or one of its segments), and their neighbours: 1 in the returned array. */
+function nearChanges(P, st, probe) {
+  const near = new Uint8Array(P.N);
+  for (let j = 0; j < P.N; j++) {
+    let changed = probe.cell[j] !== st.cell[j];
+    for (let d = 0; d < 4 && !changed; d++) { const x = P.ed[j * 4 + d]; if (x >= 0 && probe.e[x] !== st.e[x]) changed = true; }
+    if (!changed) continue;
+    near[j] = 1;
+    for (let d = 0; d < 4; d++) { const m = P.nb[j * 4 + d]; if (m >= 0) near[m] = 1; }
+  }
+  return near;
+}
+
+/**
+ * boxStarvesClueByPlacements for a segment: imagine it drawn (or ruled out) next to the known loop and follow the lines it forces. If the lines
+ * themselves are fine (no three lines, no stranded cell, the loop not closed: that is segmentForcesLines) but some clue's line is then left
+ * without room for the boxes it still needs (lineRoom), the segment is the other way. info: { edge, assumed, clue, need, room }.
+ */
+function segmentStarvesClue(P, st) {
+  const out = [];
+  const clues = orthogonalClues(P);
+  for (let x = 0; x < P.numEdges; x++) {
+    if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
+    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
+    if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
+    if (st.cell[a] !== LOOP && st.cell[b] !== LOOP && !onCount(P, st, a) && !onCount(P, st, b)) continue;    // next to the known loop only
+    for (const v of [E_OFF, E_ON]) {
+      const probe = cloneState(st); probe.e[x] = v;
+      if (followLines(P, probe) >= 0) continue;                  // a contradiction of the lines alone: segmentForcesLines' business
+      let hit = null;
+      const near = nearChanges(P, st, probe);
+      for (const k of clues) {
+        if (!P.rays[k].some((j) => near[j])) continue;          // only the clues whose line the segment changed, or lies next to a change
+        const { room, shaded } = lineRoom(P, probe, k), need = P.clues[k].n - shaded;
+        if (need > room) { hit = { clue: k, need, room }; break; }
+      }
+      if (hit) { out.push(firing([setEdge(x, v === E_OFF ? E_ON : E_OFF)], { edge: x, assumed: v === E_OFF ? 'off' : 'on', ...hit })); break; }
+    }
   }
   return out;
 }
@@ -1654,6 +1881,14 @@ function lookahead(kind) {
 // the rules cheapest first (ties: table order), so the order a person meets them in IS the order of the costs. The array itself is
 // sorted by tier and, within a tier, so that the cheap-to-compute rules come before the expensive ones: closure() and the generator
 // use prefixes of it (everything before the lookahead rules; the generator's cheap phase stops before shadeForcesLines).
+// Extra cost for the long cases of the rules that grow with the size of the argument (charged on top of the rule's cost, in the score only:
+// the order a person meets the rules in is by the base cost). Two per line, end or step past what the rule's Medium split allows.
+const extraShadeLines = (P, st, f) => { const pr = boxProof(P, st, f.info.cell); return 2 * Math.max(0, (pr ? pr.edges.length : f.info.forced) - FEW_LINES); };
+const extraSegmentLines = (P, st, f) => 2 * Math.max(0, Math.min(segmentNeeded(P, st, f.info), f.info.forced ?? Infinity) - SEGMENT_SHORT);
+const extraParity = (P, st, f) => 2 * Math.max(0, f.info.ends.length - POCKET_ENDS);
+const extraDotSteps = (P, st, f) => 2 * Math.max(0, f.info.steps - DOT_SHORT);
+const extraTrial = (P, st, f) => 2 * (f.cost || 0);                  // trial and error: two per step of the chain it follows
+
 export const RULES = [
   { id: 'edgesOffShaded', tier: 'Beginner', weight: 1, free: true, find: bookkeepingShadedEdges, label: 'segments touching a box are off' },
   { id: 'edgeEnds', tier: 'Beginner', weight: 1, free: true, find: bookkeepingEdgeEnds, label: 'a segment makes both its cells loop cells' },
@@ -1665,10 +1900,10 @@ export const RULES = [
   { id: 'rangeSameOne', tier: 'Beginner', weight: 3, find: rangeSameOne, label: 'two clues point the same way with one cell between them: the difference of their numbers (0 or 1) says if it is a box' },
   { id: 'deadEnd', tier: 'Beginner', weight: 4, find: deadEnd, label: 'a cell with fewer than two exits is a box' },
   { id: 'forcedExits', tier: 'Beginner', weight: 4, find: forcedExits, label: 'a loop cell with two exits left uses both' },
+  { id: 'tightCell', tier: 'Beginner', weight: 5, find: tightCell, label: 'a box here would turn a corner-like neighbor into a dot with just one way out: this cell is a dot' },
   { id: 'noEarlyClose', tier: 'Beginner', weight: 6, find: noEarlyClose, label: 'a segment would close the loop too early' },
   { id: 'sameSegmentExits', tier: 'Beginner', weight: 7, find: sameSegmentExits, label: 'two of a dot\'s three ways out lead to the ends of one path: it uses the third' },
   { id: 'closingCell', tier: 'Beginner', weight: 7, find: closingCell, label: 'a cell whose only two ways out are the ends of one path would close the loop early: it is a box' },
-  { id: 'tightCell', tier: 'Medium', weight: 8, find: tightCell, label: 'a box here would turn a corner-like neighbor into a dot with just one way out: this cell is a dot' },
   { id: 'deadEndNeighbor', tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
   { id: 'cluePlacements', tier: 'Medium', weight: 12, find: cluePlacements, label: 'every way to place a clue\'s boxes includes (or leaves out) this cell' },
   { id: 'placementDeadEnd', tier: 'Medium', weight: 14, find: placementDeadEnd, label: 'every way to place a clue\'s boxes that leaves no neighbor stranded includes (or leaves out) this cell' },
@@ -1677,20 +1912,29 @@ export const RULES = [
   { id: 'closingNeighbor', tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
   { id: 'rangeSame', tier: 'Medium', weight: 24, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
   { id: 'rangeFacingKnown', tier: 'Medium', weight: 28, find: rangeFacingKnown, label: 'two clues point at each other and one part of the line has a known number of boxes: that fixes the other two parts' },
-  { id: 'crossingParity', tier: 'Hard', weight: 115, find: crossingParity, label: 'the loop crosses the border of a rectangle an even number of times' },
-  { id: 'colorBalance', tier: 'Hard', weight: 50, find: colorBalance, label: 'the loop alternates colours, so the boxes leave light and dark cells level: that fixes how many boxes each colour holds' },
+  { id: 'boxStarvesClueByLines', tier: 'Medium', weight: 27, find: boxStarvesClueByLines, label: 'a box here would turn its neighbors into dots and force the lines of a neighbor left with two ways out, and that leaves a clue no room for its number: this cell is a dot' },
+  { id: 'twoEndsJoin', tier: 'Medium', weight: 22, find: twoEndsJoin, label: 'a sealed-off area has just two open ends: they join each other, so their far ends cannot be joined' },
+  { id: 'parityPocket', tier: 'Medium', weight: 28, costly: true, find: parityPocket, label: `a move here would cut off a small pocket (at most ${POCKET_AREA} cells) with an odd number of open ends` },
+  { id: 'shadeFewLines', tier: 'Medium', weight: 25, costly: true, find: shadeFewLines, label: `a box here would force lines, at most ${FEW_LINES} of which lead to a cell with three lines or too few ways out: this cell is a dot` },
+  { id: 'segmentShortChain', tier: 'Medium', weight: 26, costly: true, find: segmentShortChain, label: `a segment here (or its absence) would force at most ${SEGMENT_SHORT} lines that leave a cell with three lines or too few ways out` },
+  { id: 'dotShortChain', tier: 'Medium', weight: 21, costly: true, find: dotShortChain, label: `a dot here would, within a few easy steps (at most ${DOT_SHORT}: a clue needing all its open cells, dots by boxes, dead ends, cells with two ways out), break something: this cell is a box` },
+  { id: 'chokepoint', tier: 'Medium', weight: 23, costly: true, find: chokepoint, label: `a move here would leave one cell as the only way between two parts of the board that both hold loop cells (the smaller part at most ${CHOKE_AREA} cells): the loop could not get in and out` },
   { id: 'regionPairs', tier: 'Hard', weight: 45, find: regionPairs, label: 'two neighbouring numbered regions together: every way to place both numbers of boxes without touching includes (or leaves out) this cell' },
-  { id: 'pairedEnds', tier: 'Hard', weight: 60, find: pairedEnds, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
-  { id: 'boxStarvesClueByLines', tier: 'Hard', weight: 55, find: boxStarvesClueByLines, label: 'a box here would turn its neighbors into dots and force the lines of a neighbor left with two ways out, and that leaves a clue no room for its number: this cell is a dot' },
-  { id: 'shadeForcesLines', tier: 'Hard', weight: 70, find: shadeForcesLines, label: 'a box here would force lines that leave a cell with three lines or too few ways out: this cell is a dot' },
+  { id: 'rangeFacing', tier: 'Hard', weight: 48, find: rangeFacing, label: 'two clues point at each other: how many boxes fit in each part of the line fixes how many it holds' },
+  { id: 'colorBalance', tier: 'Hard', weight: 50, find: colorBalance, label: 'the loop alternates colours, so the boxes leave light and dark cells level: that fixes how many boxes each colour holds' },
+  { id: 'crossingParity', tier: 'Hard', weight: 90, find: crossingParity, label: 'the loop crosses the border of a rectangle an even number of times' },
+  { id: 'pairedEnds', tier: 'Hard', weight: 110, find: pairedEndsMany, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
+  { id: 'chokepointArea', tier: 'Hard', weight: 62, costly: true, find: chokepointArea, label: 'a move here would leave one cell as the only way between two large parts of the board that both hold loop cells: the loop could not get in and out' },
+  { id: 'shadeForcesLines', tier: 'Hard', weight: 70, find: shadeForcesLines, extra: extraShadeLines, label: 'a box here would force lines that leave a cell with three lines or too few ways out: this cell is a dot' },
   { id: 'boxStarvesClueByPlacements', tier: 'Hard', weight: 72, find: boxStarvesClueByPlacements, label: 'a box here would force lines that leave a clue without room to place its boxes (counting the cells that would be left with one way out): this cell is a dot' },
+  { id: 'segmentStarvesClue', tier: 'Hard', weight: 74, costly: true, find: segmentStarvesClue, label: 'a segment here (or its absence) would force lines that leave a clue without room to place its boxes' },
   { id: 'shadeClosesLoop', tier: 'Hard', weight: 75, find: shadeClosesLoop, label: 'a box here would force lines that close the loop early: this cell is a dot' },
-  { id: 'segmentForcesLines', tier: 'Hard', weight: 80, find: segmentForcesLines, label: 'a segment here (or its absence) would force lines that leave a cell with three lines or too few ways out' },
+  { id: 'dotForcesLines', tier: 'Hard', weight: 78, extra: extraDotSteps, costly: true, find: dotForcesLines, label: 'a dot here would, by easy steps (a clue needing all its open cells, dots by boxes, dead ends, cells with two ways out), break something: this cell is a box' },
+  { id: 'segmentForcesLines', tier: 'Hard', weight: 80, find: segmentForcesLines, extra: extraSegmentLines, label: 'a segment here (or its absence) would force lines that leave a cell with three lines or too few ways out' },
   { id: 'segmentClosesLoop', tier: 'Hard', weight: 85, find: segmentClosesLoop, label: 'a segment here (or its absence) would force lines that close the loop early' },
-  { id: 'parityForces', tier: 'Hard', weight: 95, find: parityForces, label: 'a move here would cut off a region with an odd number of open ends' },
-  { id: 'rangeFacing', tier: 'Hard', weight: 105, find: rangeFacing, label: 'two clues point at each other: how many boxes fit in each part of the line fixes how many it holds' },
-  { id: 'tryCell', tier: 'Hard', weight: 140, lookahead: true, find: lookahead('cell'), label: 'trying a cell one way leads to a contradiction' },
-  { id: 'tryEdge', tier: 'Hard', weight: 160, lookahead: true, find: lookahead('edge'), label: 'trying a segment one way leads to a contradiction' },
+  { id: 'parityForces', tier: 'Hard', weight: 95, find: parityForces, extra: extraParity, label: 'a move here would cut off a region with an odd number of open ends' },
+  { id: 'tryCell', tier: 'Hard', weight: 140, lookahead: true, find: lookahead('cell'), extra: extraTrial, label: 'trying a cell one way leads to a contradiction' },
+  { id: 'tryEdge', tier: 'Hard', weight: 160, lookahead: true, find: lookahead('edge'), extra: extraTrial, label: 'trying a segment one way leads to a contradiction' },
   { id: 'uniqueRoute', tier: 'Hard', weight: 125, assumesUnique: true, find: uniqueRoute, label: 'a way of joining the open ends here could be drawn two ways, which would give two solutions: so it is not the way' },
 ];
 
@@ -1707,6 +1951,10 @@ export const ruleLabel = (id) => (id === 'unsolved' ? 'none of the current rules
  * Apply every rule below index `upto` until nothing changes or a contradiction appears (the engine inside the
  * lookahead rules: "follow what it forces"). Mutates `st`. Returns { contradiction, steps }.
  */
+// COSTLY rules (flag `costly`) imagine a move and follow it for every cell or segment: dotShortChain, dotForcesLines, shadeFewLines,
+// segmentShortChain, parityPocket, segmentStarvesClue, chokepoint, chokepointArea. closure() with a prefix (`upto` a number: the generator's solvability check, solvedByRules,
+// and the inner closure of tryCell / tryEdge) leaves them out, which keeps generation and trial and error as fast as before 2026-11-21; they are
+// sound, so leaving them out only makes those checks a little more conservative. The rating and the hints (nextSteps) use every rule.
 export function closure(P, st, upto = FIRST_LOOKAHEAD) {
   // `upto` is a prefix length of the rule table, or a list of rule ids (then exactly those rules, plus the bookkeeping, are used)
   const allowed = Array.isArray(upto) ? new Set(upto) : null;
@@ -1716,6 +1964,7 @@ export function closure(P, st, upto = FIRST_LOOKAHEAD) {
     let fired = false;
     for (let r = 0; r < (allowed ? RULES.length : upto); r++) {
       if (allowed && !(RULES[r].free || allowed.has(RULES[r].id))) continue;   // a chosen set of rules instead of a prefix of the table
+      if (!allowed && RULES[r].costly) continue;   // a prefix leaves out the costly "imagine" rules (see COSTLY below): rate() and Hint still use them
       const fs = RULES[r].find(P, st, { upto: r });
       if (!fs.length) continue;
       for (const f of fs) if (!applySets(st, f.sets)) return { contradiction: true, steps };
@@ -1731,7 +1980,7 @@ export function closure(P, st, upto = FIRST_LOOKAHEAD) {
  * The easiest rule that has a deduction in `st`, with every firing of it: { rule, tier, weight, firings: [{sets, info}] },
  * or null if the rules are stuck. Bookkeeping is applied to `st` first (silently), so `st` is the position the rules saw.
  */
-export function nextSteps(P, st, bookkeeping = null) {
+export function nextSteps(P, st, bookkeeping = null, without = null) {
   for (;;) {
     let any = false;
     for (const r of RULES) {
@@ -1744,6 +1993,7 @@ export function nextSteps(P, st, bookkeeping = null) {
   }
   // cheapest first; the rules that assume a unique solution come in at their price, trial and error last
   for (const rule of HUMAN_ORDER) {
+    if (without && without.includes(rule.id)) continue;         // (tests and tools: rate as if a rule did not exist)
     const firings = rule.find(P, st, { upto: FIRST_LOOKAHEAD });
     if (firings.length) return { rule: rule.id, tier: rule.tier, weight: rule.weight, firings };
   }
@@ -1751,9 +2001,12 @@ export function nextSteps(P, st, bookkeeping = null) {
 }
 
 /** The easiest deduction available in `st`, or null: { rule, tier, weight, sets, info }. */
-export function nextStep(P, st, bookkeeping = null) {
-  const r = nextSteps(P, st, bookkeeping);
-  return r ? { rule: r.rule, tier: r.tier, weight: r.weight, sets: r.firings[0].sets, info: r.firings[0].info } : null;
+export function nextStep(P, st, bookkeeping = null, without = null) {
+  const r = nextSteps(P, st, bookkeeping, without);
+  if (!r) return null;
+  const rule = RULES[RULE_IDS.indexOf(r.rule)], f = r.firings[0];
+  const extra = rule.extra ? rule.extra(P, st, f) : 0;                // the long cases cost more (see the extra* functions)
+  return { rule: r.rule, tier: r.tier, weight: r.weight, extra, sets: f.sets, info: f.info };
 }
 
 /** Fully decided? Every cell known, every loop cell has two segments. */
@@ -1766,17 +2019,17 @@ export function isComplete(P, st) {
 }
 
 /**
- * Solve like a human. Returns { solved, rules (hardest rule id or 'unsolved'), tier, score, steps, counts, state }.
+ * Solve like a human. Returns { solved, rules (hardest rule id or 'unsolved'), tier, score, steps, counts, state }. `without`: rule ids to leave out.
  * `steps` lists every counted step { rule, tier, weight, sets, info }; `counts` maps rule id -> times used.
  */
-export function rate(P) {
+export function rate(P, { without = null } = {}) {
   const st = initialState(P);
   const steps = [];
   const counts = {};
   for (let guard = 0; guard < 2000; guard++) {
     if (!contradiction(P, st) && isComplete(P, st)) break;
     const bk = {};
-    const step = nextStep(P, st, bk);
+    const step = nextStep(P, st, bk, without);
     for (const id of Object.keys(bk)) {          // bookkeeping that had something to do costs its price, once per step
       const rule = RULES.find((q) => q.id === id);
       steps.push({ rule: id, tier: rule.tier, weight: rule.weight, sets: [], info: { bookkeeping: true } });
@@ -1799,7 +2052,7 @@ export function rate(P) {
   }
   let unknown = 0;
   for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) unknown++;
-  const score = steps.reduce((a, s) => a + s.weight, 0) + (solved ? 0 : unknown * UNDETERMINED_WEIGHT);
+  const score = steps.reduce((a, s) => a + s.weight + (s.extra || 0), 0) + (solved ? 0 : unknown * UNDETERMINED_WEIGHT);
   return { solved, rules: hardest, tier: tierOfRule(hardest), score, steps, counts, state: st };
 }
 

@@ -389,7 +389,7 @@
       "id": "armory",
       "name": "Armory",
       "file": "data/armory.csv",
-      "count": 27,
+      "count": 34,
       "hidden": true,
       "blurb": "The worked examples of docs/how_to_solve.md (not listed in the app)."
     }

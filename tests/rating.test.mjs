@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, solve, initialState, cluesFromString, SHADED, LOOP, E_ON, E_OFF, UNKNOWN } from '../js/logic.js';
 import { rate, RULES, RULE_IDS, SHORT_CHAIN, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules, lineRoom } from '../js/rating.js';
+// The rules added in the 2026-11-21 review (dot hypotheses, segment starvation, the Medium splits of the chain and parity rules). Some older
+// pattern tests leave them out (rate(P, { without })), so they still show the rule they were written for; the new rules get their own tests.
+const NEW_RULES = ['dotShortChain', 'dotForcesLines', 'twoEndsJoin', 'shadeFewLines', 'segmentShortChain', 'parityPocket', 'segmentStarvesClue', 'chokepoint', 'chokepointArea'];
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -183,7 +186,7 @@ test('pattern: a box would turn neighbours into dots and leave a clue no room (b
   assert.deepEqual(ruleSets('boxStarvesClue', compile({ name: 'ok', rows: 4, cols: 7, clues: [{ r: 0, c: 0, d: 5, n: 1 }] })), []);
 });
 
-test('boxStarvesClueByLines (Hard) follows a neighbour left with two ways out; boxStarvesClue (Medium) does not', () => {
+test('boxStarvesClueByLines (late Medium) follows a neighbour left with two ways out; boxStarvesClue (Medium) does not', () => {
   // a 1-arrow pointing left along the bottom row of a 3x5 board; (2,1) is on the loop. A box at (1,1) would leave (2,1) with only
   // (2,0) and (2,2) as ways out, so both become dots and the arrow has nothing left to shade.
   const P = compile({ name: 'bsc2', rows: 3, cols: 5, clues: [{ r: 2, c: 3, d: 3, n: 1 }] });
@@ -200,7 +203,7 @@ test('boxStarvesClueByLines (Hard) follows a neighbour left with two ways out; b
   const g = RULES.find((r) => r.id === 'boxStarvesClueByLines').find(P, initialState(P), {}).find((x) => x.info.cell === 1 * 5 + 1);
   assert.deepEqual(g.info.dots, [2 * 5 + 0, 2 * 5 + 1, 2 * 5 + 2]);
   assert.equal(RULES.find((r) => r.id === 'boxStarvesClue').tier, 'Medium');
-  assert.equal(RULES.find((r) => r.id === 'boxStarvesClueByLines').tier, 'Hard');
+  assert.equal(RULES.find((r) => r.id === 'boxStarvesClueByLines').tier, 'Medium');    // late Medium since 2026-11-21: one forced step
 });
 
 test('lookahead hints: the shortest chain comes first, and shadeShortChain only takes short ones', () => {
@@ -312,11 +315,14 @@ test('pattern: imagine a box, add the forced lines, a cell gets three lines (sha
   // A 6x6 puzzle with three clues whose solve needs this rule (and nothing harder; the shorter contradictions go to shadeShortChain), found by search.
   const P = compile({ name: 'sfl', rows: 6, cols: 6, clues: [{ r: 2, c: 0, d: 1, n: 0 }, { r: 2, c: 2, d: 5, n: 1 }, { r: 5, c: 2, d: 0, n: 0 }] });
   assert.equal(solve(P, { limit: 2 }).count, 1);
-  const r = rate(P);
+  const r = rate(P, { without: NEW_RULES });
   assert.ok(r.solved);
   assert.ok(r.counts.shadeForcesLines >= 1, JSON.stringify(r.counts));
   assert.equal(r.rules, 'shadeForcesLines');
   assert.equal(r.tier, 'Hard');
+  // with the newer rules an imagined dot gets there first, at Medium
+  const now = rate(P);
+  assert.ok(now.solved && now.tier === 'Medium', JSON.stringify(now.counts));
 });
 
 // Brute force over all subsets: the slow, obviously right version of rangeDeduce.
@@ -515,12 +521,14 @@ test('pattern: a box would turn a neighbour into a dot whose two ways out close 
 
 test('pattern: the only two open ends in a sealed-off area join each other (pairedEnds)', () => {
   const P = stuckPuzzle('d23', CLUES23[0], CLUES23[1], CLUES23[2]);
-  // E4 and D5 are alone in their area, so they join: D7 and D6 become the ends of one path and cannot be joined
-  const r = rate(P);
+  // E4 and D5 are alone in their area, so they join: D7 and D6 become the ends of one path and cannot be joined. With two open ends this
+  // is the Medium split of pairedEnds (twoEndsJoin)
+  const r = rate(P, { without: NEW_RULES.filter((id) => id !== 'twoEndsJoin') });
   assert.ok(r.solved && r.tier !== 'Expert');
   const d6 = cellIdx(P, 'D6');
-  const step = r.steps.find((s) => s.rule === 'pairedEnds' && s.sets.some(([k, i, v]) => k === 'e' && i === 2 * d6 + 1 && v === E_OFF));
-  assert.ok(step, 'the solver should rule out the segment D6-D7 with pairedEnds');
+  const step = r.steps.find((s) => s.rule === 'twoEndsJoin' && s.sets.some(([k, i, v]) => k === 'e' && i === 2 * d6 + 1 && v === E_OFF));
+  assert.ok(step, 'the solver should rule out the segment D6-D7 with twoEndsJoin');
+  assert.equal(RULES.find((q) => q.id === 'twoEndsJoin').tier, 'Medium');
 });
 
 import { parseCsv, decodeSolution } from '../js/logic.js';
@@ -557,7 +565,7 @@ test('pairedEnds with several open ends: the two lines leaving the sealed-off ar
   // line end up as one line. So its far ends cannot be joined to each other, D6 goes down, F7 and F8 cannot be joined, and H7, whose
   // only two ways out are the (virtual) ends H6 and I7 of one line, is a box.
   const P = stuckPuzzle('d06', CLUES06[0], CLUES06[1], CLUES06[2]);
-  const r = rate(P);
+  const r = rate(P, { without: NEW_RULES });
   const steps = r.steps.filter((s) => s.rule === 'pairedEnds');
   const sets = steps.flatMap((s) => s.sets.map(([k, i, v]) => `${k}${i}=${v}`));
   const d6 = cellIdx(P, 'D6'), f7 = cellIdx(P, 'F7'), h7 = cellIdx(P, 'H7');
@@ -606,12 +614,15 @@ test('the order a person meets the rules in: cheapest first, bookkeeping costs s
   assert.deepEqual(w, [...w].sort((a, b) => a - b));
   const pos = (id) => HUMAN_ORDER.findIndex((r) => r.id === id);
   assert.ok(pos('shadedNeighbor') < pos('clueDone'));
-  assert.ok(pos('forcedExits') < pos('noEarlyClose') && pos('noEarlyClose') < pos('tightCell'));   // the last Beginner rule
-  assert.ok(pos('closingCell') < pos('tightCell') && pos('sameSegmentExits') < pos('tightCell'));   // the "don't close the loop early" rules are Beginner, like Nikoli's easy puzzles use them
-  assert.ok(pos('rangeFacing') < pos('crossingParity') && pos('crossingParity') < pos('uniqueRoute') && pos('uniqueRoute') < pos('tryCell'));
+  assert.ok(pos('forcedExits') < pos('tightCell') && pos('tightCell') < pos('noEarlyClose'));   // tightCell is board geometry: Beginner (2026-11-21)
+  assert.ok(pos('closingCell') < pos('deadEndNeighbor') && pos('sameSegmentExits') < pos('deadEndNeighbor'));   // the "don't close the loop early" rules are Beginner, like Nikoli's easy puzzles use them
+  assert.ok(pos('rangeFacing') < pos('shadeForcesLines'));                                         // counting along one line comes before the chains
+  assert.ok(pos('crossingParity') < pos('parityForces') && pos('parityForces') < pos('uniqueRoute') && pos('uniqueRoute') < pos('tryCell'));
+  // the Medium splits come before the rules they are cut from
+  for (const [easy, hard] of [['shadeFewLines', 'shadeForcesLines'], ['segmentShortChain', 'segmentForcesLines'], ['parityPocket', 'parityForces'], ['twoEndsJoin', 'pairedEnds'], ['dotShortChain', 'dotForcesLines']]) assert.ok(pos(easy) < pos(hard), easy);
   const tier = (id) => RULES.find((r) => r.id === id).tier;
   assert.equal(tier('noEarlyClose'), 'Beginner'); assert.equal(tier('closingCell'), 'Beginner'); assert.equal(tier('sameSegmentExits'), 'Beginner');
-  assert.equal(tier('tightCell'), 'Medium'); assert.equal(tier('deadEndNeighbor'), 'Medium'); assert.equal(tier('rangeFacingKnown'), 'Medium');
+  assert.equal(tier('tightCell'), 'Beginner'); assert.equal(tier('deadEndNeighbor'), 'Medium'); assert.equal(tier('boxStarvesClueByLines'), 'Medium'); assert.equal(tier('rangeFacingKnown'), 'Medium');
   assert.equal(RULES.find((r) => r.id === 'forcedExits').weight, RULES.find((r) => r.id === 'deadEnd').weight);
   // every Hard rule costs more than every Medium rule
   const max = (t) => Math.max(...RULES.filter((r) => r.tier === t).map((r) => r.weight)), min = (t) => Math.min(...RULES.filter((r) => r.tier === t).map((r) => r.weight));
@@ -677,9 +688,9 @@ test('boxStarvesClueByPlacements (Hard): a box and its forced lines leave a clue
   assert.equal(solve(P, { limit: 2 }).count, 1, 'a unique puzzle');
   const rule = RULES.find((r) => r.id === 'boxStarvesClueByPlacements');
   assert.equal(rule.tier, 'Hard');
-  const others = RULES.slice(0, FIRST_LOOKAHEAD).filter((r) => r.id !== rule.id).map((r) => r.id);
+  const others = RULES.slice(0, FIRST_LOOKAHEAD).filter((r) => r.id !== rule.id && !NEW_RULES.includes(r.id)).map((r) => r.id);
   const st = initialState(P);
-  closure(P, st, others);                                            // every other rule first
+  closure(P, st, others);                                            // every other rule first (the older ones: see NEW_RULES)
   const fs = rule.find(P, st, {});
   assert.ok(fs.length >= 1, 'the rule fires');
   const sol = solve(P, { limit: 1 }).solutions[0];
@@ -687,4 +698,74 @@ test('boxStarvesClueByPlacements (Hard): a box and its forced lines leave a clue
     assert.ok(f.info.need > f.info.room, 'the clue still needs more boxes than the line has room for');
     assert.equal(sol.cell[f.info.cell] === SHADED, false, 'the cell is a dot in the solution');
   }
+});
+
+// ---- the rules added in the 2026-11-21 review
+
+test('new rules are sound: every firing agrees with the stored solution, along whole solves of real puzzles', () => {
+  const ids = [...NEW_RULES, 'colorBalance', 'pairedEnds'];
+  const rules = ids.map((id) => RULES.find((r) => r.id === id));
+  let fired = 0;
+  for (const [file, n] of [['data/8x8.csv', 4], ['data/bonus-nozeros-12x12.csv', 3], ['data/bonus-zeros-12x12.csv', 3]]) {
+    const all = parseCsv(readFileSync(new URL('../' + file, import.meta.url), 'utf8')).filter((p) => p.tier === 'Hard');
+    for (const raw of all.slice(-n)) {
+      const P = compile(raw), sol = decodeSolution(P, raw.solution), r = rate(P);
+      // replay the solve and look at every fifth position
+      const st = initialState(P);
+      r.steps.forEach((s, k) => {
+        if (k % 5 === 0) for (const rule of rules) for (const f of rule.find(P, st, { upto: FIRST_LOOKAHEAD })) {
+          fired++;
+          for (const [kind, i, v] of f.sets) {
+            if (kind === 'c') assert.equal(v === SHADED, sol.cell[i] === SHADED, `${raw.name} ${rule.id} cell ${i}`);
+            else assert.equal(v === E_ON, sol.e[i] === E_ON, `${raw.name} ${rule.id} edge ${i}`);
+          }
+        }
+        for (const [kind, i, v] of s.sets) (kind === 'c' ? st.cell : st.e)[i] = v;
+      });
+    }
+  }
+  assert.ok(fired > 0, 'some new rule fired along the way');
+});
+
+test('imagine a dot (dotShortChain, Medium): a dot that leaves a clue its exact room breaks something, so the cell is a box', () => {
+  // the 6x6 puzzle of the shadeForcesLines pattern: an imagined dot settles it sooner, at Medium
+  const P = compile({ name: 'sfl', rows: 6, cols: 6, clues: [{ r: 2, c: 0, d: 1, n: 0 }, { r: 2, c: 2, d: 5, n: 1 }, { r: 5, c: 2, d: 0, n: 0 }] });
+  const r = rate(P);
+  const step = r.steps.find((s) => s.rule === 'dotShortChain');
+  assert.ok(step, JSON.stringify(r.counts));
+  assert.equal(step.sets[0][2], SHADED);
+  const sol = solve(P, { limit: 1 }).solutions[0];
+  assert.equal(sol.cell[step.info.cell], SHADED);
+  const rule = RULES.find((q) => q.id === 'dotShortChain');
+  assert.equal(rule.tier, 'Medium');
+  assert.ok(rule.weight < RULES.find((q) => q.id === 'dotForcesLines').weight);
+});
+
+test('the score charges the long cases more: trial and error by its chain, the Hard chain rules by the lines they need', () => {
+  const P = compile({ name: 'd06', rows: 10, cols: 10, clues: cluesFromString('0:4:L:1;0:7:D:1;2:2:R:1;2:4:R:1;2:7:L:0;3:0:D:1;3:5:D:1;4:0:R:2;4:2:R:2;4:5:L:1;4:6:D:0;7:4:R:0;8:1:U:0;8:2:D:0;8:4:R:0;9:7:L:0') });
+  const r = rate(P);
+  assert.equal(r.score, r.steps.reduce((a, s) => a + s.weight + (s.extra || 0), 0));
+  for (const s of r.steps) assert.ok(Number.isInteger(s.extra ?? 0) && (s.extra ?? 0) >= 0, s.rule);
+  const extraOf = (id) => RULES.find((q) => q.id === id).extra;
+  for (const id of ['tryCell', 'tryEdge', 'shadeForcesLines', 'segmentForcesLines', 'parityForces', 'dotForcesLines']) assert.equal(typeof extraOf(id), 'function', id);
+  assert.equal(extraOf('tryCell')(P, initialState(P), { cost: 7, info: {} }), 14);
+});
+
+test('chokepoint (Medium): one cell as the only way into an area with loop cells means the loop cannot get in and out', () => {
+  // Josh's example (the Frame book's FRAME-IRR-MIX-10x10-1): the area G2-I3 under the top arrows joins the rest of the board through G3 and I3.
+  // If I3 did not go down, G3 would be the only way in, so I3-I4 is a segment.
+  const P = compile({ name: 'gates', rows: 10, cols: 10, clues: cluesFromString('0:0:V:-1;0:1:V:-1;0:2:D:1;0:3:D:2;0:4:V:-1;0:5:V:-1;0:6:D:3;0:7:V:-1;0:8:D:1;0:9:V:-1;1:0:R:3;1:5:V:-1;1:9:L:3;2:0:V:-1;2:9:V:-1;3:0:R:1;3:7:V:-1;3:9:L:1;4:0:R:2;4:2:V:-1;4:4:V:-1;4:6:V:-1;4:9:L:2;5:0:V:-1;5:6:V:-1;5:9:V:-1;6:0:V:-1;6:4:V:-1;6:5:V:-1;6:9:V:-1;7:0:R:3;7:9:L:3;8:0:V:-1;8:1:V:-1;8:9:V:-1;9:0:V:-1;9:1:V:-1;9:2:U:1;9:3:U:2;9:4:V:-1;9:5:V:-1;9:6:U:3;9:7:V:-1;9:8:U:1;9:9:V:-1') });
+  const st = initialState(P);
+  const I3 = cellIdx(P, 'I3'), I4 = cellIdx(P, 'I4'), G3 = cellIdx(P, 'G3'), H3 = cellIdx(P, 'H3');
+  st.cell[I3] = LOOP; st.cell[G3] = LOOP; st.cell[H3] = LOOP; st.cell[cellIdx(P, 'G8')] = LOOP;   // dots inside the area and outside it
+  const rule = RULES.find((r) => r.id === 'chokepoint');
+  const f = rule.find(P, st, {}).find((x) => x.info.edge === 2 * I3 + 1);
+  assert.ok(f, 'I3-I4 is forced');
+  assert.deepEqual(f.sets, [['e', 2 * I3 + 1, E_ON]]);
+  assert.equal(f.info.cut, G3);
+  assert.ok(f.info.part.includes(cellIdx(P, 'H2')) && f.info.part.length <= 6, JSON.stringify(f.info.part));
+  assert.match(explainStep(P, { rule: 'chokepoint', info: f.info, sets: f.sets }, st).text, /^Without a segment between I3 and I4, G3 would be the only way into the marked area/);
+  assert.equal(rule.tier, 'Medium');
+  assert.equal(RULES.find((r) => r.id === 'chokepointArea').tier, 'Hard');
+  void I4;
 });

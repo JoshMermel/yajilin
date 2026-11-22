@@ -1,7 +1,7 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can color them differently) and the marks the step makes.
 import { SHADED, LOOP, CLUE, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
-import { ruleLabel, followLines, boxProof, roomGroups } from './rating.js';
+import { ruleLabel, followLines, boxProof, roomGroups, dotTrace, contradiction, oddOpenEnds } from './rating.js';
 
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 /** A cell's name like a spreadsheet's: column letter, then row number (E3). */
@@ -47,6 +47,33 @@ function failureAt(P, s2, bad) {
   }
   if (lines > 2) return `give ${cellName(P, bad)} three lines`;
   return `leave ${cellName(P, bad)} with ${ways === 0 ? 'no way out' : 'just one way out'}`;
+}
+
+/** What is wrong in a position the solver found contradictory (for the dot rules' hint): { text, cells }. */
+function brokenAt(P, s) {
+  for (let i = 0; i < P.N; i++) {
+    if (s.cell[i] === SHADED) for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && s.cell[j] === SHADED) return { text: `boxes at ${cellName(P, i)} and ${cellName(P, j)} would touch`, cells: [i, j] }; }
+  }
+  for (let k = 0; k < P.clues.length; k++) {
+    if (P.clues[k].n < 0) continue;
+    let sh = 0, open = 0;
+    for (const i of P.rays[k]) { if (s.cell[i] === SHADED) sh++; else if (s.cell[i] === 0) open++; }
+    if (sh > P.clues[k].n) return { text: `the ${clueName(P, k)} would have too many boxes`, cells: [clueCell(P, k)] };
+    if (sh + open < P.clues[k].n) return { text: `the ${clueName(P, k)} could no longer reach ${P.clues[k].n}`, cells: [clueCell(P, k)] };
+  }
+  for (let i = 0; i < P.N; i++) {
+    if (s.cell[i] === CLUE || s.cell[i] === SHADED) continue;
+    const lines = linesAt(P, s, i);
+    if (lines > 2) return { text: `${cellName(P, i)} would have three lines`, cells: [i] };
+    if (s.cell[i] === LOOP || lines > 0) {
+      let ways = 0;
+      for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x < 0) continue; const j = P.nb[i * 4 + d]; if (s.e[x] === E_OFF || s.cell[j] === SHADED) continue; if (s.e[x] !== E_ON && linesAt(P, s, j) >= 2) continue; ways++; }
+      if (ways < 2) return { text: `${cellName(P, i)} would be left with ${ways === 0 ? 'no way out' : 'just one way out'}`, cells: [i] };
+    }
+  }
+  const ends = oddOpenEnds(P, s);
+  if (ends) return { text: `an area would be cut off with ${plural(ends.length, 'open end')} (purple), which can't be paired up`, cells: [], ends };
+  return { text: contradiction(P, s) ? 'the loop would close early' : 'something would break', cells: [] };
 }
 
 /** Lines at cell `i` in a position. */
@@ -193,7 +220,8 @@ export function explainStep(P, step, st = null) {
       role('focus', info.cell); role('problem', info.neighbor); role('path', info.a, info.b);
       text = `A box at ${N(info.cell)} would leave ${N(info.neighbor)} with only two ways out, ${N(info.a)} and ${N(info.b)}, the ends of one path: using both would close the loop early.`;
       break;
-    case 'pairedEnds': {
+    case 'pairedEnds':
+    case 'twoEndsJoin': {
       const [u, v] = info.pair, [fu, fv] = info.far;
       role('range', info.cells); role('focus', ...info.ends); role('path', fu, fv);
       const lead = info.k === 2
@@ -230,7 +258,7 @@ export function explainStep(P, step, st = null) {
       role('range', info.cells);
       const boxes = (a) => (a[0] === a[1] ? `${a[0]}` : `${a[0]} to ${a[1]}`);
       const allBoxes = step.sets.every((x) => x[2] === SHADED), allDots = step.sets.every((x) => x[2] !== SHADED);
-      text = `Colour the board like a chessboard: the loop alternates colours, so the boxes leave light and dark cells ${info.diff === 0 ? 'level' : `${Math.abs(info.diff)} apart`}, and with the numbers that fixes how many boxes each colour holds (light ${boxes([info.range[0] + info.diff, info.range[1] + info.diff])}, dark ${boxes(info.range)}). That settles the marked cells: ${allBoxes ? (info.cells.length === 1 ? 'it is a box' : 'all are boxes') : allDots ? (info.cells.length === 1 ? 'it is a dot' : 'all are dots') : 'some are boxes, the others dots'}.`;
+      text = `Colour the board like a chessboard: the loop alternates colours, so the boxes leave light and dark cells ${info.diff === 0 ? 'level' : `${Math.abs(info.diff)} apart`}, ${P.regional ? 'and with the numbers that fixes' : 'which fixes'} how many boxes each colour holds (light ${boxes([info.range[0] + info.diff, info.range[1] + info.diff])}, dark ${boxes(info.range)}). That settles the marked cells: ${allBoxes ? (info.cells.length === 1 ? 'it is a box' : 'all are boxes') : allDots ? (info.cells.length === 1 ? 'it is a dot' : 'all are dots') : 'some are boxes, the others dots'}.`;
       break;
     }
     case 'regionPairs': {
@@ -283,7 +311,8 @@ export function explainStep(P, step, st = null) {
     }
     case 'shadeForcesLines':
     case 'shadeClosesLoop':
-    case 'shadeShortChain': {
+    case 'shadeShortChain':
+    case 'shadeFewLines': {
       role('focus', info.cell); role('problem', info.stranded);
       chain = st ? forcedLines(P, st, info.cell) : [];      // drawn dashed, so the player can follow the box to where it goes wrong
       const closes = rule === 'shadeClosesLoop' || (rule === 'shadeShortChain' && st && cloneStateClosed(P, st, info.cell));
@@ -315,6 +344,7 @@ export function explainStep(P, step, st = null) {
       break;
     }
     case 'segmentForcesLines':
+    case 'segmentShortChain':
     case 'segmentClosesLoop': {
       const [a, b] = edgeCells(P, info.edge); role('focus', a, b); role('problem', info.stranded);
       text = info.assumed === 'off'
@@ -322,13 +352,14 @@ export function explainStep(P, step, st = null) {
         : `A segment between ${N(a)} and ${N(b)} would force lines that ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}.`;
       break;
     }
-    case 'parityForces': {
+    case 'parityForces':
+    case 'parityPocket': {
       const k = info.ends.length;
       role('path', info.ends);
       const odd = `${plural(k, 'open end')} (purple), which can't be paired up`;
       if (info.cell !== undefined) {
         role('focus', info.cell);
-        text = `A box at ${N(info.cell)} would cut off an area with ${odd}.`;
+        text = `A box at ${N(info.cell)} would cut off ${rule === 'parityPocket' ? `a small pocket (${plural(info.area, 'cell')})` : 'an area'} with ${odd}.`;
       } else {
         const [a, b] = edgeCells(P, info.edge); role('focus', a, b);
         text = info.assumed === 'off'
@@ -345,6 +376,63 @@ export function explainStep(P, step, st = null) {
       const [a, b] = edgeCells(P, info.edge); role('path', a, b);
       const what = `${colName(c0)}${r0 + 1} to ${colName(c1)}${r1 + 1}`;
       text = `The loop crosses the border of ${what} an even number of times. ${plural(info.crossings, 'crossing')} already drawn, and the segment between ${N(a)} and ${N(b)} is the last undecided one: ${info.value === E_ON ? 'there is a segment' : 'there is none'}.`;
+      break;
+    }
+    case 'segmentStarvesClue': {
+      const [a, b] = edgeCells(P, info.edge); role('focus', a, b);
+      const k = info.clue; role('clue', clueCell(P, k)); role('range', P.rays[k]);
+      if (st) {
+        const s2 = cloneState(st); s2.e[info.edge] = info.assumed === 'off' ? E_OFF : E_ON; followLines(P, s2);
+        chain = []; for (let x = 0; x < P.numEdges; x++) if (s2.e[x] === E_ON && st.e[x] !== E_ON && x !== info.edge) chain.push(x);
+        role('problem', ...P.rays[k].filter((j) => st.cell[j] === 0 && s2.cell[j] === LOOP));
+      }
+      const what = info.assumed === 'off' ? `Without a segment between ${N(a)} and ${N(b)}, the forced lines` : `A segment between ${N(a)} and ${N(b)} would force lines that`;
+      const more = plural(info.need, 'more box', 'more boxes');
+      text = `${what} ${info.assumed === 'off' ? 'would leave' : 'leave'} the ${clueName(P, k)} without room: it would still need ${more}, but only ${info.room} fit in what is left of its line. So there is ${info.assumed === 'off' ? 'a segment' : 'no segment'} there.`;
+      break;
+    }
+    case 'dotShortChain':
+    case 'dotForcesLines': {
+      role('focus', info.cell);
+      if (!st) { text = `A dot at ${N(info.cell)} would lead, by easy steps, to a contradiction: it's a box.`; break; }
+      const t = dotTrace(P, st, info.cell);
+      const said = [], boxes = [];
+      const list = (xs) => (xs.length > 2 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs.join(' and '));
+      for (const { rule: r, sets, infos } of t.trace) {
+        if (r === 'clueFull' || r === 'clueTight') {
+          for (const f of infos) {
+            const sh = [...new Set(f.cells.filter((i) => sets.some(([k, j, v]) => k === 'c' && j === i && v === SHADED)))];
+            if (!sh.length || sh.some((i) => boxes.includes(i))) continue;
+            boxes.push(...sh);
+            said.push(`the ${clueName(P, f.clue)} would need ${sh.length === 1 ? `a box at ${N(sh[0])}` : `boxes at ${list(sh.map(N))}`}`);
+          }
+        } else if (r === 'deadEnd') {
+          const sh = sets.filter(([k, j, v]) => k === 'c' && v === SHADED && !boxes.includes(j)).map(([, j]) => j);
+          if (sh.length) { boxes.push(...sh); said.push(`${list(sh.map(N))} would be left with fewer than two ways out, so ${sh.length === 1 ? 'a box' : 'boxes'}`); }
+        }
+      }
+      role('problem', ...boxes);
+      chain = []; for (let x = 0; x < P.numEdges; x++) if (t.s2.e[x] === E_ON && st.e[x] !== E_ON) chain.push(x);
+      const why = brokenAt(P, t.s2);
+      if (why.cells) role('problem', ...why.cells);
+      if (why.ends) role('path', ...why.ends);
+      const lines = chain.length ? 'the lines that follow (dashed)' : '';
+      const how = said.length ? `${said.join('; then ')}${lines ? `; with ${lines}` : ''}` : lines ? `it would force ${lines}` : 'a few easy steps follow';
+      text = `Imagine a dot at ${N(info.cell)}: ${how}, and then ${why.text}. So ${N(info.cell)} is a box.`;
+      break;
+    }
+    case 'chokepoint':
+    case 'chokepointArea': {
+      role('range', info.part);
+      if (info.cut >= 0) role('problem', info.cut);
+      const move = info.cell !== undefined ? `A box at ${N(info.cell)}` : info.assumed === 'off' ? `Without a segment between ${edgeName(info.edge)}` : `A segment between ${edgeName(info.edge)}`;
+      if (info.cell !== undefined) role('focus', info.cell); else { const [a, b] = edgeCells(P, info.edge); role('focus', a, b); }
+      const area = rule === 'chokepoint' ? `the marked area (${plural(info.part.length, 'cell')})` : `a large area (${plural(info.part.length, 'cell')}, marked)`;
+      const result = info.cell !== undefined ? `So ${N(info.cell)} is a dot.` : info.assumed === 'off' ? 'So the segment is there.' : 'So there is no segment there.';
+      text = info.cut >= 0
+        ? `${move}, ${N(info.cut)} would be the only way into ${area}, which holds loop cells, as does the rest of the board. The loop passes through a cell once, so it could not get in and back out. ${result}`
+        : `${move}, ${area} would be cut off from the rest of the board, and both hold loop cells. ${result}`;
+      if (info.cell !== undefined) text = text.replace(/^A box at (\S+), /, 'With a box at $1, ');
       break;
     }
     case 'tryCell':

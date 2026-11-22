@@ -37,7 +37,7 @@ clean board.
 
 ## Beginner
 
-A puzzle is rated Beginner when the hardest thing it needs is this: clues that are already full or must be filled, dead ends and cells next to shaded cells.
+A puzzle is rated Beginner when the hardest thing it needs is this: clue counting, cells next to boxes, dead ends, corners and corridors, and not closing the loop early.
 
 ### shadedNeighbor
 
@@ -108,9 +108,9 @@ Two clues in a line point the same way with exactly one cell between them: that 
 <a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=4">
 <img src="images/rangeSameOne.png" width="480" alt="rangeSameOne"></a>
 
-*BONUS-BIGNUM-003, 10×10: the empty board. Click the picture to open this puzzle and press Hint yourself.*
+*BONUS-NOZEROS-8X8-013, 8×8: the empty board. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "The 3↑ clue at C8 and the 2↑ clue at C6 point the same way, so the one cell between them holds 3 − 2 = 1 box. So C7 is a box."
+Hint says: "The 1→ clue at A4 and the 1→ clue at C4 point the same way, so the one cell between them holds 1 − 1 = 0 boxes. So B4 is a dot."
 
 ---
 
@@ -123,9 +123,9 @@ A cell with fewer than two exits cannot be on the loop: shaded
 <a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=5">
 <img src="images/deadEnd.png" width="480" alt="deadEnd"></a>
 
-*Y8x8_s9017_28, 8×8: the empty board. Click the picture to open this puzzle and press Hint yourself.*
+*Y8x8_s9163_5, 8×8: the empty board. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "D1 has fewer than two ways out, so it can't be on the loop: it's a box."
+Hint says: "D8 has fewer than two ways out, so it can't be on the loop: it's a box."
 
 ---
 
@@ -138,9 +138,24 @@ A loop cell with exactly two exits left uses both
 <a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=6">
 <img src="images/forcedExits.png" width="480" alt="forcedExits"></a>
 
-*Y6x6_s9012_25, 6×6: the board after 1 earlier hint. Click the picture to open this puzzle and press Hint yourself.*
+*Y6x6_s32001_2, 6×6: the board after 1 earlier hint. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "B3 has only two ways out: it uses both."
+Hint says: "F1 has only two ways out: it uses both."
+
+---
+
+### tightCell
+
+*Beginner, cost 5*
+
+A neighbour has only two cells it can ever connect to (board edge and clue cells around it: a corner, clues touching diagonally, a gap between two clues): a box here would leave it one way out and it cannot be a box itself, so this cell gets a dot. Seen at a glance. Beginner since 2026-11-21: it is board geometry, and it was the only Medium step in a quarter of the 8x8 book
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=7">
+<img src="images/tightCell.png" width="480" alt="tightCell"></a>
+
+*Y6x6_s9001_1, 6×6: the empty board. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "A box at B1 would leave C1 with just one way out."
 
 ---
 
@@ -160,12 +175,12 @@ A segment joining the two ends of one path would close the loop while other loop
 
 A loop cell has three ways out and two of them lead to the two ends of one path: using both would close the loop early, so it uses the third. The same kind of step as `noEarlyClose`
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=7">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=8">
 <img src="images/sameSegmentExits.png" width="480" alt="sameSegmentExits"></a>
 
-*Y8x8_s9023_34, 8×8: the board after 2 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*Y7x7_s22006_1, 7×7: the board after 16 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "G2 has three ways out; G1 and H2 lead to the two ends of one path. Using both would close the loop early, so it uses G3."
+Hint says: "F6 has three ways out; G6 and F7 lead to the two ends of one path. Using both would close the loop early, so it uses F5."
 
 ---
 
@@ -175,33 +190,18 @@ Hint says: "G2 has three ways out; G1 and H2 lead to the two ends of one path. U
 
 A cell has only two ways out and both lead to the two ends of one path: using them would close the loop early, so the cell is a box. The same kind of step as `noEarlyClose`
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=8">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=9">
 <img src="images/closingCell.png" width="480" alt="closingCell"></a>
 
-*Y8x8_s8024_8, 8×8: the board after 4 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*8X8-0764, 8×8: the board after 22 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "H8 has only two ways out, H7 and G8, and both lead to the two ends of one path. Using both would close the loop early, so H8 is a box."
+Hint says: "B2 has only two ways out, C2 and B3, and both lead to the two ends of one path. Using both would close the loop early, so B2 is a box."
 
 ---
 
 ## Medium
 
-A puzzle is rated Medium when the hardest thing it needs is this: needs a clue that exactly fills the room it has, or spotting a segment that would close the loop too early.
-
-### tightCell
-
-*Medium, cost 8*
-
-A neighbour has only two cells it can ever connect to (board edge and clue cells around it: a corner, clues touching diagonally, a gap between two clues): a box here would leave it one way out and it cannot be a box itself, so this cell gets a dot. Seen at a glance
-
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=9">
-<img src="images/tightCell.png" width="480" alt="tightCell"></a>
-
-*VOIDSONLY-CORPUS-01, 6×6: the empty board. Click the picture to open this puzzle and press Hint yourself.*
-
-Hint says: "A box at A1 would leave B1 with just one way out."
-
----
+A puzzle is rated Medium when the hardest thing it needs is this: placing a clue's boxes, and imagining one box, dot or segment and following a short chain of forced lines.
 
 ### deadEndNeighbor
 
@@ -293,6 +293,51 @@ Hint says: "A box at E3 would leave D3 with only two ways out, D4 and C3, the en
 
 ---
 
+### dotShortChain
+
+*Medium, cost 21*
+
+Imagine a **dot** on a cell that a clue counts and follow the easy consequences for at most 4 steps: a clue then needing every open cell it has left (or exactly every other one), dots next to boxes, dead ends, cells with two ways out using both. If that breaks something (boxes touch, a cell is stranded or gets three lines, a clue can't reach its number, the loop closes early, an area is cut off with an odd number of open ends), the cell is a box. The mirror of the "imagine a box" rules. E.g. a dot at I9 would make the 1← clue at L9 need J9, and the lines that follow cut off an area with 3 open ends
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=22">
+<img src="images/dotShortChain.png" width="480" alt="dotShortChain"></a>
+
+*Y6x6_s9009_9, 6×6: the board after 15 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "Imagine a dot at F1: the 1↗ clue at C4 would need a box at E2; with the lines that follow (dashed), and then the loop would close early. So F1 is a box."
+
+---
+
+### twoEndsJoin
+
+*Medium, cost 22*
+
+The easy case of `pairedEnds`: a sealed-off area has just two open ends, so they join each other, which makes their far ends the two ends of one path: nothing may join those (a segment between them, or a cell whose only two ways out they are)
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=18">
+<img src="images/twoEndsJoin.png" width="480" alt="twoEndsJoin"></a>
+
+*Y12x12_s9408_8, 12×12: the board after 64 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "K11 and I12 are the only open ends in their sealed-off area, so they must join each other, which makes H8 and J8 the two ends of one path. I8 has three ways out; using both of those would close the loop early, so it uses I7."
+
+---
+
+### chokepoint
+
+*Medium, cost 23*
+
+(Josh's "two gates") imagine a segment missing or a box: if that leaves one cell as the only way between two parts of the board that both hold loop cells, the loop could not get in and back out (it passes through a cell once), so it is the other way. For a part of at most 12 cells. E.g. FRAME-IRR-MIX-10x10-1: the area G2-I3 joins the board through G3 and I3, so without the segment I3-I4, G3 would be the only way in, and I3 goes down. Also part of the contradiction check, so trial and error knows it
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=23">
+<img src="images/chokepoint.png" width="480" alt="chokepoint"></a>
+
+*Y8x8_s9197_14, 8×8: the board after 22 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "Without a segment between H6 and H7, D8 would be the only way into the marked area (9 cells), which holds loop cells, as does the rest of the board. The loop passes through a cell once, so it could not get in and back out. So the segment is there."
+
+---
+
 ### rangeSame
 
 *Medium, cost 24*
@@ -302,9 +347,54 @@ Two clues in a line point the same way with two or more cells between them: thos
 <a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=15">
 <img src="images/rangeSame.png" width="480" alt="rangeSame"></a>
 
-*DIAGONAL-MIXED-8X8-227, 8×8: the board after 25 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*Y12x12_s9389_4, 12×12: the board after 29 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "The 1→ clue at A5 and the 1→ clue at E5 point the same way, so the cells between them hold 1 − 1 = 0 boxes: they get dots."
+Hint says: "The 2← clue at K7 and the 2← clue at H7 point the same way, so the cells between them hold 2 − 2 = 0 boxes: they get dots."
+
+---
+
+### shadeFewLines
+
+*Medium, cost 25*
+
+`shadeForcesLines` when at most 3 of the forced lines matter (any kind: three lines or a stranded cell; `shadeShortChain` is the 2-line, three-lines case). About two in five of the old `shadeForcesLines` steps
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=20">
+<img src="images/shadeFewLines.png" width="480" alt="shadeFewLines"></a>
+
+*Y6x6_s32003_7, 6×6: the board after 16 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "A box at A2 would force 3 line segments (dashed), which would put two lines in B3 and A4. B4 could not join them, so it would be left with just one way out."
+
+---
+
+### segmentShortChain
+
+*Medium, cost 26*
+
+`segmentForcesLines` when at most 2 of the forced lines matter (the lines the contradiction rests on, as Hint draws them)
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=21">
+<img src="images/segmentShortChain.png" width="480" alt="segmentShortChain"></a>
+
+*Y8x8_s12007_3, 8×8: the board after 29 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "Without a segment between C6 and D6, the forced lines would leave B5 with just one way out."
+
+---
+
+### boxStarvesClueByLines
+
+*Medium, cost 27*
+
+The same imagined box, but the dots come further: a neighbour of the box that is left with exactly two ways out (a cell on the edge, say, with a box on its other side) must use both, and the cells at the far ends of those lines are dots too. Those forced lines are not as obvious as the dots next to a box, but it is one forced step, so it is late Medium (Hard until 2026-11-21) (which only counts the dots next to the box). E.g. a 1-arrow pointing left along the bottom row with B8 on the loop: a box at B7 leaves B8 only A8 and C8, so both are dots and the arrow has nothing to count; Hint draws the forced lines dashed
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=17">
+<img src="images/boxStarvesClueByLines.png" width="480" alt="boxStarvesClueByLines"></a>
+
+*SPARSE-8X8-BOTH-30, 8×8: the board after 18 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "A box at B7 would force the dashed lines, which violates the 1← clue at D8."
 
 ---
 
@@ -317,23 +407,53 @@ Two clues point at each other and so split the line into three parts: between th
 <a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=16">
 <img src="images/rangeFacingKnown.png" width="480" alt="rangeFacingKnown"></a>
 
-*8X8-0656, 8×8: the board after 29 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*Y8x8_s9173_9, 8×8: the board after 30 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "The 1↓ clue at F3 and the 1↑ clue at F8 face each other. The cells past F8 hold no boxes, so the cells between them hold 1 box and the cells past F3 hold no boxes. Placing those settles the marked cells."
+Hint says: "The 1↓ clue at C2 and the 1↑ clue at C7 face each other. The cells past C7 hold no boxes, so the cells between them hold 1 box and the cells past C2 hold no boxes. Placing those settles the marked cells."
+
+---
+
+### parityPocket
+
+*Medium, cost 28*
+
+`parityForces` when the area cut off is a small pocket: at most 3 open ends and 9 cells, so it can be seen at a glance
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=19">
+<img src="images/parityPocket.png" width="480" alt="parityPocket"></a>
+
+*Y7x7_s22006_4, 7×7: the board after 24 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "A box at C3 would cut off a small pocket (6 cells) with 3 open ends (purple), which can't be paired up."
 
 ---
 
 ## Hard
 
-A puzzle is rated Hard when the hardest thing it needs is this: needs trying one cell or segment and following what it forces until something breaks.
+A puzzle is rated Hard when the hardest thing it needs is this: long chains of forced lines, counting with bounds along facing clues, parity of large areas, and at worst trial and error.
 
 ### regionPairs
 
 *Hard, cost 45*
 
-Two neighbouring numbered regions together: every way to place both numbers of boxes without touching includes (or leaves out) this cell
+(regional puzzles) two neighbouring numbered regions together: every way to place both numbers of boxes without touching includes (or leaves out) a cell
 
 *No picture: It applies to puzzles with regions, and none of the regional puzzles I searched shows it as the next hint.*
+
+---
+
+### rangeFacing
+
+*Hard, cost 48*
+
+The same when no part is exact: how many boxes fit in each part (bounds from the room each has) still pins how many each part holds. Moved before the chain rules on 2026-11-21 (it is counting along one line)
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=24">
+<img src="images/rangeFacing.png" width="480" alt="rangeFacing"></a>
+
+*BONUS-LONGWAY-8X8-247, 8×8: the board after 24 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "The 1→ clue at C3 and the 2← clue at G3 point at each other. What fits around them means the cells between hold 1 box, which settles the marked cells."
 
 ---
 
@@ -341,44 +461,29 @@ Two neighbouring numbered regions together: every way to place both numbers of b
 
 *Hard, cost 50*
 
-The loop alternates colours, so the boxes leave light and dark cells level: that fixes how many boxes each colour holds
+Colour the board like a chessboard: the loop alternates colours, so light boxes minus dark boxes is fixed (light cells minus dark cells); with the range of the total number of boxes (known in regional puzzles) that can fix how many boxes each colour holds, and settle a whole colour's open cells. Arrow puzzles too since 2026-11-21: there the total is open, so it only fires in endgames (in about 1 puzzle in 20 to 100)
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=17">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=25">
 <img src="images/colorBalance.png" width="480" alt="colorBalance"></a>
 
-*G6x6_s3001_2, 6×6: the board after 19 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*cols-8x8-2, 8×8: the board after 56 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "Colour the board like a chessboard: the loop alternates colours, so the boxes leave light and dark cells level, and with the numbers that fixes how many boxes each colour holds (light 3, dark 3). That settles the marked cells: it is a box."
-
----
-
-### boxStarvesClueByLines
-
-*Hard, cost 55*
-
-The same imagined box, but the dots come further: a neighbour of the box that is left with exactly two ways out (a cell on the edge, say, with a box on its other side) must use both, and the cells at the far ends of those lines are dots too. Those forced lines are not as obvious as the dots next to a box, so this is the Hard version of `boxStarvesClue` (which only counts the dots next to the box). E.g. a 1-arrow pointing left along the bottom row with B8 on the loop: a box at B7 leaves B8 only A8 and C8, so both are dots and the arrow has nothing to count; Hint draws the forced lines dashed
-
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=19">
-<img src="images/boxStarvesClueByLines.png" width="480" alt="boxStarvesClueByLines"></a>
-
-*Y6x6_s9009_9, 6×6: the board after 15 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
-
-Hint says: "A box at F3 would force the dashed lines, which violates the 1↗ clue at C4."
+Hint says: "Colour the board like a chessboard: the loop alternates colours, so the boxes leave light and dark cells level, and with the numbers that fixes how many boxes each colour holds (light 5, dark 5). That settles the marked cells: it is a box."
 
 ---
 
-### pairedEnds
+### chokepointArea
 
-*Hard, cost 60*
+*Hard, cost 62*
 
-Cells that can still be joined form groups, and every open end of a group has to be joined to another open end of the same group, through it. List every way to pair them up, drop those that close the loop early (e.g. joining the two ends of one little path), and see what is left in common: in every remaining pairing two ends outside the group become the two ends of one line, so a segment between them is not there. With two open ends there is one pairing
+`chokepoint` when the part cut off is larger than 12 cells
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=18">
-<img src="images/pairedEnds.png" width="480" alt="pairedEnds"></a>
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=27">
+<img src="images/chokepointArea.png" width="480" alt="chokepointArea"></a>
 
-*Y8x8_s13035_20, 8×8: the board after 30 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*Y8x8_s9127_4, 8×8: the board after 34 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "However the 6 open ends of this sealed-off area pair up, F4 and H4 end up as the two ends of one line. G4 has three ways out; using both of those would close the loop early, so it uses G3."
+Hint says: "Without a segment between D2 and E2, D8 would be the only way into a large area (16 cells, marked), which holds loop cells, as does the rest of the board. The loop passes through a cell once, so it could not get in and back out. So the segment is there."
 
 ---
 
@@ -386,9 +491,9 @@ Hint says: "However the 6 open ends of this sealed-off area pair up, F4 and H4 e
 
 *Hard, cost 70*
 
-(firings come shortest chain first) imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if a cell ends up with three lines or too few ways out, the cell is a dot
+(firings come shortest chain first) imagine a cell shaded and add the lines that forces (a loop cell with two exits uses both): if a cell ends up with three lines or too few ways out, the cell is a dot. The cases with at most 3 lines that matter are `shadeFewLines` (Medium); here the score adds 2 per line that matters past 3
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=20">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=28">
 <img src="images/shadeForcesLines.png" width="480" alt="shadeForcesLines"></a>
 
 *Y6x6_s32003_2, 6×6: the board after 15 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
@@ -403,12 +508,27 @@ Hint says: "A box at E1 would force 4 line segments (dashed), which would give D
 
 Imagine a cell shaded and follow only the lines it forces (as in `shadeForcesLines`); if some clue's line is then left without room for the boxes it still needs, the cell is a dot. Room is counted along the whole line in one pass (so long lines work, unlike `placementDeadEnd`): boxes never touch, and two cells one apart cannot both be boxes when the loop cell between them would keep fewer than two ways out. Hint: names the starved clue, the groups of cells that each hold at most one box, and draws the forced lines dashed (the column F argument of the logic-masters 20×20 puzzle)
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=27">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=29">
 <img src="images/boxStarvesClueByPlacements.png" width="480" alt="boxStarvesClueByPlacements"></a>
 
-*LATTICE-10x10-s52p, 10×10: the board after 33 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*FRAME-irr_mix_10_a, 10×10: the board after 20 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "A box at E8 would force the dashed lines, and then the 2→ clue at A9 could not fit its boxes: it would still need 2 more boxes, but its open cells fall into only 1 group: {G9, I9}. A group holds at most one box (its cells touch, or the cell between two of them would be left with one way out)."
+Hint says: "A box at E4 would force the dashed lines, and then the 2→ clue at A3 could not fit its boxes: it would still need 2 more boxes, but its open cells fall into only 1 group: {G3, H3}. A group holds at most one box (its cells touch, or the cell between two of them would be left with one way out)."
+
+---
+
+### segmentStarvesClue
+
+*Hard, cost 74*
+
+`boxStarvesClueByPlacements` for a segment: imagine it drawn (or missing) next to the known loop and follow the forced lines; if the lines are fine but a clue's line is then left without room for its boxes (counted as in `boxStarvesClueByPlacements`), the segment is the other way
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=29">
+<img src="images/segmentStarvesClue.png" width="480" alt="segmentStarvesClue"></a>
+
+*FRAME-irr_mix_10_a, 10×10: the board after 23 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "Without a segment between D2 and E2, the forced lines would leave the 2→ clue at A3 without room: it would still need 2 more boxes, but only 1 fit in what is left of its line. So there is a segment there."
 
 ---
 
@@ -418,12 +538,27 @@ Hint says: "A box at E8 would force the dashed lines, and then the 2→ clue at 
 
 The same imagined box, but the forced lines close the loop while other loop cells lie outside it: the cell is a dot
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=19">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=12">
 <img src="images/shadeClosesLoop.png" width="480" alt="shadeClosesLoop"></a>
 
-*Y6x6_s9009_9, 6×6: the board after 17 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*Y7x7_s32005_4, 7×7: the board after 25 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "A box at C1 would force 5 line segments (dashed), and that would close the loop early."
+Hint says: "A box at E3 would force 16 line segments (dashed), and that would close the loop early."
+
+---
+
+### dotForcesLines
+
+*Hard, cost 78*
+
+`dotShortChain` with no limit on the steps; the score adds 2 per step past 4
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=30">
+<img src="images/dotForcesLines.png" width="480" alt="dotForcesLines"></a>
+
+*Y8x8_s22009_1, 8×8: the board after 17 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "Imagine a dot at E3: the 2↙ clue at F2 would need boxes at C5 and B6; then the 2↘ clue at B3 would need boxes at E6 and F7; then the 1↙ clue at E5 would need a box at C7, and then C6 would be left with just one way out. So E3 is a box."
 
 ---
 
@@ -431,14 +566,14 @@ Hint says: "A box at C1 would force 5 line segments (dashed), and that would clo
 
 *Hard, cost 80*
 
-`shadeForcesLines` for a segment: imagine it missing (or drawn) next to a loop cell and add the forced lines; if a cell is left with three lines or too few ways out, the segment is there (or is not). E.g. a dot with three ways out that cannot skip the left one without a contradiction uses it
+`shadeForcesLines` for a segment: imagine it missing (or drawn) next to a loop cell and add the forced lines; if a cell is left with three lines or too few ways out, the segment is there (or is not). E.g. a dot with three ways out that cannot skip the left one without a contradiction uses it. The cases with at most 2 lines that matter are `segmentShortChain` (Medium); here the score adds 2 per line past 2
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=21">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=31">
 <img src="images/segmentForcesLines.png" width="480" alt="segmentForcesLines"></a>
 
-*Y6x6_s9009_22, 6×6: the board after 17 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*Y8x8_s22007_1, 8×8: the board after 26 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "Without a segment between E5 and E6, the forced lines would leave D6 with just one way out."
+Hint says: "Without a segment between C6 and C7, the forced lines would leave E7 with just one way out."
 
 ---
 
@@ -448,12 +583,27 @@ Hint says: "Without a segment between E5 and E6, the forced lines would leave D6
 
 The same imagined segment, but the forced lines close the loop early
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=19">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=32">
 <img src="images/segmentClosesLoop.png" width="480" alt="segmentClosesLoop"></a>
 
-*Y6x6_s9009_9, 6×6: the board after 16 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*Y8x8_s12008_5, 8×8: the board after 35 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "Without a segment between A2 and B2, the forced lines would close the loop early."
+Hint says: "Without a segment between G3 and G4, the forced lines would close the loop early."
+
+---
+
+### crossingParity
+
+*Hard, cost 90*
+
+The loop crosses the border of any rectangle an even number of times (every loop cell has exactly two segments): when all but one crossing is settled, the last is forced. Checked for small rectangles, corner-anchored ones and full-width or full-height bands (janko.at's "parity rule 1": a row or column cut, and the quadrants of a row/column cross). Placed just before `parityForces`, so a cut is shown before a large area's count
+
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=26">
+<img src="images/crossingParity.png" width="480" alt="crossingParity"></a>
+
+*Y8x8_s12007_4, 8×8: the board after 35 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+
+Hint says: "The loop crosses the border of A1 to D4 an even number of times. 3 crossings already drawn, and the segment between C4 and C5 is the last undecided one: there is a segment."
 
 ---
 
@@ -461,39 +611,24 @@ Hint says: "Without a segment between A2 and B2, the forced lines would close th
 
 *Hard, cost 95*
 
-A move (a cell shaded, a segment drawn or missing) would cut off a group of cells that can still be joined and holds an odd number of open ends (cells with one line that still need a second), which can never be completed: it is the other way
+A move (a cell shaded, a segment drawn or missing) would cut off a group of cells that can still be joined and holds an odd number of open ends (cells with one line that still need a second), which can never be completed: it is the other way. A small pocket is `parityPocket` (Medium); here the score adds 2 per open end past 3. Firings come smallest area first
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=22">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=33">
 <img src="images/parityForces.png" width="480" alt="parityForces"></a>
 
-*Y8x8_s12007_4, 8×8: the board after 28 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*SPARSE-12X12-BOTH-24, 12×12: the board after 121 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "A box at C5 would cut off an area with 5 open ends (purple), which can't be paired up."
-
----
-
-### rangeFacing
-
-*Hard, cost 105*
-
-The same when no part is exact: how many boxes fit in each part (bounds from the room each has) still pins how many each part holds
-
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=23">
-<img src="images/rangeFacing.png" width="480" alt="rangeFacing"></a>
-
-*Y8x10_s602_10, 10×8: the board after 37 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
-
-Hint says: "The 2↓ clue at F2 and the 1↑ clue at F7 point at each other. What fits around them means the cells between hold 1 box, which settles the marked cells."
+Hint says: "A box at K11 would cut off an area with 3 open ends (purple), which can't be paired up."
 
 ---
 
-### crossingParity
+### pairedEnds
 
-*Hard, cost 115*
+*Hard, cost 110*
 
-The loop crosses the border of any rectangle an even number of times (every loop cell has exactly two segments): when all but one crossing is settled, the last is forced. Checked for small rectangles, corner-anchored ones and full-width or full-height bands
+The same with four or six open ends: list every way to pair them up, drop those that close the loop early (e.g. joining the two ends of one little path), and see what is left in common: in every remaining pairing two ends outside the group become the two ends of one line, so a segment between them is not there. (Two open ends: `twoEndsJoin`)
 
-*No picture: It is rare enough that none of the puzzles I searched shows it as the next hint.*
+*No picture: Only the versions with four or six open ends are left under this name (with two open ends it is `twoEndsJoin`), and since 2026-11-21 none of the puzzles I searched (every book, plus the generator's library) reaches one as the next hint: the cheaper rules finish those positions first.*
 
 ---
 
@@ -503,12 +638,12 @@ The loop crosses the border of any rectangle an even number of times (every loop
 
 **assumes the puzzle has one solution.** A group of cells that can still be joined, all of them known loop cells, holds open ends that must be paired up through it. A pairing that can be drawn two different ways over the same cells would give two solutions (the boxes, so the clue counts, do not change), so it is not the real one; what is left may settle segments. E.g. two dots side by side between two open ends above and two below: they cannot join each other
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=26">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=31">
 <img src="images/uniqueRoute.png" width="480" alt="uniqueRoute"></a>
 
-*Y7x7_s22006_4, 7×7: the board after 26 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
+*Y8x8_s22007_1, 8×8: the board after 28 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
 
-Hint says: "Some ways to join the open ends here could be drawn two ways over the same cells (two solutions). Without those, there is a segment between C1 and D1."
+Hint says: "Some ways to join the open ends here could be drawn two ways over the same cells (two solutions). Without those, there is a segment between C7 and D7."
 
 ---
 
@@ -516,9 +651,9 @@ Hint says: "Some ways to join the open ends here could be drawn two ways over th
 
 *Hard, cost 140*
 
-Assume a cell is shaded (loop), follow the rules above to a contradiction: it is the other
+Assume a cell is shaded (loop), follow the rules above to a contradiction: it is the other. The score adds 2 per step of the chain it follows (an 8-step trial costs 156, an 80-step one 300)
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=24">
+<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=34">
 <img src="images/tryCell.png" width="480" alt="tryCell"></a>
 
 *Y6x6_s32001_4, 6×6: the board after 14 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
@@ -531,13 +666,8 @@ Hint says: "Trying a box at C3 leads to a contradiction, so it's a dot."
 
 *Hard, cost 160*
 
-The same for a segment (on / off)
+The same for a segment (on / off); the score adds 2 per step of the chain, as for `tryCell`
 
-<a href="https://joshmermelstein.com/yajilin/index.html?book=armory&puzzle=25">
-<img src="images/tryEdge.png" width="480" alt="tryEdge"></a>
-
-*Y8x8_s50008_3, 8×8: the board after 41 earlier hints. Click the picture to open this puzzle and press Hint yourself.*
-
-Hint says: "Trying no segment between E5 and F5 leads to a contradiction, so there is one."
+*No picture: It is the most expensive rule, and none of the puzzles I searched needs it as the next hint any more: `tryCell` and the cheaper rules finish them first.*
 
 ---

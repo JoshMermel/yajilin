@@ -153,6 +153,24 @@ shadedNeighbor, deadEndNeighbor, cluePlacements for a 2N-1 run, rangeSame, range
 - Two-clue stacks: clues of 1 pointing the same way on adjacent lines (nk_102's diagonal lattice) give strong `rangeSame` chains;
   worth checking whether a chain of three needs its own, cheaper, name.
 
+## Rule review (2026-11-21)
+
+Done: a usage study of every rule (120-150 puzzles per book, step by step), then, with Josh: `tightCell` to Beginner (5); `rangeFacing` to 48
+(before the chains); `boxStarvesClueByLines` to late Medium (27); `crossingParity` to 90 (before `parityForces`); the chain and parity rules
+split by size into Medium cases (`shadeFewLines`, `segmentShortChain`, `parityPocket`, `twoEndsJoin`); "imagine a dot" (`dotShortChain`,
+`dotForcesLines`), `segmentStarvesClue` and Josh's chokepoint rule (`chokepoint` / `chokepointArea`: one cell as the only way into an area with loop cells; also in `contradiction()`) added; colour balance on for arrow puzzles; extra score per line / end / step for the long cases
+and for `tryCell`/`tryEdge`. On the samples, Hard went 83% -> 27% at 12x12, 96% -> 43% at 16x16, 98% -> 68% at 20x20; the 8x8 book gets
+about 30% Beginner. The eight costly "imagine" rules are skipped by prefix closures (generator, `tryCell`), so generation is as fast as before.
+Books and pools rescored and re-sorted (puzzle numbers changed), and `docs/how_to_solve.md` regenerated with new examples, the same day.
+Open:
+- The Hint panel's colour key reuses role names that read oddly for the chokepoint rules ("the cells it counts" for the cut-off area,
+  "where the box would cause trouble" for the only way in): give those roles labels per rule.
+- An Expert tier for puzzles that need trial and error or very long chains: a janko.at sample (31 puzzles up to 20x20) needed `tryCell` in
+  3 of 4 at levels 7-8 and 1 of 26 below; the generator would have to accept such puzzles for the books to have any.
+- Calibrate the tiers and costs against janko.at's human difficulty levels (620 Yajilin with solutions in the page source; keep them private).
+- Untested ideas from the review: two neighbouring parallel clue lines placed together (the puzzles.wiki "2x3 holds two boxes" argument);
+  "forced lines then an odd area" as a named rule (it mostly took over `parityForces` steps in a test, so it was not added).
+
 ## Why larger boards are hard to generate (diagnosed 2026-11-14)
 
 The bottleneck is neither the clue/box density nor human-viability: it is that **clues cannot change how the loop routes through the
