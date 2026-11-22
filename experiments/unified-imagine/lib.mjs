@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { compile, parseCsv, initialState, cloneState, SHADED, LOOP, UNKNOWN } from '../../js/logic.js';
 import { RULES, applySets, contradiction, nextStep, rate, isComplete, tierOfRule, DOT_SHORT } from '../../js/rating.js';
-export const ROOT = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
+export const ROOT = process.env.CORPUS_ROOT || new URL('../..', import.meta.url).pathname.replace(/\/$/, '');   // CORPUS_ROOT: a frozen copy of data/ and tools/library (the books change under a running experiment)
 export { compile, parseCsv, initialState, cloneState, SHADED, LOOP, UNKNOWN, rate, nextStep, applySets, contradiction, isComplete, RULES };
 
 // the cell-hypothesis ("imagine X") family in the current table

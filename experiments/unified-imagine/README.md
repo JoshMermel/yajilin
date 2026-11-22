@@ -30,7 +30,12 @@ Exact optimizations done (all give identical tiers, scores and step sequences on
 1. the non-family search is capped at the imagined chain's cost (and skipped for a rule priced at 12 or less);
 2. ablation runs resume from a per-generation snapshot instead of replaying the chain from the start;
 3. one scan run serves both the easy and the area contradiction, and the full (area) check runs once on the last short state instead of every step.
-Result: the 40-puzzle set went 10.2 s to 5.8 s (old rating: 0.8 s), so about 7x slower than the old rules instead of 13x.
+4. pruning gives up on a candidate once the facts already known to be needed (a fact whose removal broke the contradiction stays needed) price it above the best so far;
+5. the scan clones the state only where its chain crosses the 12-fact limit, not every generation.
+Result: on a sample of 8 puzzles (<= 256 cells) the unified rating went from 15.7x the old rules' time to about 5x (4.8 s to about 1.6 s while the old rules took 0.3 s);
+on the 40-puzzle check set 10.2 s to about 4.4 s (old 0.8 s). Timings are noisy when the machine is busy: compare the ratio printed by `prof.mjs`.
+`check.mjs` needs the same puzzles every run, and the books change while others work: `CORPUS_ROOT=<dir with data/ and tools/library>` points lib.mjs at a frozen copy
+(`git archive HEAD data` plus a copy of tools/library).
 Approximations measured but NOT adopted: one ablation pass (25% faster, 14 of 40 scores shift slightly, no tier changes) and a lower candidate
 cap (`MAXCAND`: 4 gives 7 scores and 1 tier different, 1 gives 20 scores and 3 tiers different).
 Ideas left: reuse scan results between steps (a hypothesis that contradicted stays contradicted), incremental propagation instead of full-board rule scans.

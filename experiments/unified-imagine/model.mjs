@@ -27,7 +27,7 @@ const counted = (P) => {
 
 /** the cheapest imagined box or dot that ends in a contradiction: { cell, pol, cost, pr } or null */
 export function bestImagine(P, st, { maxCand = +(process.env.MAXCAND || 8), maxRaw = 30 } = {}) {
-  const cnt = counted(P), cands = [], r0 = STATS.runs;
+  const cnt = counted(P), cands = [], r0 = STATS.runs, i0 = STATS.iters, tS = performance.now();
   for (let i = 0; i < P.N; i++) {
     if (st.cell[i] !== UNKNOWN) continue;
     for (const pol of [SHADED, LOOP]) {
@@ -38,15 +38,21 @@ export function bestImagine(P, st, { maxCand = +(process.env.MAXCAND || 8), maxR
       cands.push({ cell: i, pol, area, rawE: r.facts.filter((f) => f.k === 'e').length, raw: r.facts.length });
     }
   }
+  STATS.scanMs = (STATS.scanMs || 0) + (performance.now() - tS); STATS.scanIters = (STATS.scanIters || 0) + (STATS.iters - i0);
+  const tP = performance.now();
   STATS.scanRuns = (STATS.scanRuns || 0) + (STATS.runs - r0); STATS.cands = (STATS.cands || 0) + cands.length; STATS.calls = (STATS.calls || 0) + 1;
   cands.sort((a, b) => a.area - b.area || a.rawE - b.rawE || a.raw - b.raw || (a.pol === SHADED ? -1 : 1));
   let best = null;
   for (const c of cands.slice(0, maxCand)) {
-    const pr = pruned(P, st, [['c', c.cell, c.pol]], c.area ? fullContradiction : undefined);
-    if (!pr) continue;
+    const pen = c.area ? AREA_PENALTY : 0;
+    // a chain with the facts already known to be needed priced above the best (or equal, when it would not win the tie) cannot be the cheapest (model A: cost only grows with the chain)
+    const abort = best && MODEL !== 'B' ? (nec) => { const lb = costOf(nec) + pen; return lb > best.cost || (lb === best.cost && !(c.pol === SHADED && best.pol !== SHADED)); } : null;
+    const pr = pruned(P, st, [['c', c.cell, c.pol]], c.area ? fullContradiction : undefined, abort);
+    if (!pr || pr.aborted) continue;
     const cost = costOf(pr) + (c.area ? AREA_PENALTY : 0);
     if (!best || cost < best.cost || (cost === best.cost && c.pol === SHADED && best.pol !== SHADED)) best = { cell: c.cell, pol: c.pol, cost, pr, area: c.area, cands: cands.length };
   }
+  STATS.pruneMs = (STATS.pruneMs || 0) + (performance.now() - tP);
   return best;
 }
 

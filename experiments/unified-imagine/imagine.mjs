@@ -135,12 +135,13 @@ export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12) {
   STATS.runs++;
   const s2 = cloneState(st);
   applySets(s2, hyp);
-  const facts = []; let last = null;
-  const finish = () => (last && fullContradiction(P, last) ? scanSlow(P, st, hyp, maxRaw, areaFacts) : null);   // (the full check only ever gets truer as facts are added)
+  // `last` is the state at the start of the final generation that began with at most areaFacts facts: the stuck state itself, or the state just
+  // before the rule that took the chain past areaFacts (cloned only then)
+  const facts = []; let last = null, crossed = false;
+  const finish = () => { const l = crossed ? last : s2; return facts.length <= areaFacts || crossed ? (fullContradiction(P, l) ? scanSlow(P, st, hyp, maxRaw, areaFacts) : null) : null; };   // (the full check only ever gets truer as facts are added)
   for (let g = 0; g < 400; g++) {
     STATS.iters++;
     if (easyContradiction(P, s2)) return { ok: true, area: false, facts };
-    if (facts.length <= areaFacts) last = cloneState(s2);
     let fired = false;
     for (const r of RUN_RULES) {
       STATS.ruleCalls++;
@@ -153,6 +154,7 @@ export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12) {
         sets.push(t);
       }
       if (!sets.length) continue;
+      if (!r.free && !crossed && facts.length <= areaFacts && facts.length + sets.length > areaFacts) { crossed = true; last = cloneState(s2); }
       const ok = applySets(s2, sets);
       if (!r.free) for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id });
       if (!ok) return { ok: true, area: false, facts };
@@ -164,12 +166,13 @@ export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12) {
   return finish();
 }
 
-/** Prune by ablation: forbid each derived fact in turn (last first); if the contradiction still follows, it was not needed. */
-export function pruned(P, st, hyp, contr = easyContradiction) {
+/** Prune by ablation: forbid each derived fact in turn (last first); if the contradiction still follows, it was not needed.
+ *  abort(neededCounts) -> true gives up early (returns { aborted: true }) once the facts known to be needed already make the chain too costly. */
+export function pruned(P, st, hyp, contr = easyContradiction, abort = null) {
   let r = run(P, st, hyp, null, 80, contr, true);
   if (!r.ok) return null;
   const raw = r.facts.length;
-  const forbid = new Set();
+  const forbid = new Set(), needed = [new Set(), new Set(), new Set()];
   for (let pass = 0; pass < 4; pass++) {
     let changed = false;
     for (let a = r.facts.length - 1; a >= 0; a--) {
@@ -177,7 +180,11 @@ export function pruned(P, st, hyp, contr = easyContradiction) {
       forbid.add(kk);
       const t = run(P, st, hyp, forbid, 80, contr, true, r.snaps[f.g]);
       if (t.ok) { changed = true; r = t; a = Math.min(a, r.facts.length); }   // not needed: take the new, shorter run
-      else forbid.delete(kk);
+      else {
+        forbid.delete(kk);
+        // this fact is needed whatever else is forbidden later, so the final chain has at least the needed ones: `abort` can tell that it cannot be the cheapest
+        if (abort) { needed[f.k === 'e' ? 0 : f.v === SHADED ? 1 : 2].add(kk); if (abort({ nE: needed[0].size, nB: needed[1].size, nD: needed[2].size })) return { aborted: true }; }
+      }
     }
     if (!changed) break;
   }
