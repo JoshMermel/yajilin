@@ -39,3 +39,7 @@ on the 40-puzzle check set 10.2 s to about 4.4 s (old 0.8 s). Timings are noisy 
 Approximations measured but NOT adopted: one ablation pass (25% faster, 14 of 40 scores shift slightly, no tier changes) and a lower candidate
 cap (`MAXCAND`: 4 gives 7 scores and 1 tier different, 1 gives 20 scores and 3 tiers different).
 Ideas left: reuse scan results between steps (a hypothesis that contradicted stays contradicted), incremental propagation instead of full-board rule scans.
+
+Big boards (> 256 cells; `bigprof.mjs <shard> <shards> [perBook]`, 14 puzzles, 4 shards in parallel on a busy machine, frozen corpus): the Beginner ones cost
+about the same as before (no imagining needed), the others took 1.8x to 16x the old time (20x20: 1.8x and 4.2x; 20x36: 5x to 16x), worst 35 s against 4.5 s
+(a Hard 20x36). Total 103 s against 15 s. The 20x36 boards are where the next optimization has to land.
