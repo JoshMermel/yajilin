@@ -1,7 +1,8 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can color them differently) and the marks the step makes.
 import { SHADED, LOOP, CLUE, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
-import { ruleLabel, followLines, boxProof, roomGroups, dotTrace, contradiction, oddOpenEnds } from './rating.js';
+import { ruleLabel, followLines, boxProof, roomGroups, dotTrace, contradiction, oddOpenEnds, chokepointCheck } from './rating.js';
+import { replayImagine } from './imagine.js';
 
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 /** A cell's name like a spreadsheet's: column letter, then row number (E3). */
@@ -443,6 +444,57 @@ export function explainStep(P, step, st = null) {
         ? `${move}, the only way into ${area} would be through ${N(info.cut)}. It holds loop cells, but the loop passes through a cell only once, so it could not get in and back out: those cells would have no way to join the rest of the loop. ${result}`
         : `${move}, ${area} would be cut off from the rest of the board: its loop cells would have no way to join the rest of the loop. ${result}`;
       if (info.cell !== undefined) text = text.replace(/^A box at (\S+), /, 'With a box at $1, ');
+      break;
+    }
+    case 'imagine':
+    case 'imagineLong': {
+      // An imagined box or dot, followed by the easy rules until something breaks (js/imagine.js). The chain is told step by step from the pruned facts.
+      role('focus', info.cell);
+      const box = info.hyp === 'box';
+      const verdict = `So ${N(info.cell)} is a ${box ? 'dot' : 'box'}.`;
+      if (!st) { text = `${box ? 'A box' : 'A dot'} at ${N(info.cell)} would lead, by easy steps, to a contradiction. ${verdict}`; break; }
+      const rp = replayImagine(P, st, info);
+      const list = (xs) => (xs.length > 2 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs.join(' and '));
+      const clueOf = (cells, test) => { for (const c of cells) for (const k of P.cluesOf[c]) if (cells.every((x) => P.rays[k].includes(x)) && test(k)) return k; return -1; };
+      const boxesIn = (k) => P.rays[k].filter((i) => rp.state.cell[i] === SHADED).length;
+      const said = [], dotted = new Set(), boxed = new Set();
+      let saidLines = false;
+      chain = info.facts.filter((f) => f.k === 'e' && f.v === E_ON).map((f) => f.i).sort((a, b) => a - b);
+      for (const n of new Set(rp.facts.map((f) => f.step))) {
+        const fs = rp.facts.filter((f) => f.step === n);
+        const rule = fs[0].rule;
+        const cellsOf = (v) => fs.filter((f) => f.k === 'c' && f.v === v).map((f) => f.i);
+        if (rule === 'shadedNeighbor') {
+          const dots = cellsOf(LOOP).filter((i) => !dotted.has(i)); dots.forEach((i) => dotted.add(i));
+          if (dots.length) said.push(`${list(dots.map(N))} would be ${dots.length === 1 ? 'a dot' : 'dots'}, since boxes never touch`);
+        } else if (rule === 'clueDone') {
+          const dots = cellsOf(LOOP); dots.forEach((i) => dotted.add(i));
+          const k = clueOf(dots, (q) => boxesIn(q) === P.clues[q].n);
+          if (k >= 0) { role('clue', clueCell(P, k)); said.push(`the ${clueName(P, k)} would have all its boxes, so the rest of its ${P.clues[k].region ? 'region' : 'line'} would be dots`); }
+        } else if (rule === 'clueFull' || rule === 'clueTight') {
+          const bs = cellsOf(SHADED).filter((i) => !boxed.has(i)); bs.forEach((i) => boxed.add(i));
+          const k = clueOf(cellsOf(SHADED), () => true);
+          if (k >= 0) role('clue', clueCell(P, k));
+          if (bs.length) said.push(`${k >= 0 ? `the ${clueName(P, k)}` : 'a clue'} would need ${bs.length === 1 ? `a box at ${N(bs[0])}` : `boxes at ${list(bs.map(N))}`}`);
+        } else if (rule === 'deadEnd') {
+          const bs = cellsOf(SHADED).filter((i) => !boxed.has(i)); bs.forEach((i) => boxed.add(i));
+          if (bs.length) said.push(`${list(bs.map(N))} would be left with fewer than two ways out, so ${bs.length === 1 ? 'a box' : 'boxes'}`);
+        } else if (rule === 'forcedExits' && !saidLines && chain.length) {
+          saidLines = true; said.push('the lines that follow (dashed)');       // (said where the first forced line comes in the chain)
+        }
+      }
+      role('problem', ...boxed);
+      let why = brokenAt(P, rp.state);
+      if (info.area) {
+        const c = chokepointCheck(P, rp.state);
+        if (c && !why.cells.length && !why.ends) {
+          role('range', c.part); if (c.cut >= 0) role('problem', c.cut);
+          why = { text: c.cut >= 0 ? `${N(c.cut)} would be the only way into a part of the board (marked) that holds loop cells, and the loop cannot get in and back out through one cell` : 'a part of the board (marked) would be cut off from the rest of the loop' , cells: [] };
+        }
+      }
+      if (why.cells) role('problem', ...why.cells);
+      if (why.ends) role('path', ...why.ends);
+      text = `Imagine ${box ? 'a box' : 'a dot'} at ${N(info.cell)}${said.length ? `: ${said.join('; then ')}` : ''}, and then ${why.text}. ${verdict}`;
       break;
     }
     case 'tryCell':

@@ -61,3 +61,5 @@ segments and their neighbours, the clues counting them), instead of scanning the
 also in the same order, so the pruning is unchanged). `CHECK_LOCAL=1` runs the full-board rule as well and fails on any difference (none on the check set or on a 20x36).
 Also: no sorting in the scan, a reused union-find buffer. Results identical on the check set.
 Timing (machine busy, load 8 to 10, ratios are what matter): the 14 big boards 10.4 s old, 10.7 s unified (1.0x; worst 20x36: 3.1 s old, 2.2 s unified); the 12-puzzle small sample 0.53 s old, 0.92 s (1.7x).
+
+**Adopted (2026-11-22).** The model is now `js/imagine.js` (the search) with the rule entries `imagine` / `imagineLong` and `nextSteps` in `js/rating.js`, and the explanation in `js/explain.js`; tests in `tests/imagine.test.mjs`. This folder is the history and the measuring tools: `parity.mjs <check.mjs output>` compares `rate()` in `js/rating.js` with a saved prototype run, `prof.mjs`/`bigprof.mjs` time the rating. The scripts here still use the prototype's own `imagine.mjs`/`model.mjs`.

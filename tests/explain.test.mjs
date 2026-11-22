@@ -34,7 +34,7 @@ test('every step of every rated puzzle can be explained', () => {
   }
   assert.ok(puzzles >= 30, `only ${puzzles} puzzles`);
   // the common rules must all have been explained at least once
-  for (const id of ['clueDone', 'clueFull', 'shadedNeighbor', 'deadEnd', 'forcedExits', 'deadEndNeighbor', 'noEarlyClose']) {
+  for (const id of ['clueDone', 'clueFull', 'shadedNeighbor', 'deadEnd', 'forcedExits', 'imagine', 'noEarlyClose']) {
     assert.ok(seen.has(id), `${id} never occurred`);
   }
   assert.ok(RULE_IDS.length > 0);
@@ -42,22 +42,23 @@ test('every step of every rated puzzle can be explained', () => {
 
 test('a lookahead step says how many lines the box forces and hands the board those lines to draw dashed', async () => {
   const { compile, initialState, cluesFromString } = await import('../js/logic.js');
-  const { nextStep, applySets } = await import('../js/rating.js');
-  // (a book puzzle that still needs a short chain after the Medium rules)
+  const { nextStep, applySets, RULES } = await import('../js/rating.js');
+  // (a book puzzle that still needs a chain after the Medium rules: the position where the solver first has to imagine something; the old
+  // short-chain rule, still in the table for the generator's solvability check, finds a firing there)
   const P = compile({ name: 'sfl', rows: 8, cols: 8, clues: cluesFromString('1:5:U:0;2:5:L:1;2:7:D:1;3:0:U:0;3:2:U:0;3:3:U:1;4:0:R:1;5:2:U:1;6:4:D:0;6:5:R:0;7:0:R:0;7:7:L:0') });
   const st = initialState(P);
-  let seen = null;
-  for (let g = 0; g < 200 && !seen; g++) {
+  for (let g = 0; g < 300; g++) {
     const step = nextStep(P, st);
-    if (!step) break;
-    if (step.rule === 'shadeShortChain') seen = { step, at: JSON.parse(JSON.stringify({ ...st, cell: Array.from(st.cell), e: Array.from(st.e) })) };
-    else applySets(st, step.sets);
+    if (!step || step.rule.startsWith('imagine')) break;
+    applySets(st, step.sets);
   }
-  assert.ok(seen, 'the puzzle needs a short-chain step');
-  const e = explainStep(P, seen.step, { ...st, cell: Uint8Array.from(seen.at.cell), e: Int8Array.from(seen.at.e) });
+  const f = RULES.find((r) => r.id === 'shadeShortChain').find(P, st, {})[0];
+  assert.ok(f, 'the puzzle needs a short-chain step');
+  const step = { rule: 'shadeShortChain', info: f.info, sets: f.sets };
+  const e = explainStep(P, step, st);
   assert.match(e.text, /would force \d+ line segments? \(dashed\)/);
   assert.ok(e.chain.length > 0 && e.chain.every((x) => x >= 0 && x < P.numEdges));
-  assert.equal(explainStep(P, seen.step).chain.length, 0, 'without a position there is nothing to draw');
+  assert.equal(explainStep(P, step).chain.length, 0, 'without a position there is nothing to draw');
 });
 
 test('boxStarvesClueByLines talks about the lines the box forces, dashed', async () => {
@@ -72,16 +73,16 @@ test('boxStarvesClueByLines talks about the lines the box forces, dashed', async
   assert.ok(e.chain.length >= 2 && e.chain.every((x) => x >= 0 && x < P.numEdges));
 });
 
-test('a box whose forced lines give a cell three lines draws just those lines: A4 gives B5 three lines', async () => {
+test('an imagined box or dot is told step by step, the lines it forces are drawn dashed, and the chain ends in what breaks', async () => {
   const fs = await import('node:fs');
-  const { compile, parseCsv, initialState, edgeCells, SHADED, LOOP, E_ON } = await import('../js/logic.js');
+  const { compile, parseCsv, initialState, SHADED, LOOP, E_ON } = await import('../js/logic.js');
   const { nextMarkableStep } = await import('../js/hintstep.js');
   const raw = parseCsv(fs.readFileSync(new URL('../data/sparse-8x8-both.csv', import.meta.url), 'utf8')).find((p) => p.name === 'SPARSE-8X8-BOTH-29');
   const P = compile(raw);
   const cells = new Uint8Array(P.N), edges = new Uint8Array(P.numEdges);
   for (const i of P.boxIdx) cells[i] = 1;
-  let text = null, c2 = null;
-  for (let n = 0; n < 300 && !(text && c2); n++) {                    // press Hint and mark the first firing, as a player does
+  const imagined = [];
+  for (let n = 0; n < 300; n++) {                                     // press Hint and mark the first firing, as a player does
     const st = initialState(P);
     for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0) { if (cells[i] === 1) st.cell[i] = SHADED; else if (cells[i] === 2) st.cell[i] = LOOP; }
     for (let x = 0; x < P.numEdges; x++) if (edges[x]) st.e[x] = E_ON;
@@ -89,19 +90,17 @@ test('a box whose forced lines give a cell three lines draws just those lines: A
     if (!nx) break;
     const f = nx.res.firings[0];
     const e = explainStep(P, { rule: nx.res.rule, tier: nx.res.tier, weight: nx.res.weight, sets: f.sets, info: f.info }, st);
-    if (/^A box at C2 would force/.test(e.text)) c2 = e;
-    if (/^A box at A4 would force/.test(e.text)) { text = e.text; 
-      const names = e.chain.map((x) => edgeCells(P, x).map((c) => `${'ABCDEFGH'[c % 8]}${((c / 8) | 0) + 1}`).sort().join('-')).sort();
-      assert.deepEqual(names, ['A5-B5', 'B4-B5'], 'only the two lines into B5: the partner lines of B4 and A5 are not needed');
-      assert.deepEqual(e.roles.problem, [P.cols * 4 + 1], 'B5 is the trouble spot'); }
+    if (nx.res.rule.startsWith('imagine')) imagined.push({ e, f });
     for (const [k, i, v] of f.sets) { if (k === 'c') cells[i] = v === SHADED ? 1 : 2; else if (v === E_ON) edges[i] = 1; }
   }
-  assert.ok(text, 'the A4 hint comes up');
-  assert.ok(c2, 'the C2 hint comes up');
-  // C2 forces nine segments, but the contradiction (A2 and B3 full, so A3 has one way out) rests on four of them: only those are drawn
-  assert.match(c2.text, /^A box at C2 would force 4 line segments \(dashed\), which would put two lines in A2 and B3\. A3 could not join them/);
-  assert.equal(c2.chain.length, 4);
-  assert.match(text, /would force 2 line segments \(dashed\), which would give B5 three lines\.$/);
+  assert.ok(imagined.length > 0, 'the puzzle needs an imagined box or dot');
+  for (const { e, f } of imagined) {
+    const word = f.info.hyp === 'box' ? 'a box' : 'a dot';
+    assert.match(e.text, new RegExp(`^Imagine ${word} at [A-Z]\\d+(: .+)?, and then .+\\. So [A-Z]\\d+ is a ${f.info.hyp === 'box' ? 'dot' : 'box'}\\.$`), e.text);
+    assert.deepEqual(e.roles.focus, [f.info.cell]);
+    assert.ok(e.chain.every((x) => x >= 0 && x < P.numEdges));
+    if (/\(dashed\)/.test(e.text)) assert.ok(e.chain.length > 0, 'the dashed lines are handed to the board');
+  }
 });
 
 test('boxStarvesClueByPlacements says what the clue still needs against the room its line has, and draws the forced lines dashed', async () => {

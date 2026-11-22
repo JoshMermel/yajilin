@@ -4,7 +4,7 @@ import { compile, solve, initialState, cloneState, cluesFromString, SHADED, LOOP
 import { chokepointCheck, rate, RULES, RULE_IDS, SHORT_CHAIN, nextStep, closure, contradiction, TIERS, rangeDeduce, oddOpenEnds, solvedByRules, lineRoom } from '../js/rating.js';
 // The rules added in the 2026-11-21 review (dot hypotheses, segment starvation, the Medium splits of the chain and parity rules). Some older
 // pattern tests leave them out (rate(P, { without })), so they still show the rule they were written for; the new rules get their own tests.
-const NEW_RULES = ['dotShortChain', 'dotForcesLines', 'twoEndsJoin', 'shadeFewLines', 'segmentShortChain', 'parityPocket', 'segmentStarvesClue', 'chokepoint', 'chokepointArea'];
+const NEW_RULES = ['dotShortChain', 'dotForcesLines', 'twoEndsJoin', 'shadeFewLines', 'segmentShortChain', 'parityPocket', 'segmentStarvesClue', 'chokepoint', 'chokepointArea', 'imagine', 'imagineLong'];
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -42,7 +42,7 @@ test('rule table is well formed', () => {
     assert.ok(Number.isInteger(r.weight) && r.weight > 0 && typeof r.find === 'function' && r.label, `${r.id}: every rule has an integer cost above zero`);
   }
   // easiest first: tiers never go down the table
-  const tiers = RULES.map((r) => TIERS.indexOf(r.tier));
+  const tiers = RULES.filter((r) => !r.virtual).map((r) => TIERS.indexOf(r.tier));    // (the imagine rules sit at the end: their price varies)
   assert.deepEqual(tiers, [...tiers].sort((a, b) => a - b));
 });
 
@@ -224,7 +224,7 @@ test('lookahead hints: the shortest chain comes first, and shadeShortChain only 
   assert.ok(rule('shadeShortChain').weight < rule('shadeForcesLines').weight);
   // a chain you can follow by eye is a Medium-tier step, tried before boxStarvesClue
   assert.equal(rule('shadeShortChain').tier, 'Medium');
-  assert.ok(HUMAN_ORDER.findIndex((r) => r.id === 'shadeShortChain') < HUMAN_ORDER.findIndex((r) => r.id === 'boxStarvesClue'));
+  assert.ok(rule('shadeShortChain').weight < rule('boxStarvesClue').weight);
 });
 
 test('pattern: clues pointing the same way share a range with a known box count (rangeSame)', () => {
@@ -312,17 +312,23 @@ test('every rule is sound on random partial positions of true solutions', () => 
 });
 
 test('pattern: imagine a box, add the forced lines, a cell gets three lines (shadeForcesLines)', () => {
-  // A 6x6 puzzle with three clues whose solve needs this rule (and nothing harder; the shorter contradictions go to shadeShortChain), found by search.
+  // A 6x6 puzzle with three clues whose solve needs a box imagined with its forced lines (found by search). shadeForcesLines is no longer part of the
+  // human rating (the imagined chain replaces it) but stays in the table for the generator's solvability check, and it is still right.
   const P = compile({ name: 'sfl', rows: 6, cols: 6, clues: [{ r: 2, c: 0, d: 1, n: 0 }, { r: 2, c: 2, d: 5, n: 1 }, { r: 5, c: 2, d: 0, n: 0 }] });
-  assert.equal(solve(P, { limit: 2 }).count, 1);
-  const r = rate(P, { without: NEW_RULES });
-  assert.ok(r.solved);
-  assert.ok(r.counts.shadeForcesLines >= 1, JSON.stringify(r.counts));
-  assert.equal(r.rules, 'shadeForcesLines');
-  assert.equal(r.tier, 'Hard');
-  // with the newer rules an imagined dot gets there first, at Medium
+  const sol = solve(P, { limit: 2 });
+  assert.equal(sol.count, 1);
+  const st = initialState(P);
+  closure(P, st, upto('shadeShortChain'));
+  const fs = RULES.find((r) => r.id === 'shadeForcesLines').find(P, st, {});
+  assert.ok(fs.length > 0);
+  for (const f of fs) assert.equal(sol.solutions[0].cell[f.info.cell], LOOP, 'the imagined box would break something: the cell is a dot');
+  // the human rating imagines instead: two chains of one and four lines; four lines make the second one a Hard step
   const now = rate(P);
-  assert.ok(now.solved && now.tier === 'Medium', JSON.stringify(now.counts));
+  assert.ok(now.solved);
+  const imagined = now.steps.filter((s) => s.rule.startsWith('imagine'));
+  assert.deepEqual(imagined.map((s) => s.rule), ['imagine', 'imagineLong']);
+  assert.equal(now.tier, 'Hard');
+  assert.equal(now.rules, 'imagineLong');
 });
 
 // Brute force over all subsets: the slow, obviously right version of rangeDeduce.
@@ -514,8 +520,8 @@ test('pattern: a box would turn a neighbour into a dot whose two ways out close 
   // G10 and I10 are the two ends of one path; a box at H11 would make H10 a dot with just those two ways out
   const r = rate(P);
   assert.ok(r.solved && r.tier !== 'Expert');
-  const step = r.steps.find((s) => s.rule === 'closingNeighbor' && s.sets.some(([k, i, v]) => k === 'c' && i === cellIdx(P, 'H11') && v === LOOP));
-  assert.ok(step, 'the solver should find H11 with closingNeighbor');
+  const step = r.steps.find((s) => s.rule.startsWith('imagine') && s.sets.some(([k, i, v]) => k === 'c' && i === cellIdx(P, 'H11') && v === LOOP));
+  assert.ok(step, 'the solver should find H11 by imagining a box next to it');
   assert.equal(step.tier, 'Medium');
 });
 
@@ -613,7 +619,7 @@ test('rangeSameOne: two same-direction clues with one cell between them (Beginne
 test('the order a person meets the rules in: cheapest first, bookkeeping costs something, tiers as reviewed', () => {
   const w = HUMAN_ORDER.map((r) => r.weight);
   assert.deepEqual(w, [...w].sort((a, b) => a - b));
-  const pos = (id) => HUMAN_ORDER.findIndex((r) => r.id === id);
+  const pos = (id) => RULES.filter((r) => !r.free).sort((p, q) => p.weight - q.weight).findIndex((r) => r.id === id);   // (the table by price, with the rules the imagined chain replaced)
   assert.ok(pos('shadedNeighbor') < pos('clueDone'));
   assert.ok(pos('forcedExits') < pos('tightCell') && pos('tightCell') < pos('noEarlyClose'));   // tightCell is board geometry: Beginner (2026-11-21)
   assert.ok(pos('closingCell') < pos('deadEndNeighbor') && pos('sameSegmentExits') < pos('deadEndNeighbor'));   // the "don't close the loop early" rules are Beginner, like Nikoli's easy puzzles use them
@@ -728,24 +734,27 @@ test('new rules are sound: every firing agrees with the stored solution, along w
   assert.ok(fired > 0, 'some new rule fired along the way');
 });
 
-test('imagine a dot (dotShortChain, Medium): a dot that leaves a clue its exact room breaks something, so the cell is a box', () => {
-  // the 6x6 puzzle of the shadeForcesLines pattern: an imagined dot settles it sooner, at Medium
-  const P = compile({ name: 'sfl', rows: 6, cols: 6, clues: [{ r: 2, c: 0, d: 1, n: 0 }, { r: 2, c: 2, d: 5, n: 1 }, { r: 5, c: 2, d: 0, n: 0 }] });
-  const r = rate(P);
-  const step = r.steps.find((s) => s.rule === 'dotShortChain');
-  assert.ok(step, JSON.stringify(r.counts));
+test('imagine a dot: a dot that breaks something within a few easy steps makes the cell a box, priced like a box chain of the same length', () => {
+  // an 8x8 puzzle (armory) where assuming a dot beats every box: a dot at H7 gives a clue more boxes than it can have
+  const P = compile({ name: 'dot', rows: 8, cols: 8, clues: [{ r: 0, c: 0, d: 5, n: 2 }, { r: 0, c: 7, d: 6, n: 0 }, { r: 1, c: 5, d: 6, n: 2 }, { r: 2, c: 1, d: 5, n: 2 }, { r: 5, c: 3, d: 7, n: 0 }] });
   const sol = solve(P, { limit: 1 }).solutions[0];
-  if (step.info.box === undefined) {
-    assert.equal(step.sets[0][2], SHADED);
-    assert.equal(sol.cell[step.info.cell], SHADED);
-  } else {
-    // the dot's first consequence was the clue's last open cell: told as "a box there is impossible, so it is a dot"
-    assert.deepEqual(step.sets, [['c', step.info.box, LOOP]]);
-    assert.notEqual(sol.cell[step.info.box], SHADED);
+  const r = rate(P);
+  assert.ok(r.solved);
+  const dots = r.steps.filter((s) => s.rule.startsWith('imagine') && s.info.hyp === 'dot');
+  assert.ok(dots.length >= 1, JSON.stringify(r.counts));
+  for (const s of dots) {
+    assert.deepEqual(s.sets, [['c', s.info.cell, SHADED]]);
+    assert.equal(sol.cell[s.info.cell], SHADED, 'a dot that breaks something: the cell is a box');
+    // the price is the one formula for boxes and dots: lines needed, cells passed through, a surcharge past three lines, and a surcharge for an area argument
+    const { nE, nB, nD, area } = s.info;
+    assert.equal(s.weight, 8 + 5 * nE + 2 * (nB + nD) + (nE > 3 ? 10 * (nE - 3) : 0) + (area ? 12 : 0));
+    assert.equal(s.tier, s.weight <= 30 ? 'Medium' : 'Hard');
+    assert.equal(s.rule, s.weight <= 30 ? 'imagine' : 'imagineLong');
   }
-  const rule = RULES.find((q) => q.id === 'dotShortChain');
-  assert.equal(rule.tier, 'Medium');
-  assert.ok(rule.weight < RULES.find((q) => q.id === 'dotForcesLines').weight);
+  assert.ok(dots.some((s) => s.weight === 14 && s.tier === 'Medium'), 'a short dot chain is a Medium step');
+  // the cheaper chain wins, whichever way it goes: no step is priced above a chain that was available
+  const imagined = r.steps.filter((s) => s.rule.startsWith('imagine'));
+  assert.ok(imagined.some((s) => s.info.hyp === 'box') && imagined.some((s) => s.info.hyp === 'dot'), 'both polarities compete');
 });
 
 test('the score charges the long cases more: trial and error by its chain, the Hard chain rules by the lines they need', () => {
@@ -807,21 +816,21 @@ test('chokepoint: the part reported is the smaller real side of the cut, not jus
   assert.deepEqual(right.part.map(transposed).sort((a, b) => a - b), down.part.slice().sort((a, b) => a - b));
 });
 
-test('dotShortChain: when the dot only forces the clue\'s one other open cell to be its last box, it is told as "a box there is impossible, so it is a dot"', () => {
-  // REGL-SYMMETRIC-10x10-8 after its first 20 steps (a hint report: the region numbered 1 at F8 has F8 and E9 open, F9 is a dot).
-  // Imagining a dot at F8 is the same as imagining a box at E9: report that, and the region's own clue then makes F8 the box.
+test('imagine: a region puzzle after 21 steps is told as an imagined box, step by step, ending in what breaks', () => {
+  // REGL-SYMMETRIC-10x10-8 after its first 21 steps (the hint report that started the unified imagine rule: the region numbered 1 at F8 has F8 and E9 open).
   const P = compile(parseCsv(`name,rows,cols,clues,solution,rules,tier,score,boxes,regions\n${REGL_ROW}\n`)[0]);
   const st = initialState(P);
-  for (let k = 0; k < 20; k++) for (const f of nextSteps(P, st).firings) applySets(st, f.sets);
-  const r = nextSteps(P, st), E9 = cellIdx(P, 'E9'), F8 = cellIdx(P, 'F8');
-  assert.equal(r.rule, 'dotShortChain');
-  assert.deepEqual(r.firings[0].sets, [['c', E9, LOOP]]);
-  assert.equal(r.firings[0].info.box, E9);
-  const text = explainStep(P, { rule: r.rule, sets: r.firings[0].sets, info: r.firings[0].info }, st).text;
-  assert.match(text, /^Imagine a box at E9: the region numbered 1 \(at F8\) would have all its boxes, so F8 is a dot; .*So E9 is a dot\.$/);
-  applySets(st, r.firings[0].sets);
-  const r2 = nextSteps(P, st);
-  assert.equal(r2.rule, 'clueFull');
-  assert.deepEqual(r2.firings[0].sets, [['c', F8, SHADED]]);
+  for (let k = 0; k < 21; k++) for (const f of nextSteps(P, st).firings) applySets(st, f.sets);
+  const r = nextSteps(P, st), G5 = cellIdx(P, 'G5');
+  assert.equal(r.rule, 'imagine');
+  assert.equal(r.tier, 'Medium');
+  assert.equal(r.firings.length, 1);
+  assert.deepEqual(r.firings[0].sets, [['c', G5, LOOP]]);
+  assert.equal(r.firings[0].info.hyp, 'box');
+  const text = explainStep(P, { rule: r.rule, tier: r.tier, weight: r.weight, sets: r.firings[0].sets, info: r.firings[0].info }, st).text;
+  assert.match(text, /^Imagine a box at G5: G6 would be a dot, since boxes never touch; then the region numbered 1 \(at G6\) would need a box at H6; then the lines that follow \(dashed\), and then I6 would be left with just one way out\. So G5 is a dot\.$/);
+  // the explanation names every step of the chain and the cell where it breaks, and nothing is left undefined
+  assert.doesNotMatch(text, /undefined|NaN/);
 });
+
 const REGL_ROW = 'REGL-SYMMETRIC-10x10-8,10,10,0:0:G:2;0:2:G:1;0:4:G:0;0:7:G:2;0:9:G:0;1:1:G:0;1:4:G:2;3:2:G:1;3:6:G:2;3:8:G:0;3:9:G:0;4:1:G:1;5:0:G:0;5:6:G:1;5:9:G:2;6:2:G:1;6:4:G:1;7:0:G:0;7:5:G:1;7:7:G:2;9:3:G:1,x6cx6acx6c69569x3a953c39x6aac5x5x6c3cx5569695x3c395x5x3cx3cx3c3cx3ac3c69x3cx69x556c6969x693939x3aa9x,dotForcesLines,Hard,834,,0.0.1.1.2.2.2.3.3.4.0.5.5.1.6.6.3.3.4.4.0.5.5.1.6.1.3.3.4.4.0.0.7.1.1.1.8.3.9.10.0.11.7.7.8.8.8.9.9.10.12.11.11.8.8.8.13.13.9.14.12.11.15.8.16.16.16.13.14.14.17.17.15.15.16.18.16.19.19.14.17.17.15.15.18.18.16.19.19.14.17.15.15.20.20.20.16.16.14.14';

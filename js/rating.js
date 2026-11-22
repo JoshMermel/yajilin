@@ -24,6 +24,7 @@ import {
   UNKNOWN, SHADED, LOOP, CLUE, E_UNKNOWN, E_ON, E_OFF, oppositeDir,
   initialState, cloneState, edgeCells, checkSolved,
 } from './logic.js';
+import { bestImagine, setFullContradiction, MEDIUM_MAX } from './imagine.js';
 
 export const TIERS = ['Beginner', 'Medium', 'Hard', 'Expert'];
 
@@ -1914,20 +1915,20 @@ export const RULES = [
   { id: 'noEarlyClose', tier: 'Beginner', weight: 6, find: noEarlyClose, label: 'a segment would close the loop too early' },
   { id: 'sameSegmentExits', tier: 'Beginner', weight: 7, find: sameSegmentExits, label: 'two of a dot\'s three ways out lead to the ends of one path: it uses the third' },
   { id: 'closingCell', tier: 'Beginner', weight: 7, find: closingCell, label: 'a cell whose only two ways out are the ends of one path would close the loop early: it is a box' },
-  { id: 'deadEndNeighbor', tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
+  { id: 'deadEndNeighbor', superseded: true, tier: 'Medium', weight: 10, find: deadEndNeighbor, label: 'a box here would strand a neighbor: this cell is a dot' },
   { id: 'cluePlacements', tier: 'Medium', weight: 12, find: cluePlacements, label: 'every way to place a clue\'s boxes includes (or leaves out) this cell' },
   { id: 'placementDeadEnd', tier: 'Medium', weight: 14, find: placementDeadEnd, label: 'every way to place a clue\'s boxes that leaves no neighbor stranded includes (or leaves out) this cell' },
-  { id: 'shadeShortChain', tier: 'Medium', weight: 15, find: shadeShortChain, label: `a box here would force a couple of lines (at most ${SHORT_CHAIN} that matter) that give some cell three lines: this cell is a dot` },
-  { id: 'boxStarvesClue', tier: 'Medium', weight: 16, find: boxStarvesClue, label: 'a box here would turn its neighbors into dots and leave a clue no room for its number of boxes: this cell is a dot' },
-  { id: 'closingNeighbor', tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
+  { id: 'shadeShortChain', superseded: true, tier: 'Medium', weight: 15, find: shadeShortChain, label: `a box here would force a couple of lines (at most ${SHORT_CHAIN} that matter) that give some cell three lines: this cell is a dot` },
+  { id: 'boxStarvesClue', superseded: true, tier: 'Medium', weight: 16, find: boxStarvesClue, label: 'a box here would turn its neighbors into dots and leave a clue no room for its number of boxes: this cell is a dot' },
+  { id: 'closingNeighbor', superseded: true, tier: 'Medium', weight: 20, find: closingNeighbor, label: 'a box here would turn a neighbor into a dot whose only two ways out are the ends of one path: this cell is a dot' },
   { id: 'rangeSame', tier: 'Medium', weight: 24, find: rangeSame, label: 'two clues point the same way: the cells between them hold the difference of their numbers' },
   { id: 'rangeFacingKnown', tier: 'Medium', weight: 28, find: rangeFacingKnown, label: 'two clues point at each other and one part of the line has a known number of boxes: that fixes the other two parts' },
-  { id: 'boxStarvesClueByLines', tier: 'Medium', weight: 27, find: boxStarvesClueByLines, label: 'a box here would turn its neighbors into dots and force the lines of a neighbor left with two ways out, and that leaves a clue no room for its number: this cell is a dot' },
+  { id: 'boxStarvesClueByLines', superseded: true, tier: 'Medium', weight: 27, find: boxStarvesClueByLines, label: 'a box here would turn its neighbors into dots and force the lines of a neighbor left with two ways out, and that leaves a clue no room for its number: this cell is a dot' },
   { id: 'twoEndsJoin', tier: 'Medium', weight: 22, find: twoEndsJoin, label: 'a sealed-off area has just two open ends: they join each other, so their far ends cannot be joined' },
   { id: 'parityPocket', tier: 'Medium', weight: 28, costly: true, find: parityPocket, label: `a move here would cut off a small pocket (at most ${POCKET_AREA} cells) with an odd number of open ends` },
-  { id: 'shadeFewLines', tier: 'Medium', weight: 25, costly: true, find: shadeFewLines, label: `a box here would force lines, at most ${FEW_LINES} of which lead to a cell with three lines or too few ways out: this cell is a dot` },
+  { id: 'shadeFewLines', superseded: true, tier: 'Medium', weight: 25, costly: true, find: shadeFewLines, label: `a box here would force lines, at most ${FEW_LINES} of which lead to a cell with three lines or too few ways out: this cell is a dot` },
   { id: 'segmentShortChain', tier: 'Medium', weight: 26, costly: true, find: segmentShortChain, label: `a segment here (or its absence) would force at most ${SEGMENT_SHORT} lines that leave a cell with three lines or too few ways out` },
-  { id: 'dotShortChain', tier: 'Medium', weight: 21, costly: true, find: dotShortChain, label: `a dot here would, within a few easy steps (at most ${DOT_SHORT}: a clue needing all its open cells, dots by boxes, dead ends, cells with two ways out), break something: this cell is a box` },
+  { id: 'dotShortChain', superseded: true, tier: 'Medium', weight: 21, costly: true, find: dotShortChain, label: `a dot here would, within a few easy steps (at most ${DOT_SHORT}: a clue needing all its open cells, dots by boxes, dead ends, cells with two ways out), break something: this cell is a box` },
   { id: 'chokepoint', tier: 'Medium', weight: 23, costly: true, find: chokepoint, label: `a move here would leave one cell as the only way between two parts of the board that both hold loop cells (the smaller part at most ${CHOKE_AREA} cells): the loop could not get in and out` },
   { id: 'regionPairs', tier: 'Hard', weight: 45, find: regionPairs, label: 'two neighbouring numbered regions together: every way to place both numbers of boxes without touching includes (or leaves out) this cell' },
   { id: 'rangeFacing', tier: 'Hard', weight: 48, find: rangeFacing, label: 'two clues point at each other: how many boxes fit in each part of the line fixes how many it holds' },
@@ -1935,23 +1936,29 @@ export const RULES = [
   { id: 'crossingParity', tier: 'Hard', weight: 90, find: crossingParity, label: 'the loop crosses the border of a rectangle an even number of times' },
   { id: 'pairedEnds', tier: 'Hard', weight: 110, find: pairedEndsMany, label: 'however the open ends of a sealed-off area pair up, two lines end up as one: their far ends cannot be joined' },
   { id: 'chokepointArea', tier: 'Hard', weight: 62, costly: true, find: chokepointArea, label: 'a move here would leave one cell as the only way between two large parts of the board that both hold loop cells: the loop could not get in and out' },
-  { id: 'shadeForcesLines', tier: 'Hard', weight: 70, find: shadeForcesLines, extra: extraShadeLines, label: 'a box here would force lines that leave a cell with three lines or too few ways out: this cell is a dot' },
+  { id: 'shadeForcesLines', superseded: true, tier: 'Hard', weight: 70, find: shadeForcesLines, extra: extraShadeLines, label: 'a box here would force lines that leave a cell with three lines or too few ways out: this cell is a dot' },
   { id: 'boxStarvesClueByPlacements', tier: 'Hard', weight: 72, find: boxStarvesClueByPlacements, label: 'a box here would force lines that leave a clue without room to place its boxes (counting the cells that would be left with one way out): this cell is a dot' },
   { id: 'segmentStarvesClue', tier: 'Hard', weight: 74, costly: true, find: segmentStarvesClue, label: 'a segment here (or its absence) would force lines that leave a clue without room to place its boxes' },
-  { id: 'shadeClosesLoop', tier: 'Hard', weight: 75, find: shadeClosesLoop, label: 'a box here would force lines that close the loop early: this cell is a dot' },
-  { id: 'dotForcesLines', tier: 'Hard', weight: 78, extra: extraDotSteps, costly: true, find: dotForcesLines, label: 'a dot here would, by easy steps (a clue needing all its open cells, dots by boxes, dead ends, cells with two ways out), break something: this cell is a box' },
+  { id: 'shadeClosesLoop', superseded: true, tier: 'Hard', weight: 75, find: shadeClosesLoop, label: 'a box here would force lines that close the loop early: this cell is a dot' },
+  { id: 'dotForcesLines', superseded: true, tier: 'Hard', weight: 78, extra: extraDotSteps, costly: true, find: dotForcesLines, label: 'a dot here would, by easy steps (a clue needing all its open cells, dots by boxes, dead ends, cells with two ways out), break something: this cell is a box' },
   { id: 'segmentForcesLines', tier: 'Hard', weight: 80, find: segmentForcesLines, extra: extraSegmentLines, label: 'a segment here (or its absence) would force lines that leave a cell with three lines or too few ways out' },
   { id: 'segmentClosesLoop', tier: 'Hard', weight: 85, find: segmentClosesLoop, label: 'a segment here (or its absence) would force lines that close the loop early' },
   { id: 'parityForces', tier: 'Hard', weight: 95, find: parityForces, extra: extraParity, label: 'a move here would cut off a region with an odd number of open ends' },
   { id: 'tryCell', tier: 'Hard', weight: 140, lookahead: true, find: lookahead('cell'), extra: extraTrial, label: 'trying a cell one way leads to a contradiction' },
   { id: 'tryEdge', tier: 'Hard', weight: 160, lookahead: true, find: lookahead('edge'), extra: extraTrial, label: 'trying a segment one way leads to a contradiction' },
   { id: 'uniqueRoute', tier: 'Hard', weight: 125, assumesUnique: true, find: uniqueRoute, label: 'a way of joining the open ends here could be drawn two ways, which would give two solutions: so it is not the way' },
+  // The cell-hypothesis rules above flagged `superseded` (a box here would..., a dot here would...) are what the generator's solvability check and closure()
+  // still use (they are sound and fast). The human rating and Hint use ONE rule instead: imagine a box or a dot in a cell, follow the easy rules until
+  // something breaks, and price the pruned chain the same for both (js/imagine.js). Its price is the step's weight (so it varies), and the tier says
+  // how long the chain was: `imagine` up to MEDIUM_MAX, `imagineLong` above. These two sit after the lookahead rules so that no prefix of the table includes them.
+  { id: 'imagine', tier: 'Medium', weight: MEDIUM_MAX, virtual: true, costly: true, find: imagineFind, label: 'imagine a box (or a dot) here and follow the easy rules: within a few steps something breaks, so this cell is a dot (or a box)' },
+  { id: 'imagineLong', tier: 'Hard', weight: 64, virtual: true, costly: true, find: imagineFind, label: 'imagine a box (or a dot) here and follow the easy rules through a long chain of lines: something breaks, so this cell is a dot (or a box)' },
 ];
 
 // The order a person (the rating, the hints) tries the rules in: bookkeeping first, then cheapest first (ties: table order).
 // Rules flagged assumesUnique are valid only if the puzzle has exactly one solution. They sit after the lookahead rules in the table
 // so that everything that takes "solved by the rules" as proof of uniqueness (solvedByRules, closure, the generator) never uses them.
-export const HUMAN_ORDER = RULES.map((r, i) => [r, i]).filter(([r]) => !r.free).sort((p, q) => p[0].weight - q[0].weight || p[1] - q[1]).map(([r]) => r);
+export const HUMAN_ORDER = RULES.map((r, i) => [r, i]).filter(([r]) => !r.free && !r.superseded && !r.virtual).sort((p, q) => p[0].weight - q[0].weight || p[1] - q[1]).map(([r]) => r);
 const FIRST_LOOKAHEAD = RULES.findIndex((r) => r.lookahead);
 export const RULE_IDS = RULES.map((r) => r.id);
 export const tierOfRule = (id) => (id === 'unsolved' ? 'Expert' : RULES.find((r) => r.id === id).tier);
@@ -1986,9 +1993,29 @@ export function closure(P, st, upto = FIRST_LOOKAHEAD) {
   throw new Error('closure did not settle');
 }
 
+// ---- the imagined box or dot (js/imagine.js)
+setFullContradiction(contradiction);
+const IMAGINE_AFTER = 12;      // the rules priced up to this are tried before imagining anything (they are all cheap to see)
+/** The firing for the cheapest imagined chain found by bestImagine: a box imagined means the cell is a dot, a dot imagined means it is a box. */
+const imagineFiring = (f) => ({
+  sets: [setCell(f.cell, f.pol === SHADED ? LOOP : SHADED)],
+  info: { cell: f.cell, hyp: f.pol === SHADED ? 'box' : 'dot', cost: f.cost, area: f.area, nE: f.pr.nE, nB: f.pr.nB, nD: f.pr.nD, facts: f.pr.facts.map(({ k, i, v, rule }) => ({ k, i, v, rule })), forbid: f.pr.forbid },
+});
+const imagineStep = (f) => {
+  const tier = f.cost <= MEDIUM_MAX ? 'Medium' : 'Hard';
+  return { rule: tier === 'Medium' ? 'imagine' : 'imagineLong', tier, weight: f.cost, firings: [imagineFiring(f)] };
+};
+/** The `find` of the two imagine rules: the cheapest chain, as a firing (or none). Needs a position the easy rules have nothing more to do in. */
+function imagineFind(P, st) {
+  const f = bestImagine(P, st);
+  return f ? [imagineFiring(f)] : [];
+}
+
 /**
  * The easiest rule that has a deduction in `st`, with every firing of it: { rule, tier, weight, firings: [{sets, info}] },
  * or null if the rules are stuck. Bookkeeping is applied to `st` first (silently), so `st` is the position the rules saw.
+ * The imagined box or dot (imagine / imagineLong) takes part by its price: once the rules priced up to IMAGINE_AFTER have found nothing,
+ * the cheapest imagined chain is searched, and it is the step unless a rule priced at most as much (extra included) has a deduction.
  */
 export function nextSteps(P, st, bookkeeping = null, without = null) {
   for (;;) {
@@ -2001,13 +2028,24 @@ export function nextSteps(P, st, bookkeeping = null, without = null) {
     }
     if (!any) break;
   }
+  const noImagine = !!without && (without.includes('imagine') || without.includes('imagineLong'));
+  let found;                                                       // undefined: not searched yet; null: nothing found
+  const imagined = () => { if (found === undefined) found = noImagine ? null : bestImagine(P, st); return found; };
   // cheapest first; the rules that assume a unique solution come in at their price, trial and error last
   for (const rule of HUMAN_ORDER) {
     if (without && without.includes(rule.id)) continue;         // (tests and tools: rate as if a rule did not exist)
+    if (rule.weight > IMAGINE_AFTER) { const f = imagined(); if (f && rule.weight > f.cost) return imagineStep(f); }
     const firings = rule.find(P, st, { upto: FIRST_LOOKAHEAD });
-    if (firings.length) return { rule: rule.id, tier: rule.tier, weight: rule.weight, firings };
+    if (firings.length) {
+      if (rule.weight > IMAGINE_AFTER) {
+        const f = imagined();
+        if (f && f.cost < rule.weight + (rule.extra ? rule.extra(P, st, firings[0]) : 0)) return imagineStep(f);
+      }
+      return { rule: rule.id, tier: rule.tier, weight: rule.weight, firings };
+    }
   }
-  return null;
+  const f = imagined();
+  return f ? imagineStep(f) : null;
 }
 
 /** The easiest deduction available in `st`, or null: { rule, tier, weight, sets, info }. */
