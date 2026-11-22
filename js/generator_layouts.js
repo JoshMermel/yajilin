@@ -3,6 +3,7 @@
 //   'symmetric'  the cells that are not on the loop (boxes, arrows) are the same after a half turn of the board, and so are the arrows
 //                (an arrow at i pointing d has a twin at N - 1 - i pointing the opposite way). The numbers come from the solution, which
 //                need not be symmetric itself. Boards with an even number of rows plus columns.
+//   'mirror', 'transpose', 'rot90', 'rot180'   exactly symmetric, numbers and loop too: js/generator_symmetry.js
 //   'frame'      every border cell is an arrow pointing inward or a void; the inside holds boxes and voids only, no arrows. So the clues
 //                are the row and column counts, seen from both ends, and the voids are the shape.
 //
@@ -11,6 +12,7 @@
 import { solvedByRules, RULES } from './rating.js';
 import { tightLoop, buildPuzzle, _internals } from './generator.js';
 import { UNKNOWN, LOOP } from './logic.js';
+import { generateSymmetric, SYMMETRY_MODES } from './generator_symmetry.js';
 
 const { gridNeighbours, undecidedScore, pickDirection, shuffle } = _internals;
 const BOX = -2, VOID = -1;
@@ -25,6 +27,7 @@ const BOX = -2, VOID = -1;
  *            a lattice (tools/generate.mjs --lines 2,4,7,11/3,6,9,12; one list for both axes, or rows/cols)
  */
 export function generateLayout(rows, cols, rng, { mode = 'symmetric', name = 'gen', budgetMs = 60000, edgeBias = 0.8, shadeShare = 0.6, upto, prune = true, verbose = false, maxIter = 4000, numbers = null, uniform = null, lattice = 0, lines = null } = {}) {
+  if (SYMMETRY_MODES.includes(mode)) return generateSymmetric(rows, cols, mode, rng, { name, budgetMs, edgeBias, shadeShare, upto, prune, verbose, maxIter, numbers });   // exact symmetry: js/generator_symmetry.js
   if (mode === 'frame' && (uniform !== null || lattice || lines)) return generateSparseFrame(rows, cols, rng, { name, budgetMs, shadeShare, upto, prune, verbose, maxIter, uniform, lattice, lines });
   const t0 = Date.now(), N = rows * cols;
   const say = (...a) => { if (verbose) console.error('  layout:', ...a); };

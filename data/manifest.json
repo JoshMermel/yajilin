@@ -78,6 +78,10 @@
         },
         "Frame": {
           "icon": "🖼️"
+        },
+        "Exact symmetry": {
+          "icon": "🪞",
+          "blurb": "The whole puzzle is its own image: every clue has twins, pointing the matching way and saying the same number. Left to right, across the diagonal, or turned a quarter."
         }
       }
     }
@@ -436,6 +440,16 @@
       "group": "Bonus",
       "sub": "Symmetric",
       "blurb": "12×12 boards. Beginner to Hard."
+    },
+    {
+      "id": "bonus-symmetry-mix",
+      "name": "Bonus: symmetry mix",
+      "file": "data/bonus-symmetry-mix.csv",
+      "count": 120,
+      "label": "Symmetry mix",
+      "group": "Bonus",
+      "sub": "Exact symmetry",
+      "blurb": "Mirror, diagonal-mirror and quarter-turn puzzles, 8×8 and 12×12, mixed. Beginner to Hard."
     },
     {
       "id": "bonus-skinny",
