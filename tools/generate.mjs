@@ -2,7 +2,7 @@
 //
 //   node tools/generate.mjs --size 12x12 [--count 3] [--seed 1] [--budget 300] [--out tools/library/y_12x12_s1.csv]
 //   node tools/generate.mjs --size 8x8 --diagonal 1 [--dirs EC]   (diagonal arrows: --diagonal is their share, 0..1; --dirs takes letters URDL and ECZQ = up-right, down-right, down-left, up-left)
-//   node tools/generate.mjs --layout symmetric --size 12x12 [--numbers big|nozeros|twos]   (experiment: arrows and boxes the same after a half turn; --layout frame: arrows round the border only)
+//   node tools/generate.mjs --layout symmetric --size 12x12 [--numbers big|nozeros|twos]   (experiment: arrows and boxes the same after a half turn; --layout frame: arrows round the border only; with --lattice k, --uniform n or --lines rows/cols (inside line numbers))
 //   node tools/generate.mjs --voids-only --size 8x8   (experiment: only void cells, no numbers or arrows)
 //   node tools/generate.mjs --sparse --size 6x6 [--max-clues 4] [--best-of 5] [--from-rules] [--polish-ms 30]   (experiment: as few clues as the exhaustive solver allows; difficulty is not controlled)
 //   node tools/generate.mjs --regional --size 8x8 [--avg-size 5] [--density 0.2] ...   (experiment: regional puzzles, see js/generator.js)
@@ -42,6 +42,11 @@ const regional = process.argv.includes('--regional');             // regional pu
 const avgSize = +arg('avg-size', 5);                              // regional: average region size
 const spread = +arg('spread', 0), minNumbered = +arg('min-numbered', 0);   // regional: log-normal spread of the region sizes; keep at least this share of the regions numbered
 const maxSize = +arg('max-size', 9), shape = arg('shape', 'blob');   // regional: biggest region; 'blob' | 'rows' | 'cols' (bars along rows / columns)
+const linesArg = (() => {                                           // --lines 2,4,7,11/3,6,9,12 (frame): inside rows / inside columns that carry arrows; one list = both
+  const v = arg('lines', ''); if (!v) return null;
+  const [a, b] = v.split('/'), list = (t) => t.split(',').filter(Boolean).map(Number);
+  return { rows: list(a), cols: list(b ?? a) };
+})();
 const out = arg('out', `${root}tools/library/${regional ? 'reg' : 'y'}_${cols}x${rows}_s${seed}.csv`);
 fs.mkdirSync(new URL('../tools/library/', import.meta.url).pathname, { recursive: true });
 if (!fs.existsSync(out)) fs.writeFileSync(out, (regional ? CSV_HEADER_REGIONAL : CSV_HEADER) + '\n');
@@ -54,7 +59,7 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
   const firstLookahead = RULES.findIndex((r) => r.lookahead);
   const upto = without ? RULES.slice(0, firstLookahead).map((r) => r.id).filter((id) => !without.includes(id)) : maxTier ? RULES.findIndex((r) => r.tier === { medium: 'Hard', beginner: 'Medium' }[maxTier.toLowerCase()]) : undefined;
   const r = layout
-    ? generateLayout(rows, cols, rng, { mode: layout, name, upto, budgetMs: budget * 1000, edgeBias: edgeBias ?? 0.8, numbers, uniform: arg('uniform', '') === '' ? null : +arg('uniform'), shadeShare: process.argv.includes('--shade') ? shadeShare : 0.6, prune: arg('prune', '1') !== '0', maxIter: 8000 })
+    ? generateLayout(rows, cols, rng, { mode: layout, name, upto, budgetMs: budget * 1000, edgeBias: edgeBias ?? 0.8, numbers, uniform: arg('uniform', '') === '' ? null : (arg('uniform') === 'auto' ? 'auto' : +arg('uniform')), lattice: +arg('lattice', 0), lines: linesArg, shadeShare: process.argv.includes('--shade') ? shadeShare : 0.6, prune: arg('prune', '1') !== '0', maxIter: 8000 })
     : sparse
     ? generateSparse(rows, cols, rng, { name, maxClues: +arg('max-clues', Infinity), bestOf: +arg('best-of', 1), startDensity: +arg('start-density', 0.2), shortlist: +arg('shortlist', 8), maxNodes: +arg('max-nodes', 300000), probeCap: +arg('probe-cap', 40), polish: arg('polish', '1') !== '0', polishMs: +arg('polish-ms', 30) * 1000, polishWithin: +arg('polish-within', 2), fromRules: process.argv.includes('--from-rules'), rulesFirst: arg('rules-first', '') === '' ? null : arg('rules-first') === '1', directions: directions || undefined, upto, budgetMs: budget * 1000 })
     : voidsOnly
