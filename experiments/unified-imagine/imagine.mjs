@@ -1,7 +1,7 @@
 // Prototype of the unified "imagine X" family: a hypothesis (box or dot in a cell) is followed with the easy rules until a contradiction,
 // and the chain is pruned to the facts the contradiction really depends on (by ablation), so the length is the same for both polarities.
 import { RULES, applySets, contradiction as fullContradiction } from '../../js/rating.js';
-import { cloneState, SHADED, LOOP, UNKNOWN, CLUE, E_ON, E_OFF } from '../../js/logic.js';
+import { cloneState, SHADED, LOOP, UNKNOWN, CLUE, E_ON, E_OFF, E_UNKNOWN } from '../../js/logic.js';
 
 const onCount = (P, st, i) => { let n = 0; for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && st.e[x] === E_ON) n++; } return n; };
 const exits = (P, st, i) => {
@@ -41,9 +41,11 @@ const clueBad = (P, st, k) => {
   return s > P.clues[k].n || s + u < P.clues[k].n;
 };
 /** the loop closed early: some segments form a cycle while a loop cell lies off it */
+let scratchParent = new Int16Array(0);
 const earlyClose = (P, st) => {
   const { N } = P;
-  const parent = new Int16Array(N); for (let i = 0; i < N; i++) parent[i] = i;
+  if (scratchParent.length < N) scratchParent = new Int16Array(N);
+  const parent = scratchParent; for (let i = 0; i < N; i++) parent[i] = i;
   const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
   let cyc = -1;
   for (let x = 0; x < P.numEdges; x++) {
@@ -103,12 +105,12 @@ export const STATS = { runs: 0, iters: 0, ruleCalls: 0 };
  *  resume: such a snapshot (from a run with the same hypothesis whose forbid set differs only by facts first derivable at that generation). */
 export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContradiction, record = false, resume = null) {
   STATS.runs++;
-  let s2, facts, steps, g0, snaps = null, pend, gate;
+  let s2, facts, steps, g0, snaps = null, pend, gate, cx;
   const incr = contr === easyContradiction;   // the incremental check needs a state that had no easy contradiction before `pend` was applied
-  if (resume) { s2 = cloneState(resume.state); facts = resume.facts.slice(0, resume.nf); steps = resume.steps; g0 = resume.g; pend = resume.pend; gate = resume.gate.slice(); if (record) snaps = resume.snaps.slice(0, g0); }
-  else { s2 = cloneState(st); applySets(s2, hyp); facts = []; steps = 0; g0 = 0; pend = hyp; gate = new Array(RUN_RULES.length).fill(kindsOf(hyp)); if (record) snaps = []; }
+  if (resume) { s2 = cloneState(resume.state); facts = resume.facts.slice(0, resume.nf); steps = resume.steps; g0 = resume.g; pend = resume.pend; gate = resume.gate.slice(); cx = resume.cx.clone(); if (record) snaps = resume.snaps.slice(0, g0); }
+  else { s2 = cloneState(st); applySets(s2, hyp); facts = []; steps = 0; g0 = 0; pend = hyp; gate = new Array(RUN_RULES.length).fill(kindsOf(hyp)); cx = new Ctx(P); cx.add(hyp); if (record) snaps = []; }
   for (let g = g0; g < 400; g++) {
-    if (record) snaps[g] = { state: cloneState(s2), facts, nf: facts.length, steps, g, snaps, pend, gate: gate.slice() };
+    if (record) snaps[g] = { state: cloneState(s2), facts, nf: facts.length, steps, g, snaps, pend, gate: gate.slice(), cx: cx.clone() };
     STATS.iters++;
     if (incr ? easyContradictionAfter(P, s2, pend) : contr(P, s2)) return { ok: true, facts, steps, snaps };
     let fired = false;
@@ -116,7 +118,8 @@ export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContra
       const r = RUN_RULES[ri];
       if (!(gate[ri] & RUN_DEP[ri]) && !CHECK_GATE) continue;
       STATS.ruleCalls++;
-      const fs = r.find(P, s2, {});
+      const fs = LOCAL[r.id](P, s2, cx);
+      if (CHECK_LOCAL && JSON.stringify(fs.flatMap((f) => f.sets)) !== JSON.stringify(r.find(P, s2, {}).flatMap((f) => f.sets))) throw new Error('local rule differs (order): ' + r.id);
       const arrOf = (k) => (k === 'c' ? s2.cell : s2.e);
       const sets = [];
       for (const f of fs) for (const t of f.sets) {
@@ -128,6 +131,7 @@ export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContra
       if (!sets.length) { gate[ri] = 0; continue; }
       const ok = applySets(s2, sets);
       pend = sets;
+      cx.add(sets);
       { const m = kindsOf(sets); for (let q = 0; q < gate.length; q++) gate[q] |= m; }
       if (!r.free) { steps++; for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id, step: steps, g }); }
       if (!ok) return { ok: true, facts, steps, snaps };
@@ -138,6 +142,129 @@ export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContra
   }
   return { ok: false, facts, steps, snaps };
 }
+
+// ---- the rules asked only where the facts added since the scan began can have made them fire (the position was at a fixed point of them before).
+// They return the same sets as the full-board rule (as a multiset: the scan only counts them), but cost the size of the change, not of the board.
+const adjacentCells = (P, i, j) => (Math.abs(i - j) === 1 && ((i / P.cols) | 0) === ((j / P.cols) | 0)) || Math.abs(i - j) === P.cols;
+const touchesShadedAt = (P, st, i) => { for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && st.cell[j] === SHADED) return true; } return false; };
+const cSet = (i, v) => ['c', i, v], eSet = (x, v) => ['e', x, v];
+/** What the facts added so far touch (grown incrementally with add; the lists come out in ascending order, which is the order the full-board rules find things in):
+ *  the changed cells, the shaded ones, the segments turned on and their end cells, the cells whose exits can have changed (changed cells, segment ends and
+ *  all their neighbours), the clues counting a changed cell, and those that can see a box beside an open cell. */
+class Ctx {
+  constructor(P) { this.P = P; this.s = { cells: new Set(), shaded: new Set(), onEdges: new Set(), onEnds: new Set(), region: new Set(), clues: new Set(), nearClues: new Set() }; this.ver = 0; this.cache = {}; }
+  clone() { const c = new Ctx(this.P); for (const k in this.s) c.s[k] = new Set(this.s[k]); c.ver = this.ver; return c; }
+  add(sets) {
+    const { P, s } = this;
+    const touch = (c) => { s.region.add(c); for (let d = 0; d < 4; d++) { const j = P.nb[c * 4 + d]; if (j >= 0) s.region.add(j); } };
+    for (const [kind, idx, v] of sets) {
+      if (kind === 'c') {
+        s.cells.add(idx); touch(idx);
+        for (const k of P.cluesOf[idx]) { s.clues.add(k); s.nearClues.add(k); }
+        if (v === SHADED) { s.shaded.add(idx); for (let d = 0; d < 4; d++) { const j = P.nb[idx * 4 + d]; if (j >= 0) for (const k of P.cluesOf[j]) s.nearClues.add(k); } }
+      } else {
+        const a = idx >> 1, b = (idx & 1) ? a + P.cols : a + 1;
+        touch(a); touch(b);
+        if (v === E_ON) { s.onEdges.add(idx); s.onEnds.add(a); s.onEnds.add(b); }
+      }
+    }
+    this.ver++;
+  }
+  get(name) { if (this.unordered) return this.s[name]; const c = this.cache[name]; if (c && c.ver === this.ver) return c.v; const v = [...this.s[name]].sort((x, y) => x - y); this.cache[name] = { ver: this.ver, v }; return v; }
+}
+const LOCAL = {
+  edgesOffShaded(P, st, cx) {
+    const sets = [];
+    for (const i of cx.get('shaded')) for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && st.e[x] === E_UNKNOWN) sets.push(eSet(x, E_OFF)); }
+    return sets.length ? [{ sets }] : [];
+  },
+  edgeEnds(P, st, cx) {
+    const sets = [];
+    for (const x of cx.get('onEdges')) { const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1; if (st.cell[a] === UNKNOWN) sets.push(cSet(a, LOOP)); if (st.cell[b] === UNKNOWN) sets.push(cSet(b, LOOP)); }
+    return sets.length ? [{ sets }] : [];
+  },
+  fullCells(P, st, cx) {
+    const sets = [];
+    for (const i of cx.get('onEnds')) {
+      if (st.cell[i] === CLUE || st.cell[i] === SHADED || onCount(P, st, i) !== 2) continue;
+      for (let d = 0; d < 4; d++) { const y = P.ed[i * 4 + d]; if (y >= 0 && st.e[y] === E_UNKNOWN) sets.push(eSet(y, E_OFF)); }
+    }
+    return sets.length ? [{ sets }] : [];
+  },
+  shadedNeighbor(P, st, cx) {
+    const out = [];
+    for (const i of cx.get('shaded')) {
+      const sets = [];
+      for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && st.cell[j] === UNKNOWN) sets.push(cSet(j, LOOP)); }
+      if (sets.length) out.push({ sets });
+    }
+    return out;
+  },
+  clueDone(P, st, cx) {
+    const out = [];
+    for (const k of cx.get('clues')) {
+      const cl = P.clues[k]; if (cl.n < 0) continue;
+      let s = 0; const unk = [];
+      for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) unk.push(i); }
+      if (s === cl.n && unk.length) out.push({ sets: unk.map((i) => cSet(i, LOOP)) });
+    }
+    return out;
+  },
+  clueFull(P, st, cx) {
+    const out = [];
+    for (const k of cx.get('clues')) {
+      const cl = P.clues[k]; if (cl.n < 0) continue;
+      let s = 0; const unk = [];
+      for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) unk.push(i); }
+      if (unk.length && cl.n - s === unk.length) out.push({ sets: unk.map((i) => cSet(i, SHADED)) });
+    }
+    return out;
+  },
+  clueTight(P, st, cx) {
+    const out = [];
+    for (const k of cx.get('nearClues')) {          // (a box next to an open cell takes it out of the runs, so the clues of cells beside a new box count too)
+      const cl = P.clues[k];
+      if (cl.n < 2 || cl.region) continue;
+      let boxes = 0, run = [];
+      const runs = [];
+      for (const i of P.rays[k]) {
+        if (st.cell[i] === SHADED) boxes++;
+        if (st.cell[i] === UNKNOWN && !touchesShadedAt(P, st, i)) {
+          if (run.length && !adjacentCells(P, run[run.length - 1], i)) { runs.push(run); run = []; }
+          run.push(i);
+        } else { if (run.length) runs.push(run); run = []; }
+      }
+      if (run.length) runs.push(run);
+      const need = cl.n - boxes;
+      if (need < 2 || !runs.length || runs.some((r) => r.length % 2 === 0)) continue;
+      if (runs.reduce((a, r) => a + (r.length + 1) / 2, 0) !== need) continue;
+      out.push({ sets: runs.flatMap((r) => r.map((i, q) => (q % 2 === 0 ? cSet(i, SHADED) : cSet(i, LOOP)))) });
+    }
+    return out;
+  },
+  deadEnd(P, st, cx) {
+    const out = [];
+    for (const i of cx.get('region')) if (st.cell[i] === UNKNOWN && exits(P, st, i) < 2) out.push({ sets: [cSet(i, SHADED)] });
+    return out;
+  },
+  forcedExits(P, st, cx) {
+    const out = [];
+    for (const i of cx.get('region')) {
+      if (st.cell[i] !== LOOP || exits(P, st, i) !== 2) continue;
+      const sets = [];
+      for (let d = 0; d < 4; d++) {
+        const x = P.ed[i * 4 + d];
+        if (x < 0 || st.e[x] !== E_UNKNOWN || st.cell[P.nb[i * 4 + d]] === SHADED) continue;
+        if (onCount(P, st, P.nb[i * 4 + d]) >= 2) continue;
+        sets.push(eSet(x, E_ON));
+      }
+      if (sets.length) out.push({ sets });
+    }
+    return out;
+  },
+};
+const CHECK_LOCAL = !!process.env.CHECK_LOCAL;   // debugging: also run the full-board rule and compare what it finds
+const flat = (fs) => JSON.stringify(fs.flatMap((f) => f.sets).map((t) => t.join(':')).sort());
 
 /** The scan run for one hypothesis, both ways at once: the same propagation as run(...easyContradiction) up to maxRaw facts, and, should the easy
  *  contradictions never come, the first state within `areaFacts` facts where the full check (cut-off areas, odd open ends) holds.
@@ -188,6 +315,7 @@ export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12, deferArea = false)
     return facts.length <= areaFacts || crossed ? (fullContradiction(P, l) ? scanSlow(P, st, hyp, maxRaw, areaFacts) : null) : null;
   };   // (the full check only ever gets truer as facts are added)
   const gate = new Array(RUN_RULES.length).fill(kindsOf(hyp));   // the position was at a fixed point of these rules before the hypothesis
+  const cx = new Ctx(P); cx.unordered = true; cx.add(hyp);   // everything added so far (the scan only counts what the rules find, so their order does not matter)
   let pend = hyp;   // what changed since the last check: the state before it had no easy contradiction (the position is one the rules left consistent)
   for (let g = 0; g < 400; g++) {
     STATS.iters++;
@@ -199,7 +327,8 @@ export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12, deferArea = false)
       const r = RUN_RULES[ri];
       if (!(gate[ri] & RUN_DEP[ri]) && !CHECK_GATE) continue;
       STATS.ruleCalls++;
-      const fs = r.find(P, s2, {});
+      const fs = LOCAL[r.id](P, s2, cx);
+      if (CHECK_LOCAL && flat(fs) !== flat(r.find(P, s2, {}))) throw new Error('local rule differs: ' + r.id);
       const arrOf = (k) => (k === 'c' ? s2.cell : s2.e);
       const sets = [];
       for (const f of fs) for (const t of f.sets) {
@@ -211,6 +340,7 @@ export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12, deferArea = false)
       if (!r.free && !crossed && facts.length <= areaFacts && facts.length + sets.length > areaFacts) { crossed = true; last = cloneState(s2); }
       const ok = applySets(s2, sets);
       pend = sets;
+      cx.add(sets);
       { const m = kindsOf(sets); for (let q = 0; q < gate.length; q++) gate[q] |= m; }
       if (!r.free) for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id });
       if (!ok) return { ok: true, area: false, facts };

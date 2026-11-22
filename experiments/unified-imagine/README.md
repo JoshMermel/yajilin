@@ -55,3 +55,9 @@ Round 4: 8. rules are asked again only when a fact of a kind they read has been 
 Facts only go from unknown to known, so e.g. "a segment touching a box that is not off yet" can only appear with a new box. Rule calls halved (675k to 362k on the 20x36 above).
 `CHECK_GATE=1` also asks the skipped rules and fails if one would have found something (no failure on the check set or on a 20x36); results identical on the check set.
 Timed with the machine quiet (load about 2): 12-puzzle small sample 0.37 s old, 1.08 s unified (2.9x); the 14 big boards 7.6 s old, 25 s unified (3.3x), worst 8.2 s against 2.1 s (a Hard 20x36).
+
+Round 5: 9. the traced rules are asked only where the facts added since the hypothesis can have made them fire (`LOCAL` and `Ctx` in imagine.mjs: the changed cells, ends of changed
+segments and their neighbours, the clues counting them), instead of scanning the whole board. They return exactly what the full-board rule returns (same sets; in the ablation runs
+also in the same order, so the pruning is unchanged). `CHECK_LOCAL=1` runs the full-board rule as well and fails on any difference (none on the check set or on a 20x36).
+Also: no sorting in the scan, a reused union-find buffer. Results identical on the check set.
+Timing (machine busy, load 8 to 10, ratios are what matter): the 14 big boards 10.4 s old, 10.7 s unified (1.0x; worst 20x36: 3.1 s old, 2.2 s unified); the 12-puzzle small sample 0.53 s old, 0.92 s (1.7x).
