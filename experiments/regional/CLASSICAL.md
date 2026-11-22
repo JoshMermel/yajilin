@@ -1,5 +1,7 @@
 # Classical regional puzzles: what real ones look like, and the `classical` recipe
 
+> The corpus recipes mentioned here (`tools/make_regional_corpus.sh`) were deleted on 2026-11-22 with the corpus; the generator options still exist. The Regional books are now layout-first (`LAYOUTS.md`).
+
 Looked at two published 10x10 and 12x12 Regional Yajilin puzzles by Murat Can Tonta (Grandmaster Puzzles, 2018-04-21 and 2019-06-13), reading the
 puzzle images by eye. Two samples, so treat these as impressions, not statistics.
 

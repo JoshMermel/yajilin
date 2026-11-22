@@ -39,6 +39,10 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
   the one at the other. The logic-masters.de example Josh remembers had mostly voids and all clues 6 on a big board; a local search for "every arrow says N" found nothing
   (0 of 6 at 10×10 to 14×14), so try building the box pattern first (N per line) or a mostly-void frame. Also wanted: at-least / at-most arrows, two-way and four-way
   arrows, number-only clues, regional plus arrows (order agreed 2026-11-21).
+- [ ] **6×10 pentomino book** (Josh, 2026-11-22: the 12×5 Pentominoes book is a hit). The twelve pentominoes also tile a 6×10 board (about
+  2,300 tilings, so plenty of layouts): `KINDS=pentominoes SIZES=10x6 START=101 SEEDS=110 COUNT=4 TIME=120 sh tools/make_regional_layout_pools.sh`
+  (`polyominoLayout` with `distinct` already handles any 60-cell board), then add `10x6` to the pentominoes sizes in `tools/build_regional_books.mjs`.
+  Check the tiling search speed at 6×10 (12×5 takes under a second to a few seconds) and the Medium share (12×5: 93 of 100).
 - [ ] **16×16 symmetry books** (planned for the night of 2026-11-22; `nohup sh tools/run_symmetry_16x16.sh > /dev/null 2>&1 &` starts the wait for 22:00): a 16×16 Symmetry mix (exact: mirror, diagonal mirror, quarter turn, half turn; 60) and a 16×16 Symmetric layout book (clue cells symmetric: half turn, quarter turn, mirror, diagonal mirror; 120), pools in `tools/library/xsym_*` and `lsym_*`, log `tools/library/symmetry16.log`. Check the tier spread (everything at 16×16 tends to be Hard), the audit and the tests, then ask before committing.
 - [x] **16×16 bonus books** (done 2026-11-22): the long way round, one direction, all zeros, no zeros; 250 each, built overnight by `tools/run_bonus_16x16.sh`
   (Medium/Hard about half and half; all zeros 43/136/71). The Bonus picker is grouped by gimmick again. Not tried: 20×20 (expect several times the 16×16 cost).
@@ -237,12 +241,14 @@ an incremental `followLines`. Also built: the "Voids" bonus book (36 puzzles; `t
 Survey of Yajilin variants is in the conversation of 2026-11-16 (puzzles.wiki, the WPC wiki, Cross+A, GM Puzzles' Yajilin archive).
 Josh is excited by these four; **Regional** is in progress on the branch `experiment/regional` (see its notes below).
 
-- **Regional** (experiment branch): done so far: format (`regions` column, `r:c:G:n`), compile, solver, rules (`regionDeduce`, the placement
-  rules work on regions), generator (`generateRegional`), board/print/hint text, rotation, the test corpus (`experiments/regional/CORPUS.md`). Next: tune the difficulty
-  ladder (all-Hard at 10x10+ because regions of 5 need `shadeForcesLines`), bigger boards (12x12 takes 20-40 s; `tightLoop` with
-  `independent: true` stalls, random loops + `loopIsUnique` is what works), region-specific rules a person would use (two regions that
-  differ by one cell; a region that must hold a box in each of two disjoint groups), unnumbered regions that are only visible as
-  borders (how many should a puzzle keep?), pre-placed boxes, symmetric region layouts, a Beginner tour.
+- **Regional**: done so far: format (`regions` column, `r:c:G:n`), compile, solver, rules (`regionDeduce`, the placement
+  rules work on regions), generator (`generateRegional`, regions grown at random), board/print/hint text, rotation. **Layout-first books
+  (2026-11-22)**: the Regional group in the picker (Pentominoes 12x5, Dominoes, Rooms, Symmetric; `tools/build_regional_books.mjs`), made by
+  drawing the layout first and letting OR-tools find the solution (`experiments/regional/LAYOUTS.md`). The old 54-puzzle test corpus of grown
+  regions was deleted the same day. Next: a Beginner pass (`--tier Beginner` on dominoes or pentominoes: no Regional book has Beginner
+  puzzles), tetrominoes (built but only about half Medium), 6x10 pentominoes, 12x12, a lower box density closer to a setter's 16%,
+  region-specific rules a person would use (two regions that differ by one cell; a region that must hold a box in each of two disjoint
+  groups), pre-placed boxes.
 - **Diagonal arrows** (experiment branch `experiment/diagonal`: format `E C Z Q`, rays, pair rules, generator `--diagonal`, board/print/hints, rotation, a 40-puzzle corpus in `experiments/diagonal/CORPUS.md` are done; next: play the corpus, find diagonal-specific techniques, a `bignum` recipe that works, the notes below on a faster `rangeDeduce`): arrows along diagonals. A ray is a diagonal line; boxes on a diagonal may touch at corners (allowed). `compile`
   rays, `posAlong`/`sameLine` and the pair rules (`rangeSame`, `rangeFacing`) need diagonal versions (the DP in `rangeDeduce` already
   works on any ordered list of cells where only consecutive cells can touch: along a diagonal NO two cells touch, so the DP becomes

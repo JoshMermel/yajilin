@@ -108,12 +108,14 @@ import { boardSvg } from '../js/print.js';
 import { explainStep } from '../js/explain.js';
 import { nextSteps } from '../js/rating.js';
 
-const book = () => parseCsv(fs.readFileSync(new URL('../data/regional-corpus.csv', import.meta.url), 'utf8')).map((p) => compile(p));
+// the Regional books (tools/build_regional_books.mjs): `per` puzzles from the start of each, so the tests stay quick as the books grow
+const manifest = JSON.parse(fs.readFileSync(new URL('../data/manifest.json', import.meta.url), 'utf8'));
+const regionalBooks = manifest.books.filter((b) => b.group === 'Regional');
+const book = (per = Infinity) => regionalBooks.flatMap((b) => parseCsv(fs.readFileSync(new URL(`../${b.file}`, import.meta.url), 'utf8')).slice(0, per).map((p) => compile(p)));
 
 test('a quarter turn keeps a regional puzzle the same puzzle: regions turn with the board, and the rotated board is solved by the same rules', () => {
-  // a fixed sample (not every sixth puzzle, which moves when the book is re-sorted: some 8x8 ones take minutes to solve exhaustively)
-  const sample = ['beginner-6x6-1', 'beginner-8x8-1', 'medium-6x6-1', 'medium-10x10-2', 'rows-8x8-1', 'classical-8x8-1', 'stuck-6x6-2', 'stuck-10x10-1', 'rows-10x10-1'];
-  for (const P of book().filter((p) => sample.includes(p.name))) {
+  assert.ok(regionalBooks.length >= 4, 'the Regional books are in the manifest');
+  for (const P of book(1)) {                                              // the first puzzle of each book (12x5 pentominoes too: not square)
     const R = rotated(P, 'h');
     assert.ok(R.regional && R.rows === P.cols && R.cols === P.rows);
     assert.equal(R.regionCells.length, P.regionCells.length);
@@ -135,13 +137,17 @@ test('a region clue shows green when its boxes are all there, red when there are
 });
 
 test('hints and printing know regions', () => {
-  const P = book().find((q) => q.name === 'medium-6x6-2');                 // by name: the book's order is by tier and score, and changes when it is rebuilt
-  const st = initialState(P);
-  const step = nextSteps(P, st);
-  assert.ok(step);
-  const text = step.firings.map((f) => explainStep(P, { rule: step.rule, tier: step.tier, weight: step.weight, sets: f.sets, info: f.info }, st).text).join(' ');
-  assert.match(text, /region/);
-  assert.ok(!/undefined|NaN/.test(text));
+  // the first hint of the first few puzzles of each book: never broken text, and at least one of them talks about a region
+  let P = null;
+  for (const Q of book(3)) {
+    const st = initialState(Q);
+    const step = nextSteps(Q, st);
+    assert.ok(step, `${Q.name}: a first step`);
+    const text = step.firings.map((f) => explainStep(Q, { rule: step.rule, tier: step.tier, weight: step.weight, sets: f.sets, info: f.info }, st).text).join(' ');
+    assert.ok(!/undefined|NaN/.test(text), `${Q.name}: ${text}`);
+    if (!P && /region/.test(text)) P = Q;
+  }
+  assert.ok(P, 'some first hint mentions a region');
   const svg = boardSvg(P, decodeSolution(P, P.solution));
   assert.match(svg, /class="region-line"/);
   assert.equal((svg.match(/class="num"/g) || []).length, P.clues.length, 'one number per numbered region');
@@ -153,7 +159,7 @@ import { colorBalanceFirings, regionPairs } from '../js/rating.js';
 test('the regional rules (regionDeduce, colour balance, region pairs) never contradict the solution, on random partly filled boards', () => {
   const rng = makeRng(11);
   let fired = 0;
-  for (const P of book()) {
+  for (const P of book(6)) {
     const sol = decodeSolution(P, P.solution);
     for (let t = 0; t < 40; t++) {
       const st = initialState(P);
@@ -200,7 +206,8 @@ test('mergeBlankRegions joins neighbouring regions that have no number and leave
   assert.equal(m.idOf(2), 0);
 });
 
-test('no two neighbouring regions are both without a number in the corpus, or in a generated puzzle', () => {
+test('no two neighbouring regions are both without a number in a generated puzzle', () => {
+  // (only the grown-region generator merges them: the layout-first Regional books keep every border, since the layout is the design)
   const clean = (p) => {
     const numbered = new Set(p.clues.map((c) => p.regions[c.r * p.cols + c.c]));
     for (let r = 0; r < p.rows; r++) for (let c = 0; c < p.cols; c++) {
@@ -212,8 +219,6 @@ test('no two neighbouring regions are both without a number in the corpus, or in
     }
     return new Set(p.regions).size === Math.max(...p.regions) + 1;           // and the ids have no gaps
   };
-  const corpus = parseCsv(fs.readFileSync(new URL('../data/regional-corpus.csv', import.meta.url), 'utf8'));
-  for (const p of corpus) assert.ok(clean(p), `${p.name} has two neighbouring regions without a number`);
   const made = generateRegional(6, 6, makeRng(5), { name: 'm', density: 0.2, avgSize: 4, maxSize: 9, spread: 0.6, minNumbered: 0.4, budgetMs: 60000 });
   assert.ok(made, 'a puzzle was generated');
   assert.ok(clean(made.puzzle), 'the generated puzzle has no two neighbouring regions without a number');

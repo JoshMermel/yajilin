@@ -20,7 +20,7 @@ for (const b of manifest.books.filter((b) => !b.hidden && !b.keepOrder)) {      
   console.log(`${b.id}: ${check ? 'out of order' : 'sorted'} (${sorted.filter((p, i) => p !== ps[i]).length} of ${ps.length} puzzles move)`);
   if (check) continue;
   const m = /^(.*-)(\d+)( \(.*\))?$/.exec(sorted[0].name);
-  if (m && b.id !== 'regional-corpus') {
+  if (m) {
     const width = m[2].length;
     sorted.forEach((p, i) => { const q = /^(.*-)(\d+)( \(.*\))?$/.exec(p.name); p.name = `${q[1]}${String(i + 1).padStart(width, '0')}${q[3] || ''}`; });
   }

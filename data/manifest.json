@@ -53,6 +53,18 @@
         "Pentominoes": {
           "icon": "🧩",
           "blurb": "The board is cut into the twelve pentominoes, one of each."
+        },
+        "Dominoes": {
+          "icon": "🎲",
+          "blurb": "Every region is a domino, so every number is 0 or 1."
+        },
+        "Rooms": {
+          "icon": "🏠",
+          "blurb": "Every region is a rectangle."
+        },
+        "Symmetric": {
+          "icon": "🔄",
+          "blurb": "Turn the board half a way round and every region lands on another one."
         }
       }
     },
@@ -80,9 +92,6 @@
         "Skyscraper": {
           "icon": "🏙️",
           "blurb": "Tall, narrow boards, up to 36 cells high. One book per width."
-        },
-        "Regional": {
-          "icon": "🗺️"
         },
         "Frame": {
           "icon": "🖼️"
@@ -314,16 +323,6 @@
       "blurb": "Arrows point along rows, columns and diagonals, and there are few of them: 9 to 13 on a 12×12 board (one cell in 13 on average). Beginner to Hard."
     },
     {
-      "id": "regional-pentominoes-12x5",
-      "name": "Regional: pentominoes 12×5",
-      "file": "data/regional-pentominoes-12x5.csv",
-      "count": 100,
-      "label": "Pentominoes 12×5",
-      "group": "Regional",
-      "sub": "Pentominoes",
-      "blurb": "12×5 boards. Medium to Hard."
-    },
-    {
       "id": "bonus-longway-8x8",
       "name": "Bonus: the long way round 8×8",
       "file": "data/bonus-longway-8x8.csv",
@@ -514,14 +513,74 @@
       "sub": "Skyscraper"
     },
     {
-      "id": "regional-corpus",
-      "name": "Experiment: regional corpus",
-      "file": "data/regional-corpus.csv",
-      "count": 54,
-      "label": "Regional corpus (experiment)",
-      "group": "Bonus",
-      "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques.",
-      "sub": "Regional"
+      "id": "regional-pentominoes-12x5",
+      "name": "Regional: pentominoes 12×5",
+      "file": "data/regional-pentominoes-12x5.csv",
+      "count": 100,
+      "label": "Pentominoes 12×5",
+      "group": "Regional",
+      "sub": "Pentominoes",
+      "blurb": "12×5 boards. Medium to Hard."
+    },
+    {
+      "id": "regional-dominoes-8x8",
+      "name": "Regional: dominoes 8×8",
+      "file": "data/regional-dominoes-8x8.csv",
+      "count": 53,
+      "label": "Dominoes 8×8",
+      "group": "Regional",
+      "sub": "Dominoes",
+      "blurb": "8×8 boards. All Medium."
+    },
+    {
+      "id": "regional-dominoes-10x10",
+      "name": "Regional: dominoes 10×10",
+      "file": "data/regional-dominoes-10x10.csv",
+      "count": 61,
+      "label": "Dominoes 10×10",
+      "group": "Regional",
+      "sub": "Dominoes",
+      "blurb": "10×10 boards. Medium to Hard."
+    },
+    {
+      "id": "regional-rooms-8x8",
+      "name": "Regional: rooms 8×8",
+      "file": "data/regional-rooms-8x8.csv",
+      "count": 63,
+      "label": "Rooms 8×8",
+      "group": "Regional",
+      "sub": "Rooms",
+      "blurb": "8×8 boards. Medium to Hard."
+    },
+    {
+      "id": "regional-rooms-10x10",
+      "name": "Regional: rooms 10×10",
+      "file": "data/regional-rooms-10x10.csv",
+      "count": 58,
+      "label": "Rooms 10×10",
+      "group": "Regional",
+      "sub": "Rooms",
+      "blurb": "10×10 boards. Medium to Hard."
+    },
+    {
+      "id": "regional-symmetric-8x8",
+      "name": "Regional: symmetric 8×8",
+      "file": "data/regional-symmetric-8x8.csv",
+      "count": 53,
+      "label": "Symmetric 8×8",
+      "group": "Regional",
+      "sub": "Symmetric",
+      "blurb": "8×8 boards. Medium to Hard."
+    },
+    {
+      "id": "regional-symmetric-10x10",
+      "name": "Regional: symmetric 10×10",
+      "file": "data/regional-symmetric-10x10.csv",
+      "count": 65,
+      "label": "Symmetric 10×10",
+      "group": "Regional",
+      "sub": "Symmetric",
+      "blurb": "10×10 boards. Medium to Hard."
     },
     {
       "id": "frame-experiment",

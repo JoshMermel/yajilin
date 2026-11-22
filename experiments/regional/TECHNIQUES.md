@@ -1,5 +1,7 @@
 # Solving regional Yajilin: research and what the solver can learn (2026-11-16)
 
+> The test corpus these notes measured on (`data/regional-corpus.csv`) was deleted on 2026-11-22; the Regional books are now layout-first (`LAYOUTS.md`).
+
 ## What the web has
 
 Nothing regional-specific. Every page I could find for Regional Yajilin gives the rules and nothing else: Para's Puzzle Site (2012),
