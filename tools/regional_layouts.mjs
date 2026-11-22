@@ -1,7 +1,7 @@
 // Region layouts drawn BEFORE the solution (layout-first regional puzzles, an experiment). Each maker returns owner: Int16Array, the
 // region id of every cell, ids 0..k-1. tools/cpsat_regional.py then looks for boxes and a loop that make the layout a unique puzzle.
 //
-//   node tools/regional_layouts.mjs --kind rooms|symmetric|dominoes|tetrominoes|pentominoes --size 8x8 --seed 1 [--min 2 --max 9 --avg 6] --out layout.json
+//   node tools/regional_layouts.mjs --kind rooms|symmetric|dominoes|tetrominoes|pentominoes|jigsaw --size 8x8 --seed 1 [--min 2 --max 9 --avg 6] --out layout.json
 //
 //   rooms      rectangles only (the Heyawake look): the board is split in two again and again, across its longer side mostly, until each
 //              piece is at most --max cells (and pieces of at least --min stop at random, so sizes vary)
@@ -10,6 +10,7 @@
 //   dominoes   a random tiling by dominoes (each region two cells, so every number is 0 or 1)
 //   tetrominoes  a random tiling by tetrominoes (every region four cells; --k for another size)
 //   pentominoes  one of each of the twelve pentominoes (a board of 60 cells: --size 12x5, 10x6, 15x4 or 20x3)
+//   jigsaw     irregular pieces of mixed sizes (--min 3 --max 6 cells), never a rectangle or a straight bar
 import fs from 'node:fs';
 
 export function mulberry(seed) {
@@ -122,13 +123,15 @@ export function shapeKey(cells, cols) {
  * used twice: on a board of 60 cells with k = 5 that is one of each of the twelve pentominoes. Backtracking from the first empty cell in
  * reading order, pieces in a random order, and every empty pocket must stay a multiple of k cells; restarts after `maxNodes` placements.
  */
-export function polyominoLayout(rows, cols, rng, { k = 4, distinct = false, maxNodes = 200000, restarts = 50 } = {}) {
+export function polyominoLayout(rows, cols, rng, { k = 4, sizes = null, noRect = false, distinct = false, maxNodes = 200000, restarts = 50 } = {}) {
   const N = rows * cols;
-  if (N % k) throw new Error(`${rows}x${cols} does not split into pieces of ${k}`);
+  if (!sizes && N % k) throw new Error(`${rows}x${cols} does not split into pieces of ${k}`);
+  const ks = sizes ? Array.from({ length: sizes[1] - sizes[0] + 1 }, (_, t) => sizes[0] + t) : [k];
+  const isRect = (cells) => { const rs = cells.map((i) => (i / cols) | 0), cs = cells.map((i) => i % cols); return (Math.max(...rs) - Math.min(...rs) + 1) * (Math.max(...cs) - Math.min(...cs) + 1) === cells.length; };
   for (let attempt = 0; attempt < restarts; attempt++) {
     const owner = new Int16Array(N).fill(-1), used = new Set();
     let nodes = 0, next = 0;
-    const pieces = (c) => {                     // every connected k-cell set of empty cells that contains c
+    const pieces = (c, k) => {                  // every connected k-cell set of empty cells that contains c
       let level = new Map([[String(c), [c]]]);
       for (let size = 1; size < k; size++) {
         const grown = new Map();
@@ -141,13 +144,13 @@ export function polyominoLayout(rows, cols, rng, { k = 4, distinct = false, maxN
       }
       return [...level.values()];
     };
-    const pocketsOk = () => {                    // every connected group of empty cells is a multiple of k
+    const pocketsOk = () => {                    // every connected group of empty cells can still be tiled: a multiple of k, or (sizes) at least the smallest
       const seen = new Uint8Array(N);
       for (let i = 0; i < N; i++) {
         if (owner[i] >= 0 || seen[i]) continue;
         let size = 0; const stack = [i]; seen[i] = 1;
         while (stack.length) { const x = stack.pop(); size++; for (const j of nbrs(rows, cols, x)) if (owner[j] < 0 && !seen[j]) { seen[j] = 1; stack.push(j); } }
-        if (size % k) return false;
+        if (sizes ? size < sizes[0] : size % k) return false;
       }
       return true;
     };
@@ -155,7 +158,8 @@ export function polyominoLayout(rows, cols, rng, { k = 4, distinct = false, maxN
       let c = 0; while (c < N && owner[c] >= 0) c++;
       if (c === N) return true;
       if (++nodes > maxNodes) return false;
-      for (const cells of shuffle(pieces(c), rng)) {
+      for (const cells of shuffle(ks.slice(), rng).flatMap((k) => shuffle(pieces(c, k), rng))) {
+        if (noRect && cells.length > 1 && isRect(cells)) continue;
         const key = distinct ? shapeKey(cells, cols) : null;
         if (distinct && used.has(key)) continue;
         for (const i of cells) owner[i] = next;
@@ -183,6 +187,7 @@ export const LAYOUTS = {
   rooms: roomsLayout, symmetric: symmetricLayout, dominoes: dominoLayout,
   tetrominoes: (rows, cols, rng, o) => polyominoLayout(rows, cols, rng, { k: 4, ...o }),
   pentominoes: (rows, cols, rng, o) => polyominoLayout(rows, cols, rng, { k: 5, distinct: true, ...o }),   // 60 cells: one of each
+  jigsaw: (rows, cols, rng, o) => polyominoLayout(rows, cols, rng, { sizes: [o.min || 3, o.max || 6], noRect: true }),   // mixed sizes, no rectangles
 };
 
 /** A picture of a layout for a terminal: one letter per region. */

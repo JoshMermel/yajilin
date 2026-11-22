@@ -523,6 +523,16 @@
       "blurb": "12×5 boards. Medium to Hard."
     },
     {
+      "id": "regional-pentominoes-10x6",
+      "name": "Regional: pentominoes 10×6",
+      "file": "data/regional-pentominoes-10x6.csv",
+      "count": 97,
+      "label": "Pentominoes 10×6",
+      "group": "Regional",
+      "sub": "Pentominoes",
+      "blurb": "10×6 boards. Medium to Hard."
+    },
+    {
       "id": "regional-dominoes-8x8",
       "name": "Regional: dominoes 8×8",
       "file": "data/regional-dominoes-8x8.csv",

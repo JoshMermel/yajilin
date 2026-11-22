@@ -16,11 +16,12 @@ const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ?
 const limit = +arg('limit', 100);
 
 export const KINDS = {
-  pentominoes: { sub: 'Pentominoes', icon: '🧩', sizes: ['12x5'], blurb: 'The board is cut into the twelve pentominoes, one of each.' },
+  pentominoes: { sub: 'Pentominoes', icon: '🧩', sizes: ['12x5', '10x6'], blurb: 'The board is cut into the twelve pentominoes, one of each.' },
   dominoes: { sub: 'Dominoes', icon: '🎲', sizes: ['8x8', '10x10'], blurb: 'Every region is a domino, so every number is 0 or 1.' },
   rooms: { sub: 'Rooms', icon: '🏠', sizes: ['8x8', '10x10'], blurb: 'Every region is a rectangle.' },
   symmetric: { sub: 'Symmetric', icon: '🔄', sizes: ['8x8', '10x10'], blurb: 'Turn the board half a way round and every region lands on another one.' },
   tetrominoes: { sub: 'Tetrominoes', icon: '🧱', sizes: ['8x8', '10x10'], blurb: 'Every region is four cells.' },
+  jigsaw: { sub: 'Jigsaw', icon: '🗺️', sizes: ['8x8', '10x10'], blurb: 'Irregular pieces of three to six cells, like a jigsaw: never a rectangle or a straight bar.' },
 };
 const GROUP = { name: 'Regional', icon: '🗺️', blurb: 'No arrows: thick lines cut the board into regions, and a number says how many boxes its region holds.' };
 

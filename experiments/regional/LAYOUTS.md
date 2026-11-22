@@ -74,3 +74,8 @@ puzzles that need trial and error:
 
 5 of the 450 layouts gave nothing (no unique solution in time, or the exhaustive check did not finish).
 
+Pentominoes 10x6 (2026-11-22): 120 layouts (`START=101`, best of 4, 15 minutes), all unique; 23 needed trial and error, so the book has
+97 (76 Medium, 21 Hard). Harder than 12x5 (93 of 100 Medium): the 6-row board gives the loop more room. The tilings take 1-2 s each.
+
+Jigsaw (`--kind jigsaw`): irregular pieces of 3 to 6 cells (`--min`, `--max`), never a rectangle or a straight bar; a first sample is running.
+

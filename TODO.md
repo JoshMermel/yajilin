@@ -39,10 +39,6 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
   the one at the other. The logic-masters.de example Josh remembers had mostly voids and all clues 6 on a big board; a local search for "every arrow says N" found nothing
   (0 of 6 at 10×10 to 14×14), so try building the box pattern first (N per line) or a mostly-void frame. Also wanted: at-least / at-most arrows, two-way and four-way
   arrows, number-only clues, regional plus arrows (order agreed 2026-11-21).
-- [ ] **6×10 pentomino book** (Josh, 2026-11-22: the 12×5 Pentominoes book is a hit). The twelve pentominoes also tile a 6×10 board (about
-  2,300 tilings, so plenty of layouts): `KINDS=pentominoes SIZES=10x6 START=101 SEEDS=110 COUNT=4 TIME=120 sh tools/make_regional_layout_pools.sh`
-  (`polyominoLayout` with `distinct` already handles any 60-cell board), then add `10x6` to the pentominoes sizes in `tools/build_regional_books.mjs`.
-  Check the tiling search speed at 6×10 (12×5 takes under a second to a few seconds) and the Medium share (12×5: 93 of 100).
 - [ ] **16×16 symmetry books** (planned for the night of 2026-11-22; `nohup sh tools/run_symmetry_16x16.sh > /dev/null 2>&1 &` starts the wait for 22:00): a 16×16 Symmetry mix (exact: mirror, diagonal mirror, quarter turn, half turn; 60) and a 16×16 Symmetric layout book (clue cells symmetric: half turn, quarter turn, mirror, diagonal mirror; 120), pools in `tools/library/xsym_*` and `lsym_*`, log `tools/library/symmetry16.log`. Check the tier spread (everything at 16×16 tends to be Hard), the audit and the tests, then ask before committing.
 - [x] **16×16 bonus books** (done 2026-11-22): the long way round, one direction, all zeros, no zeros; 250 each, built overnight by `tools/run_bonus_16x16.sh`
   (Medium/Hard about half and half; all zeros 43/136/71). The Bonus picker is grouped by gimmick again. Not tried: 20×20 (expect several times the 16×16 cost).
