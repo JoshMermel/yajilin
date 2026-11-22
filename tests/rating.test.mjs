@@ -537,7 +537,7 @@ import { FIRST_LOOKAHEAD } from '../js/rating.js';
 
 test('the newer rules reach the stored solution on real generated puzzles (soundness on whole puzzles)', () => {
   // for each bonus book, its hardest puzzles (by stored score) that are not huge: books get rebuilt, so no names here
-  const files = ['data/bonus-skinny.csv', 'data/bonus-longway-12x12.csv', 'data/bonus-nozeros-12x12.csv', 'data/bonus-onedir-12x12.csv'];
+  const files = ['data/bonus-skyscraper-8x36.csv', 'data/bonus-skyscraper-4x36.csv', 'data/bonus-longway-12x12.csv', 'data/bonus-nozeros-12x12.csv', 'data/bonus-onedir-12x12.csv'];
   let used = 0, checked = 0;
   for (const file of files) {
     const all = parseCsv(readFileSync(new URL('../' + file, import.meta.url), 'utf8')).filter((p) => p.rows * p.cols <= 260 && p.tier === 'Hard');

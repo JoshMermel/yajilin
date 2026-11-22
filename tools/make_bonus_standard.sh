@@ -1,7 +1,7 @@
 #!/bin/sh
 # Top up the bonus books at their STANDARD sizes (2026-11-15; replaces make_bonus_100.sh's many-sizes plan). Run from the project root.
 #   10x10 / 12x12 / 14x14 for longway, onedir, few, packed, big numbers (the twos-and-up puzzles already in the pool count as big numbers);  10x10 / 12x12 / 14x14 for zeros too;  5x5 .. 8x8 for the intro;
-#   4x36 / 6x36 / 8x36 for skinny.  (Counts below are what was missing at the time, plus a margin for duplicates.)
+#   4x36 / 6x36 / 8x36 for the Skyscraper books (the pools keep their old "skinny" name).  (Counts below are what was missing at the time, plus a margin for duplicates.)
 # Each job line: book out-file size count seed budget-seconds generator-flags... ; nine run at a time, slowest books first.
 # Then rebuild with  build_book.mjs --sizes ... --limit 100  (see the "Rebuild" list in README / TODO).
 mkdir -p tools/library experiments/tall/pools

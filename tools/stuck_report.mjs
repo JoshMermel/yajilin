@@ -22,7 +22,7 @@ const outDir = path.resolve(root, arg('out', 'tools/calibration/stuck'));
 const derive = +arg('derive', 30), maxUnd = +arg('max-undecided', 14), seed = +arg('seed', 1), minutes = +arg('minutes', 8);
 const minCells = +arg('min-cells', 100), maxCells = +arg('max-cells', 1e9), noExisting = process.argv.includes('--no-existing'), scan = process.argv.includes('--scan');   // --scan: look for already-stuck puzzles in --from instead of in data/
 const t0 = Date.now();
-const sources = arg('from', 'data/large.csv,data/large-nk.csv,data/bonus-longway-12x12.csv,data/bonus-onedir-12x12.csv,data/bonus-nozeros-12x12.csv,data/bonus-skinny.csv,data/range-samples.csv').split(',');
+const sources = arg('from', 'data/large.csv,data/large-nk.csv,data/bonus-longway-12x12.csv,data/bonus-onedir-12x12.csv,data/bonus-nozeros-12x12.csv,data/bonus-skyscraper-8x36.csv,data/range-samples.csv').split(',');
 fs.mkdirSync(path.join(outDir, 'json'), { recursive: true });
 const rng = makeRng(seed);
 

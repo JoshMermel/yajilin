@@ -5,7 +5,7 @@
 #   node tools/build_book.mjs --id bonus-longway --name "Bonus: the long way round" --glob longway
 #   node tools/build_book.mjs --id bonus-onedir --name "Bonus: one direction" --glob onedir
 #   node tools/build_book.mjs --id bonus-bignum --name "Bonus: big numbers" --glob bignum
-#   node tools/build_skinny.mjs
+#   node tools/build_skyscraper.mjs
 # Each line: pool-file size count seed budget-seconds [generator flags]. A different seed from the first round per size, so the pools only grow.
 mkdir -p tools/library experiments/tall/pools
 cat <<'JOBS' | xargs -P 8 -L 1 sh -c 'node tools/generate.mjs --size $1 --count $2 --seed $3 --budget $4 --out $0 $5 $6 $7 $8 $9 > /dev/null 2>&1; echo done $0'

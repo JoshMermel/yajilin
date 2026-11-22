@@ -66,12 +66,9 @@
           "icon": "🔢",
           "blurb": "No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more."
         },
-        "Symmetric": {
-          "icon": "🔄",
-          "blurb": "The arrows and boxes sit in matching pairs: turn the board half a way round and the layout is the same, with every arrow pointing the opposite way."
-        },
-        "Skinny": {
-          "icon": "🎀"
+        "Skyscraper": {
+          "icon": "🏙️",
+          "blurb": "Tall, narrow boards, up to 36 cells high. One book per width."
         },
         "Regional": {
           "icon": "🗺️"
@@ -426,26 +423,6 @@
       "sub": "No zeros"
     },
     {
-      "id": "bonus-symmetric-8x8",
-      "name": "Bonus: symmetric 8×8",
-      "file": "data/bonus-symmetric-8x8.csv",
-      "count": 60,
-      "label": "Symmetric 8×8",
-      "group": "Bonus",
-      "sub": "Symmetric",
-      "blurb": "8×8 boards. Beginner to Hard."
-    },
-    {
-      "id": "bonus-symmetric-12x12",
-      "name": "Bonus: symmetric 12×12",
-      "file": "data/bonus-symmetric-12x12.csv",
-      "count": 60,
-      "label": "Symmetric 12×12",
-      "group": "Bonus",
-      "sub": "Symmetric",
-      "blurb": "12×12 boards. Beginner to Hard."
-    },
-    {
       "id": "bonus-symmetry-mix-8x8",
       "name": "Bonus: symmetry mix 8×8",
       "file": "data/bonus-symmetry-mix-8x8.csv",
@@ -469,7 +446,7 @@
       "id": "bonus-symmetric-layout-8x8",
       "name": "Bonus: symmetric layout 8×8",
       "file": "data/bonus-symmetric-layout-8x8.csv",
-      "count": 120,
+      "count": 250,
       "label": "Symmetric layout 8×8",
       "group": "Bonus",
       "sub": "Symmetric layout",
@@ -479,21 +456,41 @@
       "id": "bonus-symmetric-layout-12x12",
       "name": "Bonus: symmetric layout 12×12",
       "file": "data/bonus-symmetric-layout-12x12.csv",
-      "count": 120,
+      "count": 250,
       "label": "Symmetric layout 12×12",
       "group": "Bonus",
       "sub": "Symmetric layout",
       "blurb": "12×12 boards. Beginner to Hard."
     },
     {
-      "id": "bonus-skinny",
-      "name": "Bonus: skinny",
-      "label": "Skinny",
+      "id": "bonus-skyscraper-4x36",
+      "name": "Bonus: skyscraper 4×36",
+      "label": "Skyscraper 4×36",
       "group": "Bonus",
-      "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
-      "file": "data/bonus-skinny.csv",
-      "count": 100,
-      "sub": "Skinny"
+      "blurb": "4×36 boards. Beginner to Hard.",
+      "file": "data/bonus-skyscraper-4x36.csv",
+      "count": 250,
+      "sub": "Skyscraper"
+    },
+    {
+      "id": "bonus-skyscraper-6x36",
+      "name": "Bonus: skyscraper 6×36",
+      "label": "Skyscraper 6×36",
+      "group": "Bonus",
+      "blurb": "6×36 boards. Beginner to Hard.",
+      "file": "data/bonus-skyscraper-6x36.csv",
+      "count": 250,
+      "sub": "Skyscraper"
+    },
+    {
+      "id": "bonus-skyscraper-8x36",
+      "name": "Bonus: skyscraper 8×36",
+      "label": "Skyscraper 8×36",
+      "group": "Bonus",
+      "blurb": "8×36 boards. Beginner to Hard.",
+      "file": "data/bonus-skyscraper-8x36.csv",
+      "count": 250,
+      "sub": "Skyscraper"
     },
     {
       "id": "regional-corpus",

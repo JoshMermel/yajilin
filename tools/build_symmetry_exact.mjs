@@ -60,7 +60,7 @@ if (!separate) {
     const entry = { id, name: `Bonus: symmetry mix ${nice}`, file: `data/${id}.csv`, count: chosen.length, label: `Symmetry mix ${nice}`, group: 'Bonus', sub: 'Exact symmetry', blurb: `Mirror, diagonal-mirror, quarter-turn and half-turn puzzles mixed. ${sizeBlurb(nice, counts)}` };
     const at = manifest.books.findIndex((b) => b.id === id);
     if (at >= 0) manifest.books[at] = entry;
-    else { const last = manifest.books.map((b, i) => (b.sub === 'Symmetric' || b.sub === 'Exact symmetry' ? i : -1)).filter((i) => i >= 0).pop(); manifest.books.splice(last === undefined ? manifest.books.length : last + 1, 0, entry); }
+    else { const last = manifest.books.map((b, i) => (b.sub === 'Exact symmetry' ? i : -1)).filter((i) => i >= 0).pop(); manifest.books.splice(last === undefined ? manifest.books.length : last + 1, 0, entry); }
   }
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   process.exit(0);
@@ -92,7 +92,7 @@ for (const mode of modes) {
     const at = manifest.books.findIndex((b) => b.id === id);
     if (at >= 0) manifest.books[at] = entry;
     else {
-      const lastSym = manifest.books.map((b, i) => (b.sub === 'Symmetric' || b.id.startsWith('bonus-mirror-') || b.id.startsWith('bonus-diagonal-mirror-') || b.id.startsWith('bonus-quarter-turn-') ? i : -1)).filter((i) => i >= 0).pop();
+      const lastSym = manifest.books.map((b, i) => (b.id.startsWith('bonus-mirror-') || b.id.startsWith('bonus-diagonal-mirror-') || b.id.startsWith('bonus-quarter-turn-') ? i : -1)).filter((i) => i >= 0).pop();
       manifest.books.splice(lastSym === undefined ? manifest.books.length : lastSym + 1, 0, entry);
     }
   }

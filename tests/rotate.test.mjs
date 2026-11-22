@@ -7,7 +7,7 @@ import fs from 'node:fs';
 const root = new URL('..', import.meta.url).pathname;
 
 test('rotating a puzzle gives a puzzle with the rotated solution, the same identity, and the same loop', () => {
-  const raw = parseCsv(fs.readFileSync(`${root}data/bonus-intro.csv`, 'utf8')).concat(parseCsv(fs.readFileSync(`${root}data/bonus-skinny.csv`, 'utf8')).slice(0, 3));
+  const raw = parseCsv(fs.readFileSync(`${root}data/bonus-intro.csv`, 'utf8')).concat(parseCsv(fs.readFileSync(`${root}data/bonus-skyscraper-8x36.csv`, 'utf8')).slice(0, 3));
   for (const p of raw) {
     const P = compile(p), Q = rotated(P, puzzleHash(P));
     assert.equal(Q.rows, P.cols); assert.equal(Q.cols, P.rows);

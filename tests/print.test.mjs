@@ -60,7 +60,7 @@ test('planPrint counts the pages of the puzzles and of the answer key', () => {
 });
 
 test('boardSvg: every clue has its number and an arrow; the answer adds the boxes and exactly the loop', () => {
-  for (const P of load('bonus-longway-12x12').slice(0, 3).concat(load('bonus-skinny').slice(0, 2))) {
+  for (const P of load('bonus-longway-12x12').slice(0, 3).concat(load('bonus-skyscraper-8x36').slice(0, 2))) {
     const blank = boardSvg(P);
     assert.equal((blank.match(/class="num"/g) || []).length, P.clues.length);
     assert.equal((blank.match(/class="arrow"/g) || []).length, P.clues.length);

@@ -131,7 +131,7 @@ test('symmetryKey is the same for all eight turns and mirrors of a puzzle, and d
   const { rotateRaw } = await import('../js/rotate.js');
   const fs = await import('node:fs');
   const root = new URL('..', import.meta.url).pathname;
-  const ps = parseCsv(fs.readFileSync(`${root}data/diagonal-mixed-8x8.csv`, 'utf8')).concat(parseCsv(fs.readFileSync(`${root}data/bonus-skinny.csv`, 'utf8')).slice(0, 4));
+  const ps = parseCsv(fs.readFileSync(`${root}data/diagonal-mixed-8x8.csv`, 'utf8')).concat(parseCsv(fs.readFileSync(`${root}data/bonus-skyscraper-8x36.csv`, 'utf8')).slice(0, 4));
   const dirOf = (dr, dc) => DR.findIndex((v, d) => v === dr && DC[d] === dc);
   // an independent mirror (left to right) and transpose, written out
   const mirror = (p) => ({ ...p, clues: p.clues.map((c) => (c.n < 0 ? { ...c, c: p.cols - 1 - c.c } : { ...c, c: p.cols - 1 - c.c, d: dirOf(DR[c.d], -DC[c.d]) })) });

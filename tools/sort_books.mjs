@@ -1,5 +1,5 @@
 // Put every book in the manifest in the order the builders now use: easiest tier first, then lowest score (tools/quota.mjs byTierScore).
-// Idempotent. Renumbers the trailing index of a puzzle's name ("8X8-0042", "SKINNY-07 (4x36)") to follow the new order, keeping its width;
+// Idempotent. Renumbers the trailing index of a puzzle's name ("8X8-0042", "SKYSCRAPER-4X36-07") to follow the new order, keeping its width;
 // names that are not numbered like that (the regional corpus's recipe names) are left alone. Saved progress is keyed by puzzle content, so it survives.
 //   node tools/sort_books.mjs [--check]     (--check only reports the books that are out of order)
 import fs from 'node:fs';

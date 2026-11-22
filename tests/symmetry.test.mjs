@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { generateLayout } from '../js/generator_layouts.js';
 import { symmetryOf, orbitOf, SYMMETRY_MODES } from '../js/generator_symmetry.js';
 import { makeRng } from '../js/generator.js';
-import { solve, decodeSolution, E_ON } from '../js/logic.js';
+import fs from 'node:fs';
+import { solve, decodeSolution, parseCsv, compile, E_ON } from '../js/logic.js';
 import { solvedByRules } from '../js/rating.js';
 
 test('symmetries: each is an involution (a quarter turn has order four) and each arrow direction comes back after a full orbit', () => {
@@ -88,3 +89,35 @@ for (const mode of SYMMETRY_MODES) {
     assert.ok(notExact >= 1, 'arrows and numbers are free, so some puzzle is not exactly symmetric');
   });
 }
+
+// the shipped books: every puzzle of a Symmetry mix is exactly symmetric under one of the four symmetries; every puzzle of a Symmetric layout book has symmetric clue cells
+const bookOf = (id) => parseCsv(fs.readFileSync(new URL(`../data/${id}.csv`, import.meta.url), 'utf8')).map(compile);
+const clueMap = (P) => new Map(P.clues.map((c) => [c.r * P.cols + c.c, c]));
+const cluesSymmetric = (P, s) => { const at = clueMap(P); return [...at.keys()].every((i) => at.has(s.map[i])); };
+const exactlySymmetric = (P, s) => { const at = clueMap(P); return [...at].every(([i, c]) => { const o = at.get(s.map[i]); return o && (c.n < 0 ? o.n < 0 : o.n === c.n && o.d === s.dir(c.d)); }); };
+
+test('the Symmetry mix books hold only exactly symmetric puzzles, and all four symmetries turn up in each', () => {
+  for (const size of ['8x8', '12x12']) {
+    const ps = bookOf(`bonus-symmetry-mix-${size}`), seen = new Set();
+    assert.ok(ps.length >= 50);
+    for (const P of ps) {
+      const which = SYMMETRY_MODES.filter((m) => exactlySymmetric(P, symmetryOf(m, P.rows, P.cols)));
+      assert.ok(which.length, `${P.name} is not symmetric`);
+      which.forEach((m) => seen.add(m));
+    }
+    assert.equal(seen.size, 4, `${size}: ${[...seen]}`);
+  }
+});
+
+test('the Symmetric layout books hold only puzzles whose clue cells are symmetric, and all four symmetries turn up in each', () => {
+  for (const size of ['8x8', '12x12']) {
+    const ps = bookOf(`bonus-symmetric-layout-${size}`), seen = new Set();
+    assert.ok(ps.length >= 100);
+    for (const P of ps) {
+      const which = SYMMETRY_MODES.filter((m) => cluesSymmetric(P, symmetryOf(m, P.rows, P.cols)));
+      assert.ok(which.length, `${P.name} has no symmetric clue cells`);
+      which.forEach((m) => seen.add(m));
+    }
+    assert.equal(seen.size, 4, `${size}: ${[...seen]}`);
+  }
+});

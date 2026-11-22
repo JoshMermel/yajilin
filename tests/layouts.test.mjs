@@ -57,10 +57,3 @@ test('frame layout: every border cell is an arrow pointing inward or a void, the
   assert.ok(made >= 3, `made ${made} of 4`);
 });
 
-test('the symmetric bonus books hold only half-turn symmetric puzzles', () => {
-  for (const size of ['8x8', '12x12']) {
-    const ps = parseCsv(fs.readFileSync(new URL(`../data/bonus-symmetric-${size}.csv`, import.meta.url), 'utf8'));
-    assert.ok(ps.length >= 30);
-    for (const raw of ps.slice(0, 30)) assertHalfTurnSymmetric(compile(raw));
-  }
-});

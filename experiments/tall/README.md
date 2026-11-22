@@ -1,7 +1,7 @@
-# Tall and skinny boards (the "Skinny" book)
+# Tall and skinny boards (the "Skyscraper" books, called Skinny until 2026-11-22)
 
 An experiment: how does the generator cope with boards much taller than wide? Default style (no edge bias), seeds 301/302.
-`data/bonus-skinny.csv` is the book "Bonus: skinny" (29 puzzles, 3x20 up to 8x36), built from `pools/` (removed 2026-11-20; it is in git history up to commit `cc22aa1`, or regenerate with `tools/make_bonus_pools.sh`) by `node tools/build_skinny.mjs`: only boards whose
+`data/bonus-skyscraper-*.csv` are the books "Bonus: skyscraper" (one per width since 2026-11-22; they were one book, `bonus-skinny.csv`) (29 puzzles, 3x20 up to 8x36), built from `pools/` (removed 2026-11-20; it is in git history up to commit `cc22aa1`, or regenerate with `tools/make_bonus_pools.sh`) by `node tools/build_skinny.mjs`: only boards whose
 longer side is at most 36 (2026-11-15; the first version of the book went up to 8x100 and the longer pools are still here, not in the book). Pools for the
 newer sizes come from `tools/make_bonus_pools.sh`. The page shows a skinny board sideways when that gives bigger cells (Settings: "Turn tall boards sideways").
 
