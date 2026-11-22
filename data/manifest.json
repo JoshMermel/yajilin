@@ -46,6 +46,17 @@
       }
     },
     {
+      "name": "Regional",
+      "icon": "🗺️",
+      "blurb": "No arrows: thick lines cut the board into regions, and a number says how many boxes its region holds.",
+      "subs": {
+        "Pentominoes": {
+          "icon": "🧩",
+          "blurb": "The board is cut into the twelve pentominoes, one of each."
+        }
+      }
+    },
+    {
       "name": "Bonus",
       "icon": "🎁",
       "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
@@ -301,6 +312,16 @@
       "group": "Sparse",
       "sub": "12×12",
       "blurb": "Arrows point along rows, columns and diagonals, and there are few of them: 9 to 13 on a 12×12 board (one cell in 13 on average). Beginner to Hard."
+    },
+    {
+      "id": "regional-pentominoes-12x5",
+      "name": "Regional: pentominoes 12×5",
+      "file": "data/regional-pentominoes-12x5.csv",
+      "count": 100,
+      "label": "Pentominoes 12×5",
+      "group": "Regional",
+      "sub": "Pentominoes",
+      "blurb": "12×5 boards. Medium to Hard."
     },
     {
       "id": "bonus-longway-8x8",
