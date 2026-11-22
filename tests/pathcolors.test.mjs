@@ -85,3 +85,86 @@ test('merging or splitting lines never recolors a line that was not touched (ran
     }
   }
 });
+
+// ---- near: a new line takes the color that suits where it is (a rows x cols board; segment x joins cell x >> 1 and the cell after / below it)
+const R = 12, C = 12;
+const edge = (r1, c1, r2, c2) => ((r1 * C + c1) << 1) | (r2 > r1 ? 1 : 0);   // the segment between two neighboring cells (the first is above / left)
+const makeBoard = () => ({ keeper: makeColorKeeper(R * C * 2), on: new Uint8Array(R * C * 2) });
+function recolor2d(b, palette, near) {
+  const parent = Array.from({ length: R * C }, (_, i) => i);
+  const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  b.on.forEach((v, x) => { if (v) { const a = x >> 1, c = (x & 1) ? a + C : a + 1, ra = find(a), rc = find(c); if (ra !== rc) parent[Math.max(ra, rc)] = Math.min(ra, rc); } });
+  const colorOf = assignPathColors(b.keeper, b.on, (x) => find(x >> 1), palette, near);
+  return (r, c) => colorOf.get(find(r * C + c));
+}
+const identity = () => ({ cols: C, alike: (i, j) => (i === j ? 1 : 0) });
+const grid = (palette, alike) => ({ cols: C, alike });
+
+test('near: with a free color, the lowest free color is still taken (as without near)', () => {
+  const b = makeBoard(), near = identity();
+  b.on[edge(0, 0, 0, 1)] = 1; let c = recolor2d(b, 6, near);
+  assert.equal(c(0, 0), 0);
+  b.on[edge(5, 5, 5, 6)] = 1; c = recolor2d(b, 6, near);
+  assert.equal(c(5, 5), 1);                 // far away, but a color nobody uses is still better than sharing
+});
+
+test('near: when the colors run out, the repeat goes far from the line that has that color', () => {
+  const b = makeBoard(), near = identity();
+  b.on[edge(0, 0, 0, 1)] = 1; recolor2d(b, 2, near);          // color 0 at the top left
+  b.on[edge(0, 4, 0, 5)] = 1; recolor2d(b, 2, near);          // color 1, close to it
+  b.on[edge(10, 10, 10, 11)] = 1; let c = recolor2d(b, 2, near);   // a third line, far from both: no color is free
+  // color 0 is 10 cells away at the top left, color 1 is 10 cells away at (0,4): equal-ish; now one in between decides
+  b.on[edge(0, 2, 1, 2)] = 1; c = recolor2d(b, 2, near);      // a fourth, right between the first two (distance 1 and 2): crowded either way
+  assert.ok([0, 1].includes(c(0, 2)));
+  // and a fifth beside color 1's line and away from color 0's takes color 0
+  b.on[edge(1, 5, 1, 6)] = 1; c = recolor2d(b, 2, near);
+  assert.equal(c(1, 5), c(0, 0));
+});
+
+test('near: a color that looks like a neighbor\'s is the worse choice among the free ones', () => {
+  const alike = (i, j) => (i === j ? 1 : (i + j === 1 ? 0.6 : 0));   // colors 0 and 1 look alike; 2 is different from both
+  const b = makeBoard(), near = grid(3, alike);
+  b.on[edge(5, 5, 5, 6)] = 1; let c = recolor2d(b, 3, near);
+  assert.equal(c(5, 5), 0);
+  b.on[edge(5, 8, 5, 9)] = 1; c = recolor2d(b, 3, near);          // 3 cells away: color 1 is free but looks like 0, color 2 is free and different
+  assert.equal(c(5, 8), 2);
+});
+
+test('near: the other half of a split line gets a color unlike its sibling, and nothing else changes', () => {
+  const b = makeBoard(), near = identity();
+  for (const [r1, c1, r2, c2] of [[3, 3, 3, 4], [3, 4, 3, 5], [3, 5, 3, 6]]) b.on[edge(r1, c1, r2, c2)] = 1;
+  let c = recolor2d(b, 4, near); const col = c(3, 3);
+  b.on[edge(5, 0, 5, 1)] = 1; c = recolor2d(b, 4, near); const other = c(5, 0);
+  b.on[edge(3, 4, 3, 5)] = 0; c = recolor2d(b, 4, near);          // 3,3-3,4 and 3,5-3,6 are two lines now
+  assert.equal(c(3, 3), col); assert.equal(c(5, 0), other);
+  assert.notEqual(c(3, 5), col);
+  assert.notEqual(c(3, 5), other);                                 // a free color exists, so it is used
+});
+
+test('near: on a crowded board with too few colors, lines that touch or nearly touch seldom share a color (and far better than without near)', () => {
+  const rng = (() => { let s = 12345; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; })();
+  const palette = 5, trials = 30;
+  let withNear = 0, without = 0;
+  for (let t = 0; t < trials; t++) {
+    const segs = [];
+    for (let i = 0; i < 26; i++) {                       // 26 short lines at random places, drawn one at a time
+      const r = (rng() * R) | 0, c = (rng() * (C - 1)) | 0;
+      segs.push(edge(r, c, r, c + 1));
+    }
+    for (const near of [identity(), null]) {
+      const b = makeBoard(); let col;
+      for (const x of segs) { b.on[x] = 1; col = recolor2d(b, palette, near); }
+      // count pairs of different lines (each a single segment here, or merged) within two cells that share a color
+      const cells = [...new Set(segs)].map((x) => [(x >> 1) / C | 0, (x >> 1) % C]);
+      let clash = 0;
+      for (let i = 0; i < cells.length; i++) for (let j = i + 1; j < cells.length; j++) {
+        const [r1, c1] = cells[i], [r2, c2] = cells[j];
+        const close = Math.min(...[0, 1].flatMap((d1) => [0, 1].map((d2) => Math.max(Math.abs(r1 - r2), Math.abs(c1 + d1 - c2 - d2)))));
+        if (close <= 2 && col(r1, c1) !== undefined && col(r1, c1) === col(r2, c2) && (r1 !== r2 || Math.abs(c1 - c2) > 1)) clash++;
+      }
+      if (near) withNear += clash; else without += clash;
+    }
+  }
+  console.log(`      near clashes ${withNear} vs ${without} without (over ${trials} boards of 26 lines, 5 colors)`);
+  assert.ok(withNear < without * 0.5, `${withNear} should be well below ${without}`);
+});

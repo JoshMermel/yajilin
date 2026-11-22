@@ -8,6 +8,7 @@ import { explainStep, describeMarks, ROLES } from './explain.js';
 import { Board } from './board.js';
 import { clueStates } from './clues.js';
 import { nextMark, reconcile as reconcileDots, applyAutoDots } from './marks.js';
+import { PRESETS, CUSTOM, MIN_CUSTOM, MAX_CUSTOM, sanitizeCustom, validId, lightColors, resolvePalette, eyesOf, alikeMatrix } from './palettes.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -32,8 +33,11 @@ const state = {
 };
 
 // Settings (all remembered in localStorage)
+const savedCustom = (() => { try { return sanitizeCustom(JSON.parse(store.get('yj_pathCustom'))); } catch { return null; } })();
 const settings = {
   colorLines: store.get('yj_colorLines') === '1', // color each separate path differently
+  palette: validId(store.get('yj_pathPalette'), savedCustom), // ... with this palette: a preset's id, or 'custom' (js/palettes.js)
+  custom: savedCustom,                                         // the player's own palette: a list of '#rrggbb' for the white board
   labels: store.get('yj_labels') !== '0',         // number the rows and columns (on unless the player turned it off)
   autoDots: store.get('yj_autoDots') === '1',     // automatic dots: next to a box, and along a satisfied clue
   autoRotate: store.get('yj_autoRotate') !== '0', // show a tall board sideways when that fits the window better (js/rotate.js)
@@ -46,7 +50,10 @@ const board = new Board($('board'), {
   onEnd: (cancelled) => endGesture(cancelled),
   onRight: (cell) => toggleBox(cell),
 });
-board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
+const themeName = () => (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+const pathColors = () => resolvePalette(settings.palette, settings.custom, themeName());
+const paletteOptions = () => { const pathColorList = pathColors(); return { pathColors: pathColorList, pathAlike: alikeMatrix(pathColorList, eyesOf(settings.palette)) }; };
+board.setOptions({ colorLines: settings.colorLines, labels: settings.labels, ...paletteOptions() });
 
 // ------------------------------------------------------------ marks
 
@@ -790,6 +797,8 @@ $('browse-jump-btn').addEventListener('click', () => {
 $('setting-dark-mode').addEventListener('change', (e) => {
   document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
   store.set('yj_dark', e.target.checked ? '1' : '0');
+  board.setOptions(paletteOptions());
+  renderPaletteUI();
 });
 $('setting-auto-rotate').checked = settings.autoRotate;
 $('setting-auto-rotate').addEventListener('change', (e) => { settings.autoRotate = e.target.checked; store.set('yj_autoRotate', e.target.checked ? '1' : '0'); reorient(); });
@@ -801,6 +810,7 @@ for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_co
     settings[key] = el.checked;
     store.set(store_key, el.checked ? '1' : '0');
     board.setOptions({ colorLines: settings.colorLines, labels: settings.labels });
+    if (key === 'colorLines') renderPaletteUI();
     fitBoard();
     if (key === 'autoDots' && state.P) {      // on: dots for everything already on the board; off: the automatic ones go (yours stay)
       const before = snapshot();
@@ -811,6 +821,52 @@ for (const [id, key, store_key] of [['setting-color-lines', 'colorLines', 'yj_co
     }
   });
 }
+// ---- line colors: a preset palette, or one the player builds (the strip under "Color separate lines" in the settings)
+function renderPaletteUI() {
+  const custom = settings.palette === CUSTOM;
+  $('palette-group').hidden = !settings.colorLines;
+  $('setting-palette').value = settings.palette;
+  $('palette-desc').textContent = custom ? 'Colors you pick yourself' : PRESETS.find((p) => p.id === settings.palette).desc;
+  $('palette-custom').hidden = !custom;
+  const strip = $('palette-strip');
+  strip.replaceChildren();
+  (custom ? settings.custom : pathColors()).forEach((color, i, all) => {
+    const sw = document.createElement('span');
+    sw.className = 'swatch'; sw.style.background = color; sw.title = `Color ${i + 1}`;
+    if (custom) {
+      const input = document.createElement('input');
+      input.type = 'color'; input.value = color; input.setAttribute('aria-label', `Color ${i + 1}`);
+      input.addEventListener('input', () => { settings.custom[i] = input.value; sw.style.background = input.value; changeCustom(false); });   // live, and the picker stays open
+      sw.append(input);
+      if (all.length > MIN_CUSTOM) {
+        const x = document.createElement('button');
+        x.type = 'button'; x.className = 'swatch-x'; x.textContent = '×'; x.setAttribute('aria-label', `Remove color ${i + 1}`);
+        x.addEventListener('click', () => { settings.custom.splice(i, 1); changeCustom(true); });
+        sw.append(x);
+      }
+    }
+    strip.append(sw);
+  });
+  $('palette-add').disabled = custom && settings.custom.length >= MAX_CUSTOM;
+}
+function changeCustom(redraw) {
+  store.set('yj_pathCustom', JSON.stringify(settings.custom));
+  board.setOptions(paletteOptions());
+  if (redraw) renderPaletteUI();
+}
+for (const p of [...PRESETS, { id: CUSTOM, name: 'Custom…' }]) $('setting-palette').add(new Option(p.name, p.id));
+$('setting-palette').addEventListener('change', (e) => {
+  if (e.target.value === CUSTOM && !settings.custom) settings.custom = lightColors(settings.palette, null).slice(0, 8);   // start from what you were using
+  settings.palette = e.target.value;
+  store.set('yj_pathPalette', settings.palette);
+  changeCustom(true);
+});
+$('palette-add').addEventListener('click', () => {
+  settings.custom.push(PRESETS[0].light.find((c) => !settings.custom.includes(c)) || '#808080');
+  changeCustom(true);
+});
+$('palette-reset').addEventListener('click', () => { settings.custom = PRESETS[0].light.slice(0, 8); changeCustom(true); });
+renderPaletteUI();
 clearBtn.addEventListener('click', () => {
   if (!clearBtn.classList.contains('danger-btn--confirm')) { clearBtn.classList.add('danger-btn--confirm'); clearBtn.textContent = 'Are you sure?'; return; }
   try { Object.keys(localStorage).filter((k) => k.startsWith('yj_save_') || k === 'yj_solved' || k === 'yj_book_solved').forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }

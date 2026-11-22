@@ -8,7 +8,14 @@
 //   - erasing a segment that splits a line leaves the older part (the one with the oldest segment) as it was and gives the other part
 //     a brand new identity;
 //   - nothing else ever changes color, however many lines share the palette.
-// A new identity takes the lowest palette color no line uses; if every color is in use it takes the least used one.
+// A new identity takes the color that is best for where it is (see `near` below). Without that, it takes the lowest palette color no line
+// uses; if every color is in use it takes the least used one.
+//
+// With `near` (the board's geometry and which colors look alike), a new line scores every palette color c as
+//     USE * (lines already using c)  +  sum over the other lines L within REACH cells of  1 / distance(L)^2 * alike(c, color of L)
+// and takes the lowest score (ties: the lowest color). So: a color nobody uses beats one in use; among those, the one least like the colors
+// of the lines close by; and when every color is in use, the repeat goes as far away from the lines of that color (and from lines of
+// colors like it) as there is room for. Lines far apart may share a color; lines a few cells apart almost never do.
 
 /** Fresh bookkeeping for a board with `numEdges` segment slots. */
 export const makeColorKeeper = (numEdges) => ({
@@ -18,8 +25,10 @@ export const makeColorKeeper = (numEdges) => ({
 /**
  * keeper: from makeColorKeeper; on[x]: truthy if segment x is drawn; rootOf(x): an id for the path segment x belongs to;
  * palette: number of colors. Updates the keeper and returns a Map: path id (rootOf) -> color index.
+ * near (optional): { cols, alike(i, j) } where segment x joins cell x >> 1 and the cell after it (x odd: the one below), the board being
+ * `cols` wide, and alike(i, j) is 1 for the same color, 0 for colors that look entirely different, in between for colors that look a bit alike.
  */
-export function assignPathColors(keeper, on, rootOf, palette) {
+export function assignPathColors(keeper, on, rootOf, palette, near) {
   const { birth, pid, colorOfPid } = keeper;
   const n = birth.length;
   for (let x = 0; x < n; x++) {
@@ -44,14 +53,57 @@ export function assignPathColors(keeper, on, rootOf, palette) {
   for (const p of [...colorOfPid.keys()]) if (!claimed.has(p)) colorOfPid.delete(p);
   const uses = new Array(palette).fill(0);
   for (const p of claimed) uses[colorOfPid.get(p)]++;
+  const placed = new Map();                                   // path -> color index, for the lines that have one (the near scoring)
+  if (near) for (const [r, p] of identity) placed.set(r, colorOfPid.get(p));
+  const where = near && lineCells(on, rootOf, near.cols);    // path -> [row, col, row, col, ...]
   for (const r of fresh) {
     let c = 0;
-    for (let k = 1; k < palette; k++) if (uses[k] < uses[c]) c = k;   // the lowest color with the fewest users (0 users when one is free)
+    if (near) {
+      const pen = penalties(r, placed, where, palette, near);
+      for (let k = 1; k < palette; k++) if (USE * uses[k] + pen[k] < USE * uses[c] + pen[c] - 1e-9) c = k;
+    } else {
+      for (let k = 1; k < palette; k++) if (uses[k] < uses[c]) c = k;   // the lowest color with the fewest users (0 users when one is free)
+    }
     const p = keeper.nextPid++;
-    colorOfPid.set(p, c); uses[c]++; identity.set(r, p);
+    colorOfPid.set(p, c); uses[c]++; identity.set(r, p); placed.set(r, c);
   }
   const colorOf = new Map();
   for (const [r, p] of identity) colorOf.set(r, colorOfPid.get(p));
   for (let x = 0; x < n; x++) if (on[x]) pid[x] = identity.get(rootOf(x));
   return colorOf;
+}
+
+const USE = 0.5;   // what one more use of a color costs, against a line at distance 1 sharing it costing 1
+const REACH = 5;   // lines farther than this many cells (king moves, cell to cell) do not count as near
+
+/** The cells each path touches, as flat [row, col, ...] lists. */
+function lineCells(on, rootOf, cols) {
+  const out = new Map();
+  for (let x = 0; x < on.length; x++) {
+    if (!on[x]) continue;
+    const a = x >> 1, b = (x & 1) ? a + cols : a + 1, r = rootOf(x);
+    if (!out.has(r)) out.set(r, []);
+    out.get(r).push((a / cols) | 0, a % cols, (b / cols) | 0, b % cols);
+  }
+  return out;
+}
+
+/** For path r: for every palette color, how crowded it is by the placed lines near r (see the top of this file). */
+function penalties(r, placed, where, palette, near) {
+  const pen = new Array(palette).fill(0), mine = where.get(r);
+  for (const [o, color] of placed) {
+    if (o === r) continue;
+    const theirs = where.get(o);
+    let d = Infinity;
+    for (let i = 0; i < mine.length && d > 1; i += 2) {
+      for (let j = 0; j < theirs.length; j += 2) {
+        const e = Math.max(Math.abs(mine[i] - theirs[j]), Math.abs(mine[i + 1] - theirs[j + 1]));
+        if (e < d) { d = e; if (d <= 1) break; }
+      }
+    }
+    if (d > REACH) continue;
+    const w = 1 / (d * d);
+    for (let k = 0; k < palette; k++) pen[k] += w * near.alike(k, color);
+  }
+  return pen;
 }

@@ -12,7 +12,6 @@ import { makeGrace } from './grace.js';
 const S = 44;     // cell size in SVG units
 const PAD = 4;    // room for the frame
 const LABEL = 16; // extra room at the top and left for row/column numbers
-const PATH_COLORS = 8;
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 const BAD_DELAY_MS = 300; // how long a newly red arrow or box waits, so a double tap can finish first (see js/grace.js)
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -34,7 +33,7 @@ export class Board {
     this.gesture = null;
     this.hoverCell = -1;
     this.pinned = -1;                                  // an arrow tapped or clicked: its line stays tinted (see pinArrow())
-    this.opts = { colorLines: false, labels: false };
+    this.opts = { colorLines: false, labels: false, pathColors: null, pathAlike: null };
     this.grace = makeGrace(); this._badTimer = 0; this._graceNow = true;
     el.addEventListener('pointerdown', (e) => this.down(e));
     el.addEventListener('pointermove', (e) => this.move(e));
@@ -46,8 +45,17 @@ export class Board {
 
   setPuzzle(P) { this.P = P; this.pinned = -1; this.colors = null; this.grace.reset(); clearTimeout(this._badTimer); this._graceNow = true; }   // the first render of a puzzle shows its red at once
 
-  /** Display options: { colorLines: color each separate path differently, labels: number the rows and columns }. */
-  setOptions(opts) { Object.assign(this.opts, opts); if (this.marks) this.render(this.marks, this.info, this.hint); }
+  /**
+   * Display options: { colorLines: color each separate path differently, pathColors: the colors to use for that (a list of '#rrggbb', see
+   * js/palettes.js), pathAlike: how much those colors look alike (alikeMatrix in js/palettes.js; used to give a new line a color that
+   * stands out from its neighbors), labels: number the rows and columns }.
+   */
+  setOptions(opts) {
+    // a palette of another size: the colors lines were given are indexes into the old one, so every line gets a fresh one
+    if (opts.pathColors && this.opts.pathColors && opts.pathColors.length !== this.opts.pathColors.length) this.colors = null;
+    Object.assign(this.opts, opts);
+    if (this.marks) this.render(this.marks, this.info, this.hint);
+  }
 
   get offset() { return this.opts.labels ? LABEL : 0; }
 
@@ -67,7 +75,9 @@ export class Board {
     }
     // colors stay with their lines: see pathcolors.js (a new line never recolors the others; a joined line keeps the older color)
     if (!this.colors || this.colors.birth.length !== P.numEdges) this.colors = makeColorKeeper(P.numEdges);
-    const colorOf = assignPathColors(this.colors, marks.edges, (x) => find(x >> 1), PATH_COLORS);
+    const alike = this.opts.pathAlike;
+    const near = alike ? { cols: P.cols, alike: (i, j) => alike[i][j] } : null;
+    const colorOf = assignPathColors(this.colors, marks.edges, (x) => find(x >> 1), (this.opts.pathColors || [0]).length, near);
     return { deg, colorOf, find };
   }
 
@@ -179,7 +189,8 @@ export class Board {
     for (let x = 0; x < P.numEdges; x++) {
       if (!marks.edges[x]) continue;
       const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
-      const style = this.opts.colorLines ? ` style="stroke:var(--path-${colorOf.get(find(a))})"` : '';
+      const pc = this.opts.pathColors;
+      const style = this.opts.colorLines && pc ? ` style="stroke:${pc[colorOf.get(find(a)) % pc.length]}"` : '';
       g += `<line class="seg"${style} stroke-width="${S * 0.13}" x1="${cx(a % P.cols)}" y1="${cy((a / P.cols) | 0)}" x2="${cx(b % P.cols)}" y2="${cy((b / P.cols) | 0)}"/>`;
     }
     // regional puzzles: each region's number sits in a corner of one of its cells (that cell is an ordinary cell: a box or a dot can go there too)
