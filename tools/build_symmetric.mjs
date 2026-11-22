@@ -3,6 +3,7 @@
 //   node tools/build_symmetric.mjs [--limit 60] [--sizes 8x8,12x12]
 import fs from 'node:fs';
 import { parseCsv, toCsv, symmetryKey } from '../js/logic.js';
+import { sizeBlurb, setBonusSub } from './bonus_manifest.mjs';
 import { byTierScore } from './quota.mjs';
 
 const root = new URL('..', import.meta.url).pathname, dir = root + 'tools/library/';
@@ -31,7 +32,8 @@ for (const size of sizes) {
   chosen.forEach((p, i) => { p.name = `${id.toUpperCase()}-${String(i + 1).padStart(3, '0')}`; });
   fs.writeFileSync(`${root}data/${id}.csv`, toCsv(chosen));
   console.log(`${id}: ${chosen.length} puzzles from a pool of ${pool.length}; ${live.map((t) => `${t} ${take.get(t)}/${byTier.get(t).length}`).join(', ')}`);
-  const entry = { id, name: `Bonus: symmetric ${nice}`, file: `data/${id}.csv`, count: chosen.length, label: `Symmetric ${nice}`, group: 'Bonus', blurb: 'The arrows and boxes sit in matching pairs: turn the board half a way round and the layout is the same, with every arrow pointing the opposite way.' };
+  const entry = { id, name: `Bonus: symmetric ${nice}`, file: `data/${id}.csv`, count: chosen.length, label: `Symmetric ${nice}`, group: 'Bonus', sub: 'Symmetric', blurb: sizeBlurb(nice, Object.fromEntries(live.map((t) => [t, take.get(t)]))) };
+  setBonusSub(manifest, 'Symmetric', '🔄', 'The arrows and boxes sit in matching pairs: turn the board half a way round and the layout is the same, with every arrow pointing the opposite way.');
   const at = manifest.books.findIndex((b) => b.id === id);
   if (at >= 0) manifest.books[at] = entry;
   else {

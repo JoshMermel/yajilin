@@ -39,12 +39,8 @@ Measured 2026-11-14 on 36x20 boards (no generator yet, so on feasible sparse boa
   the one at the other. The logic-masters.de example Josh remembers had mostly voids and all clues 6 on a big board; a local search for "every arrow says N" found nothing
   (0 of 6 at 10×10 to 14×14), so try building the box pattern first (N per line) or a mostly-void frame. Also wanted: at-least / at-most arrows, two-way and four-way
   arrows, number-only clues, regional plus arrows (order agreed 2026-11-21).
-- [ ] **16×16 bonus books** (the long way round, one direction, all zeros, no zeros; 250 puzzles each, next to the 8×8 and 12×12 ones). Scheduled for
-  tonight, 2026-11-21 at 22:00: `nohup sh tools/run_bonus_16x16.sh 22:00 &` is already waiting (log `tools/library/bonus16.log`, pid in `bonus16.pid`; kill it to
-  cancel or restart it with another time). It makes the pools (`tools/make_bonus_split.sh` with `ONLYSIZE=16x16`: 300 puzzles each for the first three recipes, 150 each for the
-  two no-zeros ones, no arrows-at-least-2 recipe), builds the books (`tools/build_bonus_split.mjs --sizes 16x16`), then runs the sort check, the audit and the tests.
-  Measured per puzzle on one core: long way round ~4 s, all zeros ~20 s, one direction ~30 s, no zeros ~50 s, so about 3 hours on 9 cores (noisy: three puzzles per recipe).
-  Afterwards: check the tier spread and puzzle counts in the log, update the README's book list, then commit. Not tried: 20×20 (expect several times the 16×16 cost).
+- [x] **16×16 bonus books** (done 2026-11-22): the long way round, one direction, all zeros, no zeros; 250 each, built overnight by `tools/run_bonus_16x16.sh`
+  (Medium/Hard about half and half; all zeros 43/136/71). The Bonus picker is grouped by gimmick again. Not tried: 20×20 (expect several times the 16×16 cost).
 - Larger boards (14x14 up to Nikoli's 20x36). Measured 2026-11-14: 10x10 takes seconds, 12x12 about 10-50 s, but 14x14 and 16x16 did
   not finish in 15-25 minutes per puzzle. The loop generator is fast even at 36x20 (about 0.5 s); the climb over clue directions
   is what stalls (loop and holes are fixed, so only informative clue placement can help). Ideas: re-roll the loop's holes during the

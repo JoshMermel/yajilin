@@ -16,6 +16,7 @@
 // Every puzzle is unique (the generators check it).  node tools/build_frame_experiment.mjs
 import fs from 'node:fs';
 import { parseCsv, toCsv, symmetryKey } from '../js/logic.js';
+import { setBonusSub } from './bonus_manifest.mjs';
 const root = new URL('..', import.meta.url).pathname, dir = root + 'tools/library/';
 const recipeOf = (f) => {
   let m;
@@ -58,8 +59,9 @@ const count = {};
 for (const p of out) { const k = `${p.recipe}-${p.cols}x${p.rows}`; count[k] = (count[k] || 0) + 1; p.name = `FRAME-${k}-${count[k]}`; p.lines = arrowLines(p); delete p.recipe; }
 fs.writeFileSync(root + 'data/frame-experiment.csv', toCsv(out));
 const manifestPath = root + 'data/manifest.json', m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const entry = { id: 'frame-experiment', name: 'Experiment: frame', file: 'data/frame-experiment.csv', count: out.length, label: 'Frame (experiment)', group: 'Bonus', keepOrder: true, unaudited: true,
+const entry = { id: 'frame-experiment', name: 'Experiment: frame', file: 'data/frame-experiment.csv', count: out.length, label: 'Frame (experiment)', group: 'Bonus', sub: 'Frame', keepOrder: true, unaudited: true,
   blurb: 'All arrows are on the border, pointing in. Inspired by stefliew\'s 20x20 Yajilin on Logic Masters (logic-masters.de, puzzle 0006NR).' };
+setBonusSub(m, 'Frame', '🖼️');
 const at = m.books.findIndex((b) => b.id === entry.id);
 if (at >= 0) m.books[at] = entry; else { const last = m.books.map((b, i) => (b.group === 'Bonus' ? i : -1)).filter((i) => i >= 0).pop(); m.books.splice(last + 1, 0, entry); }
 fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2) + '\n');

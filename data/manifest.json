@@ -48,7 +48,38 @@
     {
       "name": "Bonus",
       "icon": "🎁",
-      "blurb": "Variations on the usual puzzle: the same rules, a different feel."
+      "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
+      "subs": {
+        "The long way round": {
+          "icon": "🔭",
+          "blurb": "Arrows point away from the nearest edge: long lines of sight."
+        },
+        "One direction": {
+          "icon": "➡️",
+          "blurb": "Every arrow in a puzzle points the same way."
+        },
+        "All zeros": {
+          "icon": "0️⃣",
+          "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere."
+        },
+        "No zeros": {
+          "icon": "🔢",
+          "blurb": "No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more."
+        },
+        "Symmetric": {
+          "icon": "🔄",
+          "blurb": "The arrows and boxes sit in matching pairs: turn the board half a way round and the layout is the same, with every arrow pointing the opposite way."
+        },
+        "Skinny": {
+          "icon": "🎀"
+        },
+        "Regional": {
+          "icon": "🗺️"
+        },
+        "Frame": {
+          "icon": "🖼️"
+        }
+      }
     }
   ],
   "books": [
@@ -273,7 +304,8 @@
       "count": 250,
       "label": "The long way round 8×8",
       "group": "Bonus",
-      "blurb": "Arrows point away from the nearest edge: long lines of sight."
+      "blurb": "8×8 boards. Beginner to Hard.",
+      "sub": "The long way round"
     },
     {
       "id": "bonus-longway-12x12",
@@ -282,7 +314,18 @@
       "count": 250,
       "label": "The long way round 12×12",
       "group": "Bonus",
-      "blurb": "Arrows point away from the nearest edge: long lines of sight."
+      "blurb": "12×12 boards. Medium to Hard.",
+      "sub": "The long way round"
+    },
+    {
+      "id": "bonus-longway-16x16",
+      "name": "Bonus: the long way round 16×16",
+      "file": "data/bonus-longway-16x16.csv",
+      "count": 250,
+      "label": "The long way round 16×16",
+      "group": "Bonus",
+      "blurb": "16×16 boards. Medium to Hard.",
+      "sub": "The long way round"
     },
     {
       "id": "bonus-onedir-8x8",
@@ -291,7 +334,8 @@
       "count": 250,
       "label": "One direction 8×8",
       "group": "Bonus",
-      "blurb": "Every arrow in a puzzle points the same way."
+      "blurb": "8×8 boards. Beginner to Hard.",
+      "sub": "One direction"
     },
     {
       "id": "bonus-onedir-12x12",
@@ -300,7 +344,18 @@
       "count": 250,
       "label": "One direction 12×12",
       "group": "Bonus",
-      "blurb": "Every arrow in a puzzle points the same way."
+      "blurb": "12×12 boards. Beginner to Hard.",
+      "sub": "One direction"
+    },
+    {
+      "id": "bonus-onedir-16x16",
+      "name": "Bonus: one direction 16×16",
+      "file": "data/bonus-onedir-16x16.csv",
+      "count": 250,
+      "label": "One direction 16×16",
+      "group": "Bonus",
+      "blurb": "16×16 boards. Medium to Hard.",
+      "sub": "One direction"
     },
     {
       "id": "bonus-zeros-8x8",
@@ -309,7 +364,8 @@
       "count": 250,
       "label": "All zeros 8×8",
       "group": "Bonus",
-      "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere."
+      "blurb": "8×8 boards. Beginner to Hard.",
+      "sub": "All zeros"
     },
     {
       "id": "bonus-zeros-12x12",
@@ -318,7 +374,18 @@
       "count": 250,
       "label": "All zeros 12×12",
       "group": "Bonus",
-      "blurb": "Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere."
+      "blurb": "12×12 boards. Beginner to Hard.",
+      "sub": "All zeros"
+    },
+    {
+      "id": "bonus-zeros-16x16",
+      "name": "Bonus: all zeros 16×16",
+      "file": "data/bonus-zeros-16x16.csv",
+      "count": 250,
+      "label": "All zeros 16×16",
+      "group": "Bonus",
+      "blurb": "16×16 boards. Beginner to Hard.",
+      "sub": "All zeros"
     },
     {
       "id": "bonus-nozeros-8x8",
@@ -327,7 +394,8 @@
       "count": 250,
       "label": "No zeros 8×8",
       "group": "Bonus",
-      "blurb": "No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more."
+      "blurb": "8×8 boards. Beginner to Hard.",
+      "sub": "No zeros"
     },
     {
       "id": "bonus-nozeros-12x12",
@@ -336,7 +404,18 @@
       "count": 250,
       "label": "No zeros 12×12",
       "group": "Bonus",
-      "blurb": "No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more."
+      "blurb": "12×12 boards. Beginner to Hard.",
+      "sub": "No zeros"
+    },
+    {
+      "id": "bonus-nozeros-16x16",
+      "name": "Bonus: no zeros 16×16",
+      "file": "data/bonus-nozeros-16x16.csv",
+      "count": 250,
+      "label": "No zeros 16×16",
+      "group": "Bonus",
+      "blurb": "16×16 boards. Medium to Hard.",
+      "sub": "No zeros"
     },
     {
       "id": "bonus-symmetric-8x8",
@@ -345,7 +424,8 @@
       "count": 60,
       "label": "Symmetric 8×8",
       "group": "Bonus",
-      "blurb": "The arrows and boxes sit in matching pairs: turn the board half a way round and the layout is the same, with every arrow pointing the opposite way."
+      "sub": "Symmetric",
+      "blurb": "8×8 boards. Beginner to Hard."
     },
     {
       "id": "bonus-symmetric-12x12",
@@ -354,7 +434,8 @@
       "count": 60,
       "label": "Symmetric 12×12",
       "group": "Bonus",
-      "blurb": "The arrows and boxes sit in matching pairs: turn the board half a way round and the layout is the same, with every arrow pointing the opposite way."
+      "sub": "Symmetric",
+      "blurb": "12×12 boards. Beginner to Hard."
     },
     {
       "id": "bonus-skinny",
@@ -363,7 +444,8 @@
       "group": "Bonus",
       "blurb": "Narrow boards, up to 36 cells long: a ribbon to follow.",
       "file": "data/bonus-skinny.csv",
-      "count": 100
+      "count": 100,
+      "sub": "Skinny"
     },
     {
       "id": "regional-corpus",
@@ -372,7 +454,8 @@
       "count": 54,
       "label": "Regional corpus (experiment)",
       "group": "Bonus",
-      "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques."
+      "blurb": "No arrows: thick lines cut the board into regions and a number says how many boxes its region holds. A spread of styles for finding the techniques.",
+      "sub": "Regional"
     },
     {
       "id": "frame-experiment",
@@ -381,6 +464,7 @@
       "count": 31,
       "label": "Frame (experiment)",
       "group": "Bonus",
+      "sub": "Frame",
       "keepOrder": true,
       "unaudited": true,
       "blurb": "All arrows are on the border, pointing in. Inspired by stefliew's 20x20 Yajilin on Logic Masters (logic-masters.de, puzzle 0006NR)."

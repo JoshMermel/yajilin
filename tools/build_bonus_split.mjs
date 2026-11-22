@@ -5,16 +5,17 @@
 // score so the spread is kept; a recipe with too few puzzles hands its share to the others. Puzzles are deduplicated across turns and mirrors.
 import fs from 'node:fs';
 import { parseCsv, toCsv, symmetryKey } from '../js/logic.js';
+import { sizeBlurb, setBonusSub } from './bonus_manifest.mjs';
 import { byTierScore } from './quota.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const li = process.argv.indexOf('--limit'), limit = li > 0 ? +process.argv[li + 1] : 250;
 const dir = root + 'tools/library/';
 const THEMES = [
-  { key: 'longway', old: 'bonus-longway', name: 'Bonus: the long way round', label: 'The long way round', recipes: ['longway'], blurb: 'Arrows point away from the nearest edge: long lines of sight.' },
-  { key: 'onedir', old: 'bonus-onedir', name: 'Bonus: one direction', label: 'One direction', recipes: ['onedir'], blurb: 'Every arrow in a puzzle points the same way.' },
-  { key: 'zeros', old: 'bonus-zeros', name: 'Bonus: all zeros', label: 'All zeros', recipes: ['zeros'], blurb: 'Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.' },
-  { key: 'nozeros', old: 'bonus-bignum', name: 'Bonus: no zeros', label: 'No zeros', recipes: ['nz', 'nzd', 't2', 't2d'], blurb: 'No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more.' },
+  { key: 'longway', old: 'bonus-longway', name: 'Bonus: the long way round', label: 'The long way round', icon: '🔭', recipes: ['longway'], blurb: 'Arrows point away from the nearest edge: long lines of sight.' },
+  { key: 'onedir', old: 'bonus-onedir', name: 'Bonus: one direction', label: 'One direction', icon: '➡️', recipes: ['onedir'], blurb: 'Every arrow in a puzzle points the same way.' },
+  { key: 'zeros', old: 'bonus-zeros', name: 'Bonus: all zeros', label: 'All zeros', icon: '0️⃣', recipes: ['zeros'], blurb: 'Every arrow says 0: its line holds no boxes, so the boxes hide elsewhere.' },
+  { key: 'nozeros', old: 'bonus-bignum', name: 'Bonus: no zeros', label: 'No zeros', icon: '🔢', recipes: ['nz', 'nzd', 't2', 't2d'], blurb: 'No arrow says 0, and the numbers run large; in some puzzles every arrow says 2 or more.' },
 ];
 const si = process.argv.indexOf('--sizes'), SIZES = si > 0 ? process.argv[si + 1].split(',') : ['8x8', '12x12'];
 const need = (c) => ({ rows: +c.split('x')[1], cols: +c.split('x')[0] });
@@ -55,8 +56,9 @@ for (const th of THEMES) {
     fs.writeFileSync(`${root}data/${id}.csv`, toCsv(chosen));
     const tiers = {}; for (const p of chosen) tiers[p.tier] = (tiers[p.tier] || 0) + 1;
     console.log(`${id}: ${chosen.length} puzzles (pool ${pools.map((p) => p.length).join('/')}), tiers ${JSON.stringify(tiers)}`);
-    entries.push({ id, name: `${th.name} ${nice}`, file: `data/${id}.csv`, count: chosen.length, label: `${th.label} ${nice}`, group: 'Bonus', blurb: th.blurb });
+    entries.push({ id, name: `${th.name} ${nice}`, file: `data/${id}.csv`, count: chosen.length, label: `${th.label} ${nice}`, group: 'Bonus', sub: th.label, blurb: sizeBlurb(nice, tiers) });
   }
+  setBonusSub(manifest, th.label, th.icon, th.blurb);
   manifest.books = manifest.books.filter((b) => b.id !== th.old && !ids.includes(b.id));      // (the old one-book version and the books about to be rebuilt)
   // the rebuilt books go after the theme's other books, which keeps the sizes in order (8x8, 12x12, 16x16)
   const after = slotOf(manifest.books);
