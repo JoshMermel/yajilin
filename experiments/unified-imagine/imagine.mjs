@@ -87,6 +87,13 @@ export function easyContradictionAfter(P, st, sets) {
 
 const TRACE = ['shadedNeighbor', 'clueDone', 'clueFull', 'clueTight', 'deadEnd', 'forcedExits'];
 const RUN_RULES = RULES.filter((r) => r.free || TRACE.includes(r.id));
+// What can make a rule newly fire: a rule is only asked again when a fact of a kind it reads has been added since it last found nothing.
+// (Facts only ever go from unknown to known, so e.g. "a segment touching a box that is not off yet" needs a new box.)
+const SH = 1, LP = 2, ON = 4, OFF = 8, ALL = 15;
+const DEP = { edgesOffShaded: SH, edgeEnds: ON, fullCells: ON, shadedNeighbor: SH, clueDone: SH, clueFull: SH | LP, clueTight: SH | LP, deadEnd: SH | ON | OFF, forcedExits: ALL };
+const RUN_DEP = RUN_RULES.map((r) => DEP[r.id] ?? ALL);
+const kindsOf = (sets) => { let m = 0; for (const t of sets) m |= t[0] === 'c' ? (t[2] === SHADED ? SH : LP) : (t[2] === E_ON ? ON : OFF); return m; };
+const CHECK_GATE = !!process.env.CHECK_GATE;   // debugging: also ask the skipped rules and fail if one of them finds something
 const key = (k, i, v) => `${k}${i}:${v}`;
 const CHECK_EASY = !!process.env.CHECK_EASY;   // debugging: verify the incremental check against the full one at every generation
 export const STATS = { runs: 0, iters: 0, ruleCalls: 0 };
@@ -96,19 +103,20 @@ export const STATS = { runs: 0, iters: 0, ruleCalls: 0 };
  *  resume: such a snapshot (from a run with the same hypothesis whose forbid set differs only by facts first derivable at that generation). */
 export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContradiction, record = false, resume = null) {
   STATS.runs++;
-  let s2, facts, steps, g0, snaps = null, pend;
+  let s2, facts, steps, g0, snaps = null, pend, gate;
   const incr = contr === easyContradiction;   // the incremental check needs a state that had no easy contradiction before `pend` was applied
-  if (resume) { s2 = cloneState(resume.state); facts = resume.facts.slice(0, resume.nf); steps = resume.steps; g0 = resume.g; pend = resume.pend; if (record) snaps = resume.snaps.slice(0, g0); }
-  else { s2 = cloneState(st); applySets(s2, hyp); facts = []; steps = 0; g0 = 0; pend = hyp; if (record) snaps = []; }
+  if (resume) { s2 = cloneState(resume.state); facts = resume.facts.slice(0, resume.nf); steps = resume.steps; g0 = resume.g; pend = resume.pend; gate = resume.gate.slice(); if (record) snaps = resume.snaps.slice(0, g0); }
+  else { s2 = cloneState(st); applySets(s2, hyp); facts = []; steps = 0; g0 = 0; pend = hyp; gate = new Array(RUN_RULES.length).fill(kindsOf(hyp)); if (record) snaps = []; }
   for (let g = g0; g < 400; g++) {
-    if (record) snaps[g] = { state: cloneState(s2), facts, nf: facts.length, steps, g, snaps, pend };
+    if (record) snaps[g] = { state: cloneState(s2), facts, nf: facts.length, steps, g, snaps, pend, gate: gate.slice() };
     STATS.iters++;
     if (incr ? easyContradictionAfter(P, s2, pend) : contr(P, s2)) return { ok: true, facts, steps, snaps };
     let fired = false;
-    for (const r of RUN_RULES) {
+    for (let ri = 0; ri < RUN_RULES.length; ri++) {
+      const r = RUN_RULES[ri];
+      if (!(gate[ri] & RUN_DEP[ri]) && !CHECK_GATE) continue;
       STATS.ruleCalls++;
       const fs = r.find(P, s2, {});
-      if (!fs.length) continue;
       const arrOf = (k) => (k === 'c' ? s2.cell : s2.e);
       const sets = [];
       for (const f of fs) for (const t of f.sets) {
@@ -116,9 +124,11 @@ export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContra
         if (!r.free && forbid && forbid.has(key(...t))) continue;
         sets.push(t);
       }
-      if (!sets.length) continue;
+      if (CHECK_GATE && sets.length && !(gate[ri] & RUN_DEP[ri])) throw new Error('rule gate skipped ' + r.id);
+      if (!sets.length) { gate[ri] = 0; continue; }
       const ok = applySets(s2, sets);
       pend = sets;
+      { const m = kindsOf(sets); for (let q = 0; q < gate.length; q++) gate[q] |= m; }
       if (!r.free) { steps++; for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id, step: steps, g }); }
       if (!ok) return { ok: true, facts, steps, snaps };
       if (facts.length > maxFacts) return { ok: false, facts, steps, snaps };
@@ -177,6 +187,7 @@ export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12, deferArea = false)
     if (deferArea) return { ok: false, areaState: l };
     return facts.length <= areaFacts || crossed ? (fullContradiction(P, l) ? scanSlow(P, st, hyp, maxRaw, areaFacts) : null) : null;
   };   // (the full check only ever gets truer as facts are added)
+  const gate = new Array(RUN_RULES.length).fill(kindsOf(hyp));   // the position was at a fixed point of these rules before the hypothesis
   let pend = hyp;   // what changed since the last check: the state before it had no easy contradiction (the position is one the rules left consistent)
   for (let g = 0; g < 400; g++) {
     STATS.iters++;
@@ -184,20 +195,23 @@ export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12, deferArea = false)
     if (CHECK_EASY && bad !== easyContradiction(P, s2)) throw new Error('easyContradictionAfter disagrees with easyContradiction');
     if (bad) return { ok: true, area: false, facts };
     let fired = false;
-    for (const r of RUN_RULES) {
+    for (let ri = 0; ri < RUN_RULES.length; ri++) {
+      const r = RUN_RULES[ri];
+      if (!(gate[ri] & RUN_DEP[ri]) && !CHECK_GATE) continue;
       STATS.ruleCalls++;
       const fs = r.find(P, s2, {});
-      if (!fs.length) continue;
       const arrOf = (k) => (k === 'c' ? s2.cell : s2.e);
       const sets = [];
       for (const f of fs) for (const t of f.sets) {
         if (arrOf(t[0])[t[1]] === t[2]) continue;
         sets.push(t);
       }
-      if (!sets.length) continue;
+      if (CHECK_GATE && sets.length && !(gate[ri] & RUN_DEP[ri])) throw new Error('rule gate skipped ' + r.id);
+      if (!sets.length) { gate[ri] = 0; continue; }
       if (!r.free && !crossed && facts.length <= areaFacts && facts.length + sets.length > areaFacts) { crossed = true; last = cloneState(s2); }
       const ok = applySets(s2, sets);
       pend = sets;
+      { const m = kindsOf(sets); for (let q = 0; q < gate.length; q++) gate[q] |= m; }
       if (!r.free) for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id });
       if (!ok) return { ok: true, area: false, facts };
       if (facts.length > maxRaw) return finish();

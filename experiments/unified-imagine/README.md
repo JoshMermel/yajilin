@@ -50,3 +50,8 @@ Round 3 (aimed at the 20x36 boards, where the scan was 75% of the time; `prof1.m
 7. the area arguments (cut-off areas, odd open ends) are only looked for when there are fewer easy chains than `maxCand`: candidates are taken easy ones first and only the
    first `maxCand` are priced, so area candidates could not be picked anyway. The scan hands back the state to check and `bestImagine` decides later.
 One 20x36 (Medium to Hard): 11.6 s, then 5.2 s (old rules 1.6 s). Big boards again (14 puzzles, 4 shards): total 103 s, then 62 s against 14 s (ratio 6.9 then 4.5); worst case 35 s then 20 s.
+
+Round 4: 8. rules are asked again only when a fact of a kind they read has been added since they last found nothing (`DEP` in imagine.mjs: a new box, a new dot, a segment on, a segment off).
+Facts only go from unknown to known, so e.g. "a segment touching a box that is not off yet" can only appear with a new box. Rule calls halved (675k to 362k on the 20x36 above).
+`CHECK_GATE=1` also asks the skipped rules and fails if one would have found something (no failure on the check set or on a 20x36); results identical on the check set.
+Timed with the machine quiet (load about 2): 12-puzzle small sample 0.37 s old, 1.08 s unified (2.9x); the 14 big boards 7.6 s old, 25 s unified (3.3x), worst 8.2 s against 2.1 s (a Hard 20x36).
