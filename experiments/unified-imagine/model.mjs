@@ -1,12 +1,15 @@
 import { RULES, applySets, contradiction, isComplete, nextStep, rate, tierOfRule, UNDETERMINED_WEIGHT } from '../../js/rating.js';
 import { initialState, SHADED, LOOP, UNKNOWN, checkSolved, E_ON } from '../../js/logic.js';
-import { run, pruned, fullContradiction } from './imagine.mjs';
+import { run, scan, pruned, fullContradiction, STATS } from './imagine.mjs';
+export { STATS };
 export const AREA_PENALTY = 12;
 
 export const REPLACED = ['deadEndNeighbor', 'shadeShortChain', 'boxStarvesClue', 'closingNeighbor', 'dotShortChain', 'shadeFewLines', 'boxStarvesClueByLines',
   'shadeForcesLines', 'shadeClosesLoop', 'dotForcesLines'];
 const NOT_REPLACED = RULES.filter((r) => !r.free && !REPLACED.includes(r.id)).map((r) => r.id);
 export const MEDIUM_MAX = 30;
+const NONFREE = RULES.filter((r) => !r.free).map((r) => r.id);
+const ABOVE_CHEAP = REPLACED.concat(RULES.filter((r) => !r.free && r.weight > 12).map((r) => r.id));
 
 /** one cost for a chain of either polarity: the lines it needs matter most, the cells it passes through a little; many lines make it Hard */
 const MODEL = process.env.MODEL || 'A';
@@ -23,18 +26,19 @@ const counted = (P) => {
 };
 
 /** the cheapest imagined box or dot that ends in a contradiction: { cell, pol, cost, pr } or null */
-export function bestImagine(P, st, { maxCand = 8, maxRaw = 30 } = {}) {
-  const cnt = counted(P), cands = [];
+export function bestImagine(P, st, { maxCand = +(process.env.MAXCAND || 8), maxRaw = 30 } = {}) {
+  const cnt = counted(P), cands = [], r0 = STATS.runs;
   for (let i = 0; i < P.N; i++) {
     if (st.cell[i] !== UNKNOWN) continue;
     for (const pol of [SHADED, LOOP]) {
       if (pol === LOOP && !cnt[i]) continue;
-      let r = run(P, st, [['c', i, pol]], null, maxRaw), area = false;
-      if (!r.ok) { r = run(P, st, [['c', i, pol]], null, 12, fullContradiction); area = true; }   // an area argument (cut off, odd open ends) after a short chain
-      if (!r.ok) continue;
+      const r = scan(P, st, [['c', i, pol]], maxRaw, 12);   // an area argument (cut off, odd open ends) counts after a short chain
+      if (!r) continue;
+      const area = r.area;
       cands.push({ cell: i, pol, area, rawE: r.facts.filter((f) => f.k === 'e').length, raw: r.facts.length });
     }
   }
+  STATS.scanRuns = (STATS.scanRuns || 0) + (STATS.runs - r0); STATS.cands = (STATS.cands || 0) + cands.length; STATS.calls = (STATS.calls || 0) + 1;
   cands.sort((a, b) => a.area - b.area || a.rawE - b.rawE || a.raw - b.raw || (a.pol === SHADED ? -1 : 1));
   let best = null;
   for (const c of cands.slice(0, maxCand)) {
@@ -51,11 +55,18 @@ export function rateUnified(P) {
   for (let guard = 0; guard < 2000; guard++) {
     if (!contradiction(P, st) && isComplete(P, st)) break;
     const bk = {};
-    const nf = nextStep(P, st, bk, REPLACED);            // cheapest rule that is not part of the family (also applies the bookkeeping)
+    nextStep(P, st, bk, NONFREE);                          // only the bookkeeping (free rules) runs; it is applied to st
     for (const id of Object.keys(bk)) { const rule = RULES.find((q) => q.id === id); steps.push({ rule: id, tier: rule.tier, cost: rule.weight, bookkeeping: true }); }
+    let pick = null;
+    const cheap = nextStep(P, st, null, ABOVE_CHEAP);       // a cheap rule outside the family: no need to imagine anything
+    let nf = cheap, fam = null;
+    if (!cheap || cheap.weight + (cheap.extra || 0) > 12) {
+      fam = bestImagine(P, st);
+      // the other rules only matter if they could beat the imagined chain: leave out those priced above it (an equal price still wins the tie)
+      const skip = fam ? REPLACED.concat(RULES.filter((r) => !r.free && r.weight > fam.cost).map((r) => r.id)) : REPLACED;
+      nf = nextStep(P, st, null, skip);
+    }
     const nfCost = nf ? nf.weight + (nf.extra || 0) : Infinity;
-    let pick = null, fam = null;
-    if (nfCost > 12) fam = bestImagine(P, st);
     if (fam && fam.cost < nfCost) {
       pick = { rule: 'imagine', tier: fam.cost <= MEDIUM_MAX ? 'Medium' : 'Hard', cost: fam.cost, sets: [['c', fam.cell, fam.pol === SHADED ? LOOP : SHADED]], hyp: fam.pol === SHADED ? 'box' : 'dot', nE: fam.pr.nE, n: fam.pr.n, area: fam.area };
     } else if (nf) {

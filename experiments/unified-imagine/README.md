@@ -18,3 +18,19 @@ Caveats: the sample leaves out 20x20, 20x36 and skyscraper boards, the candidate
 are hand-fitted. Next: profile and optimize.
 
 The scripts import `../../js`, so "old" ratings are whatever the working tree's `js/rating.js` gives now.
+
+## Profiling and speed (check.mjs, prof.mjs, stats.mjs)
+
+`check.mjs <model module>` prints tier, score and a hash of the step sequence per puzzle, to prove an optimization changes nothing;
+`prof.mjs` times old vs unified rating (run it with `node --cpu-prof`); `stats.mjs <names>` counts hypothesis runs.
+
+Where the time went: bestImagine was ~70% of rating time (scan of every cell and polarity ~half, pruning by ablation ~half), and the
+search for the cheapest non-family rule ran through all the expensive rules every step.
+Exact optimizations done (all give identical tiers, scores and step sequences on a 40-puzzle check set):
+1. the non-family search is capped at the imagined chain's cost (and skipped for a rule priced at 12 or less);
+2. ablation runs resume from a per-generation snapshot instead of replaying the chain from the start;
+3. one scan run serves both the easy and the area contradiction, and the full (area) check runs once on the last short state instead of every step.
+Result: the 40-puzzle set went 10.2 s to 5.8 s (old rating: 0.8 s), so about 7x slower than the old rules instead of 13x.
+Approximations measured but NOT adopted: one ablation pass (25% faster, 14 of 40 scores shift slightly, no tier changes) and a lower candidate
+cap (`MAXCAND`: 4 gives 7 scores and 1 tier different, 1 gives 20 scores and 3 tiers different).
+Ideas left: reuse scan results between steps (a hypothesis that contradicted stays contradicted), incremental propagation instead of full-board rule scans.

@@ -58,16 +58,23 @@ export function easyContradiction(P, st) {
 const TRACE = ['shadedNeighbor', 'clueDone', 'clueFull', 'clueTight', 'deadEnd', 'forcedExits'];
 const RUN_RULES = RULES.filter((r) => r.free || TRACE.includes(r.id));
 const key = (k, i, v) => `${k}${i}:${v}`;
+export const STATS = { runs: 0, iters: 0, ruleCalls: 0 };
 
-/** hyp: [['c', i, v]...]. forbid: Set of fact keys that may not be derived by a non-free rule. */
-export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContradiction) {
-  const s2 = cloneState(st);
-  applySets(s2, hyp);
-  const facts = []; let steps = 0;
-  for (let g = 0; g < 400; g++) {
-    if (contr(P, s2)) return { ok: true, facts, steps };
+/** hyp: [['c', i, v]...]. forbid: Set of fact keys that may not be derived by a non-free rule.
+ *  record: keep the state at the start of every generation, so a later run that only forbids facts from generation g on can resume there.
+ *  resume: such a snapshot (from a run with the same hypothesis whose forbid set differs only by facts first derivable at that generation). */
+export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContradiction, record = false, resume = null) {
+  STATS.runs++;
+  let s2, facts, steps, g0, snaps = null;
+  if (resume) { s2 = cloneState(resume.state); facts = resume.facts.slice(0, resume.nf); steps = resume.steps; g0 = resume.g; if (record) snaps = resume.snaps.slice(0, g0); }
+  else { s2 = cloneState(st); applySets(s2, hyp); facts = []; steps = 0; g0 = 0; if (record) snaps = []; }
+  for (let g = g0; g < 400; g++) {
+    if (record) snaps[g] = { state: cloneState(s2), facts, nf: facts.length, steps, g, snaps };
+    STATS.iters++;
+    if (contr(P, s2)) return { ok: true, facts, steps, snaps };
     let fired = false;
     for (const r of RUN_RULES) {
+      STATS.ruleCalls++;
       const fs = r.find(P, s2, {});
       if (!fs.length) continue;
       const arrOf = (k) => (k === 'c' ? s2.cell : s2.e);
@@ -79,19 +86,87 @@ export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContra
       }
       if (!sets.length) continue;
       const ok = applySets(s2, sets);
-      if (!r.free) { steps++; for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id, step: steps }); }
-      if (!ok) return { ok: true, facts, steps };
-      if (facts.length > maxFacts) return { ok: false, facts, steps };
+      if (!r.free) { steps++; for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id, step: steps, g }); }
+      if (!ok) return { ok: true, facts, steps, snaps };
+      if (facts.length > maxFacts) return { ok: false, facts, steps, snaps };
       fired = true; break;
     }
-    if (!fired) return { ok: false, facts, steps };
+    if (!fired) return { ok: false, facts, steps, snaps };
   }
-  return { ok: false, facts, steps };
+  return { ok: false, facts, steps, snaps };
+}
+
+/** The scan run for one hypothesis, both ways at once: the same propagation as run(...easyContradiction) up to maxRaw facts, and, should the easy
+ *  contradictions never come, the first state within `areaFacts` facts where the full check (cut-off areas, odd open ends) holds.
+ *  Returns { ok, area, facts } as the two separate runs would (the easy one wins), or null. */
+function scanSlow(P, st, hyp, maxRaw = 30, areaFacts = 12) {
+  STATS.runs++;
+  const s2 = cloneState(st);
+  applySets(s2, hyp);
+  const facts = []; let areaAt = -1;
+  for (let g = 0; g < 400; g++) {
+    STATS.iters++;
+    if (easyContradiction(P, s2)) return { ok: true, area: false, facts };
+    if (areaAt < 0 && facts.length <= areaFacts && fullContradiction(P, s2)) areaAt = facts.length;
+    let fired = false;
+    for (const r of RUN_RULES) {
+      STATS.ruleCalls++;
+      const fs = r.find(P, s2, {});
+      if (!fs.length) continue;
+      const arrOf = (k) => (k === 'c' ? s2.cell : s2.e);
+      const sets = [];
+      for (const f of fs) for (const t of f.sets) {
+        if (arrOf(t[0])[t[1]] === t[2]) continue;
+        sets.push(t);
+      }
+      if (!sets.length) continue;
+      const ok = applySets(s2, sets);
+      if (!r.free) for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id });
+      if (!ok) return { ok: true, area: false, facts };
+      if (facts.length > maxRaw) return areaAt >= 0 ? { ok: true, area: true, facts: facts.slice(0, areaAt) } : null;
+      fired = true; break;
+    }
+    if (!fired) break;
+  }
+  return areaAt >= 0 ? { ok: true, area: true, facts: facts.slice(0, areaAt) } : null;
+}
+
+export function scan(P, st, hyp, maxRaw = 30, areaFacts = 12) {
+  STATS.runs++;
+  const s2 = cloneState(st);
+  applySets(s2, hyp);
+  const facts = []; let last = null;
+  const finish = () => (last && fullContradiction(P, last) ? scanSlow(P, st, hyp, maxRaw, areaFacts) : null);   // (the full check only ever gets truer as facts are added)
+  for (let g = 0; g < 400; g++) {
+    STATS.iters++;
+    if (easyContradiction(P, s2)) return { ok: true, area: false, facts };
+    if (facts.length <= areaFacts) last = cloneState(s2);
+    let fired = false;
+    for (const r of RUN_RULES) {
+      STATS.ruleCalls++;
+      const fs = r.find(P, s2, {});
+      if (!fs.length) continue;
+      const arrOf = (k) => (k === 'c' ? s2.cell : s2.e);
+      const sets = [];
+      for (const f of fs) for (const t of f.sets) {
+        if (arrOf(t[0])[t[1]] === t[2]) continue;
+        sets.push(t);
+      }
+      if (!sets.length) continue;
+      const ok = applySets(s2, sets);
+      if (!r.free) for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: r.id });
+      if (!ok) return { ok: true, area: false, facts };
+      if (facts.length > maxRaw) return finish();
+      fired = true; break;
+    }
+    if (!fired) break;
+  }
+  return finish();
 }
 
 /** Prune by ablation: forbid each derived fact in turn (last first); if the contradiction still follows, it was not needed. */
 export function pruned(P, st, hyp, contr = easyContradiction) {
-  let r = run(P, st, hyp, null, 80, contr);
+  let r = run(P, st, hyp, null, 80, contr, true);
   if (!r.ok) return null;
   const raw = r.facts.length;
   const forbid = new Set();
@@ -100,7 +175,7 @@ export function pruned(P, st, hyp, contr = easyContradiction) {
     for (let a = r.facts.length - 1; a >= 0; a--) {
       const f = r.facts[a], kk = key(f.k, f.i, f.v);
       forbid.add(kk);
-      const t = run(P, st, hyp, forbid, 80, contr);
+      const t = run(P, st, hyp, forbid, 80, contr, true, r.snaps[f.g]);
       if (t.ok) { changed = true; r = t; a = Math.min(a, r.facts.length); }   // not needed: take the new, shorter run
       else forbid.delete(kk);
     }
