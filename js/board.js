@@ -194,13 +194,6 @@ export class Board {
       const style = this.opts.colorLines && pc ? ` style="stroke:${pc[colorOf.get(find(a)) % pc.length]}"` : '';
       g += `<line class="seg"${style} stroke-width="${S * 0.13}" x1="${cx(a % P.cols)}" y1="${cy((a / P.cols) | 0)}" x2="${cx(b % P.cols)}" y2="${cy((b / P.cols) | 0)}"/>`;
     }
-    // regional puzzles: each region's number sits in a corner of one of its cells (that cell is an ordinary cell: a box or a dot can go there too)
-    if (P.regional) {
-      P.clues.forEach((cl, k) => {
-        const i = cl.r * P.cols + cl.c, st = info.clueState[k];
-        g += `<text class="region-num ${st === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : st || ''}" x="${cellX(i) + 5}" y="${cellY(i) + 16}" font-size="15">${cl.n}</text>`;
-      });
-    }
     if (hint) {
       const seg = (x) => { const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1; return [cx(a % P.cols), cy((a / P.cols) | 0), cx(b % P.cols), cy((b / P.cols) | 0)]; };
       const roles = hint.roles || {};
@@ -224,6 +217,14 @@ export class Board {
       }
       for (const i of hint.wrongCells || []) g += `<rect class="wrong" x="${cellX(i) + 2}" y="${cellY(i) + 2}" width="${S - 4}" height="${S - 4}" rx="6"/>`;
       for (const x of hint.wrongEdges || []) { const [x1, y1, x2, y2] = seg(x); g += `<line class="wrong-seg" stroke-width="${S * 0.2}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; }
+    }
+    // regional puzzles: each region's number sits in a corner of one of its cells (that cell is an ordinary cell: a box or a dot can go there too).
+    // Drawn after the hint overlays, so a ghost box or a highlight on that cell never hides it.
+    if (P.regional) {
+      P.clues.forEach((cl, k) => {
+        const i = cl.r * P.cols + cl.c, st = info.clueState[k];
+        g += `<text class="region-num ${st === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : st || ''}" x="${cellX(i) + 5}" y="${cellY(i) + 16}" font-size="15">${cl.n}</text>`;
+      });
     }
     const over = this.gesture ? -1 : this.hoverCell;
     if (over >= 0) {

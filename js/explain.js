@@ -393,12 +393,15 @@ export function explainStep(P, step, st = null) {
     }
     case 'dotShortChain':
     case 'dotForcesLines': {
-      role('focus', info.cell);
-      if (!st) { text = `A dot at ${N(info.cell)} would lead, by easy steps, to a contradiction: it's a box.`; break; }
+      // info.box: the dot's first consequence was the clue's one other open cell being its last box, so it is told the other way round:
+      // a box THERE completes the clue (the cell in question is a dot) and the same chain follows
+      const box = info.box;
+      role('focus', box !== undefined ? box : info.cell);
+      if (!st) { text = box !== undefined ? `A box at ${N(box)} would lead, by easy steps, to a contradiction: it's a dot.` : `A dot at ${N(info.cell)} would lead, by easy steps, to a contradiction: it's a box.`; break; }
       const t = dotTrace(P, st, info.cell);
       const said = [], boxes = [];
       const list = (xs) => (xs.length > 2 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs.join(' and '));
-      for (const { rule: r, sets, infos } of t.trace) {
+      for (const { rule: r, sets, infos } of t.trace.slice(box !== undefined ? 1 : 0)) {
         if (r === 'clueFull' || r === 'clueTight') {
           for (const f of infos) {
             const sh = [...new Set(f.cells.filter((i) => sets.some(([k, j, v]) => k === 'c' && j === i && v === SHADED)))];
@@ -411,6 +414,11 @@ export function explainStep(P, step, st = null) {
           if (sh.length) { boxes.push(...sh); said.push(`${list(sh.map(N))} would be left with fewer than two ways out, so ${sh.length === 1 ? 'a box' : 'boxes'}`); }
         }
       }
+      if (box !== undefined) {
+        const k = t.trace[0].infos[0].clue;
+        role('clue', clueCell(P, k)); role('range', P.rays[k]);
+        said.unshift(`the ${clueName(P, k)} would have all its boxes, so ${N(info.cell)} is a dot`);
+      }
       role('problem', ...boxes);
       chain = []; for (let x = 0; x < P.numEdges; x++) if (t.s2.e[x] === E_ON && st.e[x] !== E_ON) chain.push(x);
       const why = brokenAt(P, t.s2);
@@ -418,7 +426,9 @@ export function explainStep(P, step, st = null) {
       if (why.ends) role('path', ...why.ends);
       const lines = chain.length ? 'the lines that follow (dashed)' : '';
       const how = said.length ? `${said.join('; then ')}${lines ? `; with ${lines}` : ''}` : lines ? `it would force ${lines}` : 'a few easy steps follow';
-      text = `Imagine a dot at ${N(info.cell)}: ${how}, and then ${why.text}. So ${N(info.cell)} is a box.`;
+      text = box !== undefined
+        ? `Imagine a box at ${N(box)}: ${how}, and then ${why.text}. So ${N(box)} is a dot.`
+        : `Imagine a dot at ${N(info.cell)}: ${how}, and then ${why.text}. So ${N(info.cell)} is a box.`;
       break;
     }
     case 'chokepoint':

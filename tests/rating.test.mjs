@@ -597,6 +597,7 @@ test('rules that assume a unique solution are kept out of everything that treats
 
 import { HUMAN_ORDER } from '../js/rating.js';
 import { explainStep } from '../js/explain.js';
+import { nextSteps, applySets } from '../js/rating.js';
 
 test('rangeSameOne: two same-direction clues with one cell between them (Beginner); rangeSame keeps the longer gaps', () => {
   // clue at 0 (right, 2) and clue at 2 (right, 1): the one cell between them holds 2 - 1 = 1 box
@@ -733,9 +734,15 @@ test('imagine a dot (dotShortChain, Medium): a dot that leaves a clue its exact 
   const r = rate(P);
   const step = r.steps.find((s) => s.rule === 'dotShortChain');
   assert.ok(step, JSON.stringify(r.counts));
-  assert.equal(step.sets[0][2], SHADED);
   const sol = solve(P, { limit: 1 }).solutions[0];
-  assert.equal(sol.cell[step.info.cell], SHADED);
+  if (step.info.box === undefined) {
+    assert.equal(step.sets[0][2], SHADED);
+    assert.equal(sol.cell[step.info.cell], SHADED);
+  } else {
+    // the dot's first consequence was the clue's last open cell: told as "a box there is impossible, so it is a dot"
+    assert.deepEqual(step.sets, [['c', step.info.box, LOOP]]);
+    assert.notEqual(sol.cell[step.info.box], SHADED);
+  }
   const rule = RULES.find((q) => q.id === 'dotShortChain');
   assert.equal(rule.tier, 'Medium');
   assert.ok(rule.weight < RULES.find((q) => q.id === 'dotForcesLines').weight);
@@ -799,3 +806,22 @@ test('chokepoint: the part reported is the smaller real side of the cut, not jus
   const transposed = (i) => (i % P.cols) * P.cols + Math.floor(i / P.cols);
   assert.deepEqual(right.part.map(transposed).sort((a, b) => a - b), down.part.slice().sort((a, b) => a - b));
 });
+
+test('dotShortChain: when the dot only forces the clue\'s one other open cell to be its last box, it is told as "a box there is impossible, so it is a dot"', () => {
+  // REGL-SYMMETRIC-10x10-8 after its first 20 steps (a hint report: the region numbered 1 at F8 has F8 and E9 open, F9 is a dot).
+  // Imagining a dot at F8 is the same as imagining a box at E9: report that, and the region's own clue then makes F8 the box.
+  const P = compile(parseCsv(`name,rows,cols,clues,solution,rules,tier,score,boxes,regions\n${REGL_ROW}\n`)[0]);
+  const st = initialState(P);
+  for (let k = 0; k < 20; k++) for (const f of nextSteps(P, st).firings) applySets(st, f.sets);
+  const r = nextSteps(P, st), E9 = cellIdx(P, 'E9'), F8 = cellIdx(P, 'F8');
+  assert.equal(r.rule, 'dotShortChain');
+  assert.deepEqual(r.firings[0].sets, [['c', E9, LOOP]]);
+  assert.equal(r.firings[0].info.box, E9);
+  const text = explainStep(P, { rule: r.rule, sets: r.firings[0].sets, info: r.firings[0].info }, st).text;
+  assert.match(text, /^Imagine a box at E9: the region numbered 1 \(at F8\) would have all its boxes, so F8 is a dot; .*So E9 is a dot\.$/);
+  applySets(st, r.firings[0].sets);
+  const r2 = nextSteps(P, st);
+  assert.equal(r2.rule, 'clueFull');
+  assert.deepEqual(r2.firings[0].sets, [['c', F8, SHADED]]);
+});
+const REGL_ROW = 'REGL-SYMMETRIC-10x10-8,10,10,0:0:G:2;0:2:G:1;0:4:G:0;0:7:G:2;0:9:G:0;1:1:G:0;1:4:G:2;3:2:G:1;3:6:G:2;3:8:G:0;3:9:G:0;4:1:G:1;5:0:G:0;5:6:G:1;5:9:G:2;6:2:G:1;6:4:G:1;7:0:G:0;7:5:G:1;7:7:G:2;9:3:G:1,x6cx6acx6c69569x3a953c39x6aac5x5x6c3cx5569695x3c395x5x3cx3cx3c3cx3ac3c69x3cx69x556c6969x693939x3aa9x,dotForcesLines,Hard,834,,0.0.1.1.2.2.2.3.3.4.0.5.5.1.6.6.3.3.4.4.0.5.5.1.6.1.3.3.4.4.0.0.7.1.1.1.8.3.9.10.0.11.7.7.8.8.8.9.9.10.12.11.11.8.8.8.13.13.9.14.12.11.15.8.16.16.16.13.14.14.17.17.15.15.16.18.16.19.19.14.17.17.15.15.18.18.16.19.19.14.17.15.15.20.20.20.16.16.14.14';

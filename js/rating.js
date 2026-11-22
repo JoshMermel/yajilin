@@ -1651,7 +1651,8 @@ const pairedEndsMany = (P, st) => pairedEnds(P, st).filter((f) => f.info.k > 2);
 //
 // The mirror of the "imagine a box" rules: put a dot on a cell that a clue counts, follow the easy consequences (a clue then needing every
 // open cell it has left, or exactly every other one; dots next to boxes; dead ends; a cell with two ways out using both), and if that ends in a
-// contradiction the cell is a box. dotShortChain allows DOT_SHORT steps (Medium); dotForcesLines follows them to the end (Hard).
+// contradiction the cell is a box (or, when the dot only forces the clue's one other open cell to be its last box, that cell is a dot: info.box).
+// dotShortChain allows DOT_SHORT steps (Medium); dotForcesLines follows them to the end (Hard).
 
 const DOT_RULES = ['shadedNeighbor', 'clueDone', 'clueFull', 'clueTight', 'deadEnd', 'forcedExits'];
 export const DOT_SHORT = 4;
@@ -1696,7 +1697,13 @@ function dotChain(P, st, cap) {
   for (let i = 0; i < P.N; i++) {
     if (st.cell[i] !== UNKNOWN || !counted[i]) continue;
     const t = dotTrace(P, st, i, cap);
-    if (t.contradiction && t.steps <= cap) out.push(firing([setCell(i, SHADED)], { cell: i, steps: t.steps }));
+    if (!t.contradiction || t.steps > cap) continue;
+    // A dot whose first consequence is "the clue's only other open cell is its last box" is the same thing as imagining that box: it makes
+    // the clue complete, so `i` is a dot again and the rest follows. A person finds that one the other way round ("a box at X is
+    // impossible, so X is a dot"), and then the clue itself makes `i` a box as a next step, so that is how it is reported.
+    const first = t.trace[0], f = first && first.rule === 'clueFull' && first.infos.length === 1 ? first.infos[0] : null;
+    if (f && f.cells.length === 1 && P.rays[f.clue].includes(i)) out.push(firing([setCell(f.cells[0], LOOP)], { cell: i, box: f.cells[0], steps: t.steps }));
+    else out.push(firing([setCell(i, SHADED)], { cell: i, steps: t.steps }));
   }
   return out.sort((a, b) => a.info.steps - b.info.steps || a.info.cell - b.info.cell);
 }
