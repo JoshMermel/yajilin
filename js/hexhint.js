@@ -8,7 +8,8 @@
 //
 // Pure (no DOM). Marks the player can make are boxes, dots and loop segments: a fact that only rules a segment out has nothing to mark, so it is
 // never a step by itself.
-import { cloneState, initialState, propagate, UNKNOWN, SHADED, LOOP, E_UNKNOWN, E_ON, E_OFF } from './logic.js';
+import { cloneState, initialState, propagate, colName, UNKNOWN, SHADED, LOOP, E_UNKNOWN, E_ON, E_OFF } from './logic.js';
+import { explainImagine } from './hexwhy.js';
 
 const MAX_FORCED = 8;
 
@@ -102,6 +103,7 @@ export function hexNextStep(P, st) {
     }
     // nothing is forced directly: imagine a value in an undecided cell, and see which one cannot be right (the one with the shortest story first)
     let best = null;
+    const nameOf = (i) => `${colName(i % P.cols)}${((i / P.cols) | 0) + 1}`;
     const chainOf = (apply) => {                                       // what the imagined mark forces before the contradiction shows (a failed propagate keeps what it set)
       const v = cloneState(t); apply(v); propagate(P, v);
       const chain = [];
@@ -114,8 +116,11 @@ export function hexNextStep(P, st) {
         const u = cloneState(t);
         u.cell[i] = value;
         if (propagate(P, u)) continue;                                 // no contradiction: this one cannot be ruled out here
-        const chain = chainOf((v) => { v.cell[i] = value; });
-        if (!best || chain.length < best.chain.length) best = { kind: 'imagine', imagined, focus: [i], chain, shaded: other === SHADED ? [i] : [], loop: other === LOOP ? [i] : [], segOn: [] };
+        // the story of the contradiction (js/hexwhy.js); the shortest one wins, and the plain "can no longer be completed" is the fallback
+        const explain = explainImagine(P, base, { kind: 'cell', i, v: value }, nameOf);
+        const chain = explain ? explain.chain : chainOf((v) => { v.cell[i] = value; });
+        const size = explain ? explain.steps : 99;
+        if (!best || size < best.size || (size === best.size && chain.length < best.chain.length)) best = { kind: 'imagine', imagined, focus: [i], chain, explain, size, shaded: other === SHADED ? [i] : [], loop: other === LOOP ? [i] : [], segOn: [] };
       }
     }
     if (best) return best;
@@ -125,7 +130,7 @@ export function hexNextStep(P, st) {
       const a = P.edgeA[x];
       if (a < 0 || t.e[x] !== E_UNKNOWN || t.cell[a] === SHADED || t.cell[P.edgeB[x]] === SHADED || P.clueAt[a] >= 0 || P.clueAt[P.edgeB[x]] >= 0) continue;
       const off = cloneState(t); off.e[x] = E_OFF;
-      if (!propagate(P, off)) { best = { kind: 'imagine', imagined: 'gap', focus: [a, P.edgeB[x]], chain: [], shaded: [], loop: [], segOn: [x] }; break; }
+      if (!propagate(P, off)) { best = { kind: 'imagine', imagined: 'gap', focus: [a, P.edgeB[x]], chain: [], explain: explainImagine(P, base, { kind: 'edge', x, v: E_OFF }, nameOf), shaded: [], loop: [], segOn: [x] }; if (best.explain) best.chain = best.explain.chain; break; }
       const on = cloneState(t); on.e[x] = E_ON;
       if (!propagate(P, on)) { t.e[x] = E_OFF; progress = true; }
     }
@@ -159,6 +164,7 @@ export function describeHexStep(step, name) {
     const more = step.total > n ? ` (${step.total - n} more follow after these)` : '';
     return `No single rule shows it, but together the arrows' counts and the shape of the loop force ${parts.join(', ')}.${more}`;
   }
+  if (step.explain) return step.explain.text;
   if (step.imagined === 'gap') return `Imagine no line between ${name(step.focus[0])} and ${name(step.focus[1])}: the position can no longer be completed. So the loop runs between them.`;
   const c = name(step.focus[0]);
   const want = step.shaded.length ? 'a box' : 'a dot';

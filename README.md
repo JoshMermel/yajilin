@@ -72,7 +72,10 @@ name,rows,cols,clues,solution,rules,tier,score
   of every edge, edge `3i + 0/1/2` = cell i's east / south-east / south-west edge), and the solver, checker, clue colouring and board work on it. In a hex
   `solution` string a loop cell's exits are one of 64 symbols (bit d = direction d), not a hex digit. Not yet for hex: the human-style rules and
   rating (rating.js is square-only) and turning the board. Hint works (js/hexhint.js): the marks propagation forces, or else one cell where imagining a box
-  (or a dot, or a missing segment) makes the position impossible; following the hints from an empty board always solves a hex puzzle. A hex board's symmetries (`hexSymmetries`: a vertical flip when the rows are odd, a half
+  (or a dot, or a missing segment) makes the position impossible; following the hints from an empty board always solves a hex puzzle. An imagine step tells the story of the contradiction (js/hexwhy.js redoes the
+  propagation one fact at a time, remembers what each fact came from, and keeps only the chain the contradiction needs: "Imagine a box at D3: E3 and D2 would
+  be dots...; then the arrow at D1 could only get its 2 boxes by using E4 and F6...; and then F5 would be on the loop with only one way out. So D3 is a dot."),
+  with the arrow, the cells it counts and the trouble spots marked on the board; the tests check it never claims a contradiction propagation does not find. A hex board's symmetries (`hexSymmetries`: a vertical flip when the rows are odd, a half
   turn when they are even; never a horizontal mirror) are folded into `symmetryKey`, and printing draws hexagons (`hexBoardSvg` in js/print.js).
   Generator: `generateHex` (js/generator_hex.js): simulated annealing for a set of non-loop cells with exactly one loop through the rest (cost: loop segments
   still undecided after propagation; about a second at 10x10), then every one of them

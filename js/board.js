@@ -289,6 +289,7 @@ export class Board {
       for (const i of hint.undecided || []) g += `<polygon class="hint-undecided" points="${points(i)}"/>`;
       for (const i of roles.range || []) g += `<polygon class="hint-range" points="${points(i)}"/>`;
       for (const i of roles.clue || []) g += `<polygon class="hint-clue" points="${points(i)}"/>`;
+      for (const i of roles.problem || []) g += `<polygon class="hint-problem" points="${points(i)}"/>`;
       for (const i of roles.focus || []) g += `<polygon class="hint-focus" points="${points(i)}"/>`;
     }
     // an arrow that is hovered (or tapped, which keeps it) tints the cells it counts in
@@ -345,7 +346,7 @@ export class Board {
     const hc = over >= 0 ? over % P.cols : -1, hr = over >= 0 ? (over / P.cols) | 0 : -1;
     for (let c = 0; c < P.cols; c++) g += `<text class="axis-label${c === hc ? ' here' : ''}" x="${this.hexCenter(0, c)[0]}" y="${PAD - 6}">${colName(c)}</text>`;
     for (let r = 0; r < P.rows; r++) g += `<text class="axis-label side${r === hr ? ' here' : ''}" x="${PAD - 6}" y="${this.hexCenter(r, 0)[1]}">${r + 1}</text>`;
-    return `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img"><g transform="translate(${OFF} ${OFF})">${g}</g></svg>`;
+    return `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img"><defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" class="hatch-bg"/><line x1="0" y1="0" x2="0" y2="8" class="hatch-line" stroke-width="4"/></pattern></defs><g transform="translate(${OFF} ${OFF})">${g}</g></svg>`;
   }
 
   // ---- pointer decoding

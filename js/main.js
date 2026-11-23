@@ -412,9 +412,11 @@ function showHint() {
     line('', `${n} mark${n === 1 ? ' is' : 's are'} incorrect (shown in red). Fix them before asking for a step.`);
   } else if (h.kind === 'hexstep') {
     const s = h.step, name = (i) => `${colName(i % P.cols)}${((i / P.cols) | 0) + 1}`;
-    overlay = { roles: { focus: s.focus, clue: s.clue || [], range: s.range || [] }, shaded: s.shaded, loop: s.loop, segOn: s.segOn, chain: s.chain };
+    const why = s.explain && s.explain.roles;                    // an imagine step that is explained also marks the arrows, the cells it counts and the trouble
+    overlay = { roles: why ? { ...why, focus: s.focus } : { focus: s.focus, clue: s.clue || [], range: s.range || [] }, shaded: s.shaded, loop: s.loop, segOn: s.segOn, chain: s.chain };
     line('hint-meta', `${s.kind === 'rule' ? s.rule : s.kind} · ${h.ms} ms`);
     line('', describeHexStep(s, name));
+    legend(overlay.roles, s.chain);
   } else if (h.kind === 'stuck') {
     overlay = { undecided: h.undecided };
     line('hint-meta', P.hex ? `stuck · ${h.ms} ms` : `stuck · ${RULES.filter((r) => !r.free).length} rules tried · ${h.ms} ms`);
