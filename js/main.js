@@ -636,7 +636,6 @@ function setupPrint() {
   keyBox.checked = store.get('yj_printKey') !== '0';
   const update = () => {
     const puzzles = state.book ? state.book.puzzles : [];
-    if (puzzles.some((p) => p.hex)) { err.hidden = false; err.textContent = "Printing isn't available for hex books yet."; go.disabled = true; summary.textContent = ''; return null; }
     const { ids, error } = parseSelection(sel.value, puzzles.length);
     err.hidden = !error; err.textContent = error ?? ''; go.disabled = Boolean(error);
     if (error) { summary.textContent = ''; return null; }

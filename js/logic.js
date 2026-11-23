@@ -56,6 +56,18 @@ export function hexStep(r, c, d) {
 }
 export const oppositeHexDir = (d) => (d + 3) % 6;
 
+/**
+ * The ways a rows x cols hex board (odd rows shifted right) maps onto itself, as { cell(r, c) -> [r, c], dir(d) -> d }: the identity and one more.
+ * A horizontal mirror is never one (it would swap which rows are shifted); a vertical flip is one when the number of rows is odd (the rows keep
+ * their parity), and a half turn when it is even (the parity swaps, and so does the side the shift is on, which is what the shift needs).
+ */
+export function hexSymmetries(rows, cols) {
+  const id = { cell: (r, c) => [r, c], dir: (d) => d };
+  return [id, rows & 1
+    ? { cell: (r, c) => [rows - 1 - r, c], dir: (d) => (6 - d) % 6 }                  // flip top to bottom: E, W stay, SE <-> NE, SW <-> NW
+    : { cell: (r, c) => [rows - 1 - r, cols - 1 - c], dir: (d) => (d + 3) % 6 }];       // half turn
+}
+
 /** The characters of a hex puzzle's solution string: a loop cell's exit mask has 6 bits, so one of 64 symbols ('x' and '#' are taken). */
 const SOL_ALPHABET = '0123456789abcdefghijklmnopqrstuvwyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/_';
 
@@ -488,7 +500,16 @@ const dirOf = (dr, dc) => DR.findIndex((v, d) => v === dr && DC[d] === dc);
  */
 export function symmetryKey(p) {
   const { rows, cols } = p;
-  if (p.grid === 'hex') return `hex${rows}x${cols}|${cluesToString(p.clues, true).split(';').sort().join(';')}|${boxesToString(p.boxes)}`;     // (the hex board's own symmetries are not folded in yet)
+  if (p.grid === 'hex') {
+    let best = null;
+    for (const t of hexSymmetries(rows, cols)) {
+      const clues = p.clues.map((c) => { const [r, cc] = t.cell(c.r, c.c); return `${r}:${cc}:${c.n < 0 ? 'V' : HEX_DIR_LETTERS[t.dir(c.d)]}:${c.n}`; }).sort().join(';');
+      const boxes = (p.boxes || []).map((b) => t.cell(b.r, b.c).join(':')).sort().join(';');
+      const key = `hex${rows}x${cols}|${clues}|${boxes}`;
+      if (best === null || key < best) best = key;
+    }
+    return best;
+  }
   let best = null;
   for (let t = 0; t < 8; t++) {
     const swap = t & 1, flipR = t & 2, flipC = t & 4;

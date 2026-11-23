@@ -611,10 +611,10 @@
       "id": "hex-5x5",
       "name": "Hex: 5×5",
       "file": "data/hex-5x5.csv",
-      "count": 37,
+      "count": 33,
       "label": "5×5",
       "group": "Hex",
-      "blurb": "5×5 hex boards, 37 puzzles from easy to hard. An experiment."
+      "blurb": "5×5 hex boards, 33 puzzles from easy to hard. An experiment."
     },
     {
       "id": "hex-6x6",

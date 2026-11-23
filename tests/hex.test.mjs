@@ -161,3 +161,29 @@ test('hex: the CSV keeps the grid and the six arrow letters, and a hex puzzle ha
   assert.notEqual(puzzleHash(hexP), puzzleHash({ ...hexP, grid: undefined }));
   for (const line of text.trim().split('\n')) assert.equal(line.split(',').length, 11, line);
 });
+
+import { hexSymmetries, symmetryKey } from '../js/logic.js';
+
+test('hexSymmetries: each one maps neighbours to neighbours (cell and direction together), on odd and even row counts', () => {
+  for (const [rows, cols] of [[5, 4], [6, 4], [4, 5], [7, 6]]) {
+    for (const t of hexSymmetries(rows, cols)) {
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) for (let d = 0; d < 6; d++) {
+        const [nr, nc] = hexStep(r, c, d);
+        const [tr, tc] = t.cell(r, c), [er, ec] = hexStep(tr, tc, t.dir(d));
+        if (nr >= 0 && nc >= 0 && nr < rows && nc < cols) assert.deepEqual([er, ec], t.cell(nr, nc), `${rows}x${cols} ${r},${c} dir ${d}`);
+        else assert.ok(er < 0 || ec < 0 || er >= rows || ec >= cols, 'off the board stays off the board');
+      }
+    }
+  }
+});
+
+test('symmetryKey (hex): a puzzle and its turned or flipped copy share a key, a different puzzle does not, and clue order is irrelevant', () => {
+  for (const [rows, cols] of [[5, 5], [6, 5]]) {
+    const clues = [{ r: 0, c: 1, d: 1, n: 2 }, { r: 2, c: 2, d: 3, n: 0 }, { r: 3, c: 0, d: 5, n: 1 }];
+    const p = { grid: 'hex', rows, cols, clues, boxes: [] };
+    const t = hexSymmetries(rows, cols)[1];
+    const q = { grid: 'hex', rows, cols, boxes: [], clues: clues.map((c) => { const [r, cc] = t.cell(c.r, c.c); return { r, c: cc, d: t.dir(c.d), n: c.n }; }).reverse() };
+    assert.equal(symmetryKey(p), symmetryKey(q));
+    assert.notEqual(symmetryKey(p), symmetryKey({ ...p, clues: [...clues.slice(0, 2), { r: 3, c: 0, d: 4, n: 1 }] }));
+  }
+});

@@ -4,7 +4,7 @@
 //
 // buildPrintRoot() fills the hidden #print-root element; style.css shows only that element while printing (see "Printing" there).
 // Everything except buildPrintRoot is pure (no DOM), so the layout and the drawing can be tested in node.
-import { SHADED, E_ON } from './logic.js';
+import { SHADED, E_ON, hexStep } from './logic.js';
 
 const INK = '#111', GRID = '#9a9a9a', CLUE_BG = '#dcdcdc', VOID_BG = '#b4b4b4';
 export const MAX_PRINT = 500;
@@ -42,8 +42,13 @@ export const PAGE = { w: 186, h: 255, head: 14, caption: 8.5, colGap: 5, rowGap:
 const BOARD_PAD = 0.12;       // a board's svg is this many cell units wider and taller than its cells (see boardSvg)
 const CAPTION_CHAR_MM = 2.0;  // a caption's text is about 2 mm a character at 3.6 mm type
 
+// A hex cell is 1 unit wide (flat side to flat side), so its circumradius is HR, a row is 1.5 HR below the last, and an odd row sits half a cell right.
+const HR = 1 / Math.sqrt(3);
+/** A hex board's size in cell units (without the pad). */
+const hexUnits = (P) => [P.cols + 0.5, 1.5 * HR * P.rows + HR / 2];
+
 /** A puzzle's board size in cell units. */
-export const boardUnits = (P) => [P.cols + BOARD_PAD, P.rows + BOARD_PAD];
+export const boardUnits = (P) => { const [w, h] = P.hex ? hexUnits(P) : [P.cols, P.rows]; return [w + BOARD_PAD, h + BOARD_PAD]; };
 
 /** How wide a caption is, in mm ('#', up to three digits, ' · ' and the tier). */
 export function captionMm(P, answer = false) {
@@ -83,10 +88,11 @@ export function planPrint({ puzzles, ids, keyIds = [], size = 'comfortable' }) {
 const f = (v) => +v.toFixed(3);
 const H = Math.SQRT1_2;
 const VEC = [[0, -1], [1, 0], [0, 1], [-1, 0], [H, -H], [H, H], [-H, H], [-H, -H]];     // arrow directions: 0 up, 1 right, 2 down, 3 left, then up-right, down-right, down-left, up-left
+const HEX_VEC = [[1, 0], [0.5, 0.866], [-0.5, 0.866], [-1, 0], [-0.5, -0.866], [0.5, -0.866]];     // hex arrows: east, south-east, south-west, west, north-west, north-east
 
 /** An arrow centred at (x, y), `len` long, pointing in direction d, as lines (no font needed, so it prints the same everywhere). */
-function arrowMarkup(x, y, d, len) {
-  const [ux, uy] = VEC[d], h = len / 2, head = len * 0.36;
+function arrowMarkup(x, y, d, len, vec = VEC) {
+  const [ux, uy] = vec[d], h = len / 2, head = len * 0.36;
   const tx = x + ux * h, ty = y + uy * h;
   // the two barbs of the head: the shaft direction turned by +-135 degrees
   const barb = (sign) => { const a = Math.atan2(uy, ux) + sign * (Math.PI * 3 / 4); return `M${f(tx)} ${f(ty)}L${f(tx + Math.cos(a) * head)} ${f(ty + Math.sin(a) * head)}`; };
@@ -98,6 +104,7 @@ function arrowMarkup(x, y, d, len) {
  * Clue cells are grey with the number and an arrow; pre-placed boxes are always drawn.
  */
 export function boardSvg(P, sol = null) {
+  if (P.hex) return hexBoardSvg(P, sol);
   const { rows, cols } = P, pad = 0.06;
   let g = `<rect x="0" y="0" width="${cols}" height="${rows}" fill="#fff"/>`;
   for (const cl of P.clues) {
@@ -142,6 +149,52 @@ export function boardSvg(P, sol = null) {
   }
   g += `<rect x="0" y="0" width="${cols}" height="${rows}" fill="none" stroke="${INK}" stroke-width="0.08"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" class="print-board" viewBox="${-pad} ${-pad} ${cols + 2 * pad} ${rows + 2 * pad}">${g}</svg>`;
+}
+
+/** A hex board as an SVG string (a cell is 1 unit wide): the same drawing as boardSvg, on hexagons. */
+function hexBoardSvg(P, sol) {
+  const { rows, cols } = P, pad = 0.06, [W, Hh] = hexUnits(P);
+  const ctr = (i) => [0.5 + (i % cols) + (((i / cols) | 0) & 1) * 0.5, HR + ((i / cols) | 0) * 1.5 * HR];
+  const verts = (i, k = 1) => { const [x, y] = ctr(i), w = 0.5 * k, h = (HR / 2) * k, t = HR * k; return [[x, y - t], [x + w, y - h], [x + w, y + h], [x, y + t], [x - w, y + h], [x - w, y - h]]; };
+  const pts = (i, k = 1) => verts(i, k).map(([x, y]) => `${f(x)},${f(y)}`).join(' ');
+  const outline = (i) => 'M' + verts(i).map(([x, y]) => `${f(x)} ${f(y)}`).join('L') + 'Z';
+  let g = '', grid = '';
+  for (let i = 0; i < P.N; i++) grid += outline(i);
+  g += `<path d="${grid}" fill="#fff"/>`;
+  for (const cl of P.clues) {
+    const i = cl.r * cols + cl.c, [x, y] = ctr(i), horiz = cl.d === 0 || cl.d === 3;
+    if (cl.n < 0) {
+      g += `<polygon class="void" points="${pts(i)}" fill="${VOID_BG}"/>`;
+      g += `<path class="void-x" d="M${f(x - 0.25)} ${f(y - 0.25)}L${f(x + 0.25)} ${f(y + 0.25)}M${f(x + 0.25)} ${f(y - 0.25)}L${f(x - 0.25)} ${f(y + 0.25)}" stroke="${INK}" stroke-width="0.06" stroke-linecap="round" opacity="0.55"/>`;
+      continue;
+    }
+    g += `<polygon class="clue" points="${pts(i)}" fill="${CLUE_BG}"/>`;
+    const nx = x - (horiz ? 0 : 0.17), ny = y + (horiz ? -0.2 : 0), ax = x + (horiz ? 0 : 0.26), ay = y + (horiz ? 0.25 : 0);
+    g += `<text class="num" x="${f(nx)}" y="${f(ny + 0.16)}" font-size="0.46" font-weight="700" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" fill="${INK}">${cl.n}</text>`;
+    g += arrowMarkup(ax, ay, cl.d, horiz ? 0.42 : 0.46, HEX_VEC);
+  }
+  g += `<path d="${grid}" fill="none" stroke="${GRID}" stroke-width="0.025" stroke-dasharray="0.07 0.06"/>`;
+  if (sol) {
+    const given = new Set(P.boxIdx);
+    for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0 && (given.has(i) || sol.cell[i] === SHADED)) g += `<polygon class="box" points="${pts(i, 0.72)}" fill="${INK}" stroke="${INK}" stroke-width="0.06" stroke-linejoin="round"/>`;
+    for (let x = 0; x < P.numEdges; x++) {
+      if (sol.e[x] !== E_ON) continue;
+      const [x1, y1] = ctr(P.edgeA[x]), [x2, y2] = ctr(P.edgeB[x]);
+      g += `<line class="loop" x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}" stroke="${INK}" stroke-width="0.14" stroke-linecap="round"/>`;
+    }
+  }
+  let wall = '';                           // the board's outline: every side that has no neighbour
+  for (let i = 0; i < P.N; i++) {
+    const v = verts(i), r = (i / cols) | 0, c = i % cols;
+    for (let d = 0; d < 6; d++) {
+      const [nr, nc] = hexStep(r, c, d);
+      if (nr >= 0 && nc >= 0 && nr < rows && nc < cols) continue;
+      const [a, b] = [[v[1], v[2]], [v[2], v[3]], [v[3], v[4]], [v[4], v[5]], [v[5], v[0]], [v[0], v[1]]][d];
+      wall += `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}`;
+    }
+  }
+  g += `<path class="frame" d="${wall}" fill="none" stroke="${INK}" stroke-width="0.08" stroke-linejoin="round" stroke-linecap="round"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="print-board" viewBox="${-pad} ${-pad} ${W + 2 * pad} ${Hh + 2 * pad}">${g}</svg>`;
 }
 
 // --- The page --------------------------------------------------------------------------------------------------

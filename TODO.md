@@ -268,7 +268,6 @@ Findings: unique-loop hole sets are rare on a hex board (about 1% of random maxi
 (about 1-5 s at 8x8). At 10x10 the hole search found nothing within 150 s: bigger boards need a smarter search (build the loop and the holes together).
 Next:
 - Hex-aware human rules and a rating (rating.js, imagine.js, explain.js are square-only), then Hint on hex boards and real tiers (the book tiers are by rank).
-- Printing hex boards; the board's own symmetries in `symmetryKey` (a mirrored hex puzzle is a different puzzle there).
 - Larger boards (10x10 and up), other shapes (a true hexagon, voids), diagonal-style variants (hex arrows that skip, "all six directions" puzzles).
 - Path-colour spacing (`near` in js/pathcolors.js) is off for hex.
 

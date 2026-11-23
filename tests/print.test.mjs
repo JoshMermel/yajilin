@@ -92,3 +92,23 @@ test('a void cell prints as a darker cell with a cross, no number and no arrow, 
   assert.equal((svg.match(/class="num"/g) || []).length, 1);
   assert.equal((svg.match(/class="arrow"/g) || []).length, 1);
 });
+
+test('a hex board prints hexagons: a clue and an arrow per arrow cell, and the answer adds the boxes and exactly the loop; its size counts the half-cell shift', async () => {
+  const { parseCsv, compile, decodeSolution, E_ON, SHADED } = await import('../js/logic.js');
+  const { boardUnits } = await import('../js/print.js');
+  const fs = await import('node:fs');
+  const P = compile(parseCsv(fs.readFileSync(new URL('../data/hex-6x6.csv', import.meta.url), 'utf8'))[10]);
+  const blank = boardSvg(P);
+  assert.equal((blank.match(/class="clue"/g) || []).length, P.clues.length);
+  assert.equal((blank.match(/class="arrow"/g) || []).length, P.clues.length);
+  assert.equal((blank.match(/class="box"/g) || []).length, 0);
+  const sol = decodeSolution(P, P.solution);
+  const ans = boardSvg(P, sol);
+  assert.equal((ans.match(/class="box"/g) || []).length, [...P.solution].filter((ch) => ch === 'x').length);
+  assert.equal((ans.match(/class="loop"/g) || []).length, [...sol.e].filter((v) => v === E_ON).length);
+  assert.ok(sol.cell.some((v) => v === SHADED));
+  const [w, h] = boardUnits(P);
+  assert.ok(w > P.cols + 0.5 && h < P.rows, 'wider than the columns (half-cell shift), shorter than the rows (hex rows nest)');
+  const m = /viewBox="([-\d. ]+)"/.exec(ans)[1].split(' ').map(Number);
+  assert.ok(Math.abs(m[2] - (w - 0.12 + 0.12)) < 0.2 && Math.abs(m[3] - h) < 0.2, 'the svg box matches boardUnits');
+});
