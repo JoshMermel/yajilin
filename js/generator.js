@@ -420,15 +420,15 @@ function rayOf(rows, cols, i, d, isClue) {
 }
 
 /** Build the compiled puzzle (and its solution string) from a loop, the shaded cells that stay shaded and the clue cells. */
-export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen') {
+export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen', opFor = null) {
   const N = rows * cols;
   const isClue = new Uint8Array(N);
   for (const i of clueDir.keys()) isClue[i] = 1;
   const clues = [];
   for (const [i, d] of [...clueDir.entries()].sort((x, y) => x[0] - y[0])) {
     if (d < 0) { clues.push({ r: (i / cols) | 0, c: i % cols, d: 0, n: -1 }); continue; }     // a void cell (direction -1): no arrow, no number
-    const n = rayOf(rows, cols, i, d, isClue).filter((j) => loop.holes[j] && !isClue[j]).length;
-    clues.push({ r: (i / cols) | 0, c: i % cols, d, n });
+    const ray = rayOf(rows, cols, i, d, isClue), n = ray.filter((j) => loop.holes[j] && !isClue[j]).length;
+    clues.push({ r: (i / cols) | 0, c: i % cols, d, ...(opFor ? opFor(i, n, ray.length) : { n }) });
   }
   const P = compile({ name, rows, cols, clues });
   const st = initialState(P);
@@ -436,6 +436,33 @@ export function buildPuzzle(rows, cols, loop, clueDir, name = 'gen') {
   for (let x = 0; x < 2 * N; x++) st.e[x] = loop.edges[x] ? E_ON : E_OFF;
   P.solution = encodeSolution(P, st);
   return P;
+}
+
+/**
+ * The operators of a puzzle with "at least", "at most" and "not" clues: opFor(i, count, length) -> { n, op? } for the clue cell i whose line
+ * (length cells) really holds `count` boxes. Each cell keeps its kind for the whole run (drawn on first use), so the climb sees a stable puzzle.
+ * mix: the share of each kind among the clues, { ge, le, ne } (the rest are ordinary). A kind that says no more than "=" would for this line
+ * (at least 0, at most the whole line, at least or at most the whole line when it is empty or full) stays ordinary: the clue is only
+ * written with an operator where it is a real inequality, and a "not" clue names a count next to the real one (a near miss is the hard kind).
+ */
+export function makeOpFor(rng, mix) {
+  const kinds = new Map();
+  const draw = () => {
+    const x = rng();
+    return x < mix.ge ? 'ge' : x < mix.ge + mix.le ? 'le' : x < mix.ge + mix.le + mix.ne ? (rng() < 0.5 ? 'ne-' : 'ne+') : 'eq';
+  };
+  return (i, count, len) => {
+    if (!kinds.has(i)) kinds.set(i, draw());
+    const kind = kinds.get(i);
+    if (kind === 'ge' && count > 0 && count < len) return { n: count, op: '>=' };
+    if (kind === 'le' && count > 0 && count < len) return { n: count, op: '<=' };
+    if (kind[0] === 'n') {
+      const n = kind === 'ne+' ? count + 1 : count - 1;
+      const other = n < 0 || n > len ? (kind === 'ne+' ? count - 1 : count + 1) : n;
+      if (other >= 0 && other <= len) return { n: other, op: '!=' };
+    }
+    return { n: count };
+  };
 }
 
 /**
@@ -536,8 +563,9 @@ function undecidedScore(P, st) {
  * Climb: the score is how many cells the rules leave undecided. A move re-aims a clue near an undecided cell or turns a
  * nearby shaded cell into a clue; it is kept if the score does not get worse.
  */
-function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, boxRange = null, cheapFirst = null, fullBelow = null, prune = true, voids = 0, diagonal = 0, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false } = {}) {
+function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density = 0.3, clump = 0.5, shadeShare = 0.55, edgeBias = null, oneDirection = false, directions = null, numbers = null, minMean = 2.0, boxRange = null, cheapFirst = null, fullBelow = null, prune = true, voids = 0, diagonal = 0, upto, maxIter = 6000, acceptU = 30, restarts = 12, tightArrows = 0, diagnose = null, name = 'gen', budgetMs = 120000, verbose = false, ops = null, minOps = 0 } = {}) {
   const t0 = Date.now();
+  const opFor = ops ? makeOpFor(rng, ops) : null;                  // ops: { ge, le, ne } shares of at-least, at-most and not clues (see makeOpFor)
   const say = (...a) => { if (verbose) console.error('  gen:', ...a); };
   const dirs = oneDirection ? [(rng() * 4) | 0] : directions;
   let loop = null;
@@ -599,7 +627,7 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
   const useCheap = (cheapFirst === null ? N >= 150 : cheapFirst) && upto === undefined;
   const fullLimit = fullBelow === null ? Math.max(20, N * 0.08) : fullBelow;
   const evaluate = () => {
-    const P = buildPuzzle(rows, cols, loop, clueDir, name);
+    const P = buildPuzzle(rows, cols, loop, clueDir, name, opFor);
     let r = solvedByRules(P, useCheap ? cheapUpto : upto);
     let base = r.solved ? 0 : undecidedScore(P, r.state) + 0.001;
     if (useCheap && !r.solved && base <= fullLimit) {
@@ -665,8 +693,9 @@ function attemptPuzzle(rows, cols, rng, { tight = true, loopGate = true, density
   if (diagnose && (!diagnose.best || bestSeen.u < diagnose.best.u)) diagnose.best = { u: bestSeen.u, P: bestSeen.P, state: bestSeen.r.state, clues: bestSeen.P.clues.length, iterations: iter };
   say(`${iter} iterations, ${checks} checks, undecided score ${cur.u.toFixed(1)}, ${clueDir.size} clues, ${Date.now() - t0} ms`);
   if (!acceptable()) return null;
-  let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++, fixed, numbers, minMean) : cur.P;
+  let puzzle = prune && cur.u === 0 ? pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, () => checks++, fixed, numbers, minMean, opFor) : cur.P;
   if (!numbersOk(puzzle, numbers, minMean, boxRange)) { say('rejected: the numbers are not in the requested style'); return null; }
+  if (ops && puzzle.clues.filter((cl) => cl.op).length < minOps) { say('rejected: too few inequality clues'); return null; }
   return { puzzle, stats: { iterations: iter, checks, ms: Date.now() - t0 } };
 }
 
@@ -683,13 +712,13 @@ export function generatePuzzle(rows, cols, rng, options = {}) {
 }
 
 /** Turn clue cells back into shaded cells (where legal) while the rules still solve the puzzle. */
-function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, onCheck, fixed, numbers = null, minMean = 2.0) {
+function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budgetMs, onCheck, fixed, numbers = null, minMean = 2.0, opFor = null) {
   // a hard number style ('zeros', 'twos') is a requirement of the finished puzzle: a new box must not land in an arrow's line and spoil
   // a number (before this, such a prune was rejected only at the very end, so every pruned zeros puzzle was thrown away)
   const hardStyle = numbers === 'zeros' || numbers === 'twos' || numbers === 'nozeros';
   const N = rows * cols;
   const order = shuffle([...clueDir.keys()].filter((i) => loop.holes[i]), rng);
-  let P = buildPuzzle(rows, cols, loop, clueDir, name);
+  let P = buildPuzzle(rows, cols, loop, clueDir, name, opFor);
   for (const i of order) {
     if (Date.now() - t0 > budgetMs) break;
     if (fixed && fixed[i]) continue;                                 // a planted tight arrow stays
@@ -697,7 +726,7 @@ function pruneClues(rows, cols, loop, clueDir, isClue, rng, upto, name, t0, budg
     if (gridNeighbours(rows, cols, i).some((j) => loop.holes[j] && !isClue[j])) continue;
     const d = clueDir.get(i);
     clueDir.delete(i); isClue[i] = 0;
-    const Q = buildPuzzle(rows, cols, loop, clueDir, name);
+    const Q = buildPuzzle(rows, cols, loop, clueDir, name, opFor);
     if (hardStyle && numberGap(Q, numbers, minMean) > 0) { clueDir.set(i, d); isClue[i] = 1; continue; }
     onCheck();
     if (solvedByRules(Q, upto).solved) P = Q;

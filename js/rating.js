@@ -186,7 +186,7 @@ export function contradiction(P, st) {
     if (P.clues[k].n < 0) continue;                      // a void cell has no count
     let s = 0, u = 0;
     for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) u++; }
-    if (s > P.clues[k].n || s + u < P.clues[k].n) return true;
+    if (s > P.hi[k] || s + u < P.lo[k] || (u === 0 && s === P.ne[k])) return true;
   }
   if (balanceBroken(P, st)) return true;
   if (chokepointCheck(P, st)) return true;              // a single cell between two parts that both hold loop cells
@@ -249,7 +249,18 @@ function clueDone(P, st) {
   P.clues.forEach((cl, k) => {
     if (cl.n < 0) return;
     const { s, unk } = clueCounts(P, st, k);
-    if (s === cl.n && unk.length) out.push(firing(unk.map((i) => setCell(i, LOOP)), { clue: k, cells: unk }));
+    if (s === P.hi[k] && unk.length) out.push(firing(unk.map((i) => setCell(i, LOOP)), { clue: k, cells: unk }));
+  });
+  return out;
+}
+
+/** A "not n" clue with one open cell left: that cell may not make the count n. */
+function clueNot(P, st) {
+  const out = [];
+  P.clues.forEach((cl, k) => {
+    if (P.ne[k] < 0) return;
+    const { s, unk } = clueCounts(P, st, k);
+    if (unk.length === 1 && (s === P.ne[k] || s + 1 === P.ne[k])) out.push(firing([setCell(unk[0], s === P.ne[k] ? SHADED : LOOP)], { clue: k, cells: unk, count: s }));
   });
   return out;
 }
@@ -259,7 +270,7 @@ function clueFull(P, st) {
   P.clues.forEach((cl, k) => {
     if (cl.n < 0) return;
     const { s, unk } = clueCounts(P, st, k);
-    if (unk.length && cl.n - s === unk.length) out.push(firing(unk.map((i) => setCell(i, SHADED)), { clue: k, cells: unk }));
+    if (unk.length && P.lo[k] - s === unk.length) out.push(firing(unk.map((i) => setCell(i, SHADED)), { clue: k, cells: unk }));
   });
   return out;
 }
@@ -372,7 +383,7 @@ function boxStarves(P, st, withLines) {
     for (const j of touched) for (const k of cluesAt[j]) lost.set(k, (lost.get(k) || 0) + 1);
     for (const [k, gone] of lost) {
       const boxes = have[k] + (cluesAt[i].includes(k) ? 1 : 0), room = open[k] - gone;
-      if (boxes + room >= P.clues[k].n) continue;
+      if (boxes + room >= P.lo[k]) continue;
       const dots = touched.slice(1).filter((j) => cluesAt[j].includes(k)).sort((a, b) => a - b);
       const chain = dots.filter((j) => forced.includes(j));        // the dots that come from a neighbour's forced line, not from touching the box
       const through = [...new Set(chain.flatMap((j) => viaOf.get(j)))].sort((a, b) => a - b);
@@ -569,7 +580,7 @@ export function regionDeduce(P, st, cells, kmin, kmax) {
 function clueTight(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
-    if (cl.n < 2 || cl.region) return;                    // (also skips voids; a region is not a line, so it has no runs)
+    if (P.lo[k] < 2 || cl.region) return;                 // (also skips voids; a region is not a line, so it has no runs)
     let boxes = 0, run = [];
     const runs = [];
     for (const i of P.rays[k]) {
@@ -580,7 +591,7 @@ function clueTight(P, st) {
       } else { if (run.length) runs.push(run); run = []; }
     }
     if (run.length) runs.push(run);
-    const need = cl.n - boxes;
+    const need = P.lo[k] - boxes;
     if (need < 2 || !runs.length || runs.some((r) => r.length % 2 === 0)) return;
     if (runs.reduce((a, r) => a + (r.length + 1) / 2, 0) !== need) return;
     out.push(firing(runs.flatMap((r) => r.map((i, q) => (q % 2 === 0 ? setCell(i, SHADED) : setCell(i, LOOP)))), { clue: k, cells: runs.flat(), need, runs: runs.length }));
@@ -593,7 +604,8 @@ function cluePlacements(P, st) {
   const out = [];
   P.clues.forEach((cl, k) => {
     if (cl.n < 0) return;
-    const sets = (cl.region ? regionDeduce : rangeDeduce)(P, st, P.rays[k], cl.n, cl.n);
+    if (P.lo[k] === 0 && P.hi[k] >= P.rays[k].length) return;       // "not n" says nothing about where
+    const sets = (cl.region ? regionDeduce : rangeDeduce)(P, st, P.rays[k], P.lo[k], P.hi[k]);
     if (sets.length) out.push(firing(sets, { clue: k, cells: P.rays[k] }));
   });
   return out;
@@ -626,7 +638,7 @@ function placementDeadEnd(P, st) {
     for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0) refresh(j); }
   };
   P.clues.forEach((cl, k) => {
-    if (cl.n < 0) return;
+    if (cl.n < 0 || cl.op) return;                          // (it enumerates the ways to place exactly n boxes)
     const ray = P.rays[k];
     let have = 0;
     const elig = [];
@@ -689,7 +701,7 @@ function arrowPairs(P) {
   const same = [], face = [];
   P.clues.forEach((A, a) => {
     P.clues.forEach((B, b) => {
-      if (a === b || A.n < 0 || B.n < 0 || A.region || B.region) return;
+      if (a === b || A.n < 0 || B.n < 0 || A.region || B.region || A.op || B.op) return;
       const sameWay = A.d === B.d, facing = B.d === oppositeDir(A.d);
       if (!sameWay && !facing) return;
       const ia = cellOfClue(P, A), ib = cellOfClue(P, B);
@@ -974,7 +986,7 @@ function boxStarvesClueByPlacements(P, st) {
     }
     for (const k of clues) {
       if (!P.rays[k].some((j) => near[j])) continue;
-      const { room, shaded } = lineRoom(P, probe, k), need = P.clues[k].n - shaded;
+      const { room, shaded } = lineRoom(P, probe, k), need = P.lo[k] - shaded;
       if (need > room) { out.push(firing([setCell(i, LOOP)], { cell: i, clue: k, need, room })); break; }
     }
   }
@@ -1847,7 +1859,7 @@ function segmentStarvesClue(P, st) {
       const near = nearChanges(P, st, probe);
       for (const k of clues) {
         if (!P.rays[k].some((j) => near[j])) continue;          // only the clues whose line the segment changed, or lies next to a change
-        const { room, shaded } = lineRoom(P, probe, k), need = P.clues[k].n - shaded;
+        const { room, shaded } = lineRoom(P, probe, k), need = P.lo[k] - shaded;
         if (need > room) { hit = { clue: k, need, room }; break; }
       }
       if (hit) { out.push(firing([setEdge(x, v === E_OFF ? E_ON : E_OFF)], { edge: x, assumed: v === E_OFF ? 'off' : 'on', ...hit })); break; }
@@ -1907,6 +1919,7 @@ export const RULES = [
   { id: 'shadedNeighbor', tier: 'Beginner', weight: 1, find: shadedNeighbor, label: 'cells next to a box are dots' },
   { id: 'clueDone', tier: 'Beginner', weight: 2, find: clueDone, label: 'a clue has all its boxes: the rest of its line is dots' },
   { id: 'clueFull', tier: 'Beginner', weight: 2, find: clueFull, label: 'a clue needs every open cell left in its line: they are boxes' },
+  { id: 'clueNot', tier: 'Beginner', weight: 3, find: clueNot, label: 'a "not n" clue has one open cell left: it may not make the count n' },
   { id: 'clueTight', tier: 'Beginner', weight: 3, find: clueTight, label: 'a clue needs as many more boxes as fit in the open cells left in its line (every other cell): those are boxes, the ones between are dots' },
   { id: 'rangeSameOne', tier: 'Beginner', weight: 3, find: rangeSameOne, label: 'two clues point the same way with one cell between them: the difference of their numbers (0 or 1) says if it is a box' },
   { id: 'deadEnd', tier: 'Beginner', weight: 4, find: deadEnd, label: 'a cell with fewer than two exits is a box' },

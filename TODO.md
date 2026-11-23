@@ -261,6 +261,14 @@ Josh is excited by these four; **Regional** and **Diagonal** are built and merge
   `sameSegmentExits`, `pairedEnds`, `parityForces`, `crossingParity` all assume one loop and need a "how many loops remain" parameter;
   GUI colours the two loops differently (path colours already exist); uniqueness is harder to make (two cycles can swap parts).
 
+## Inequality clues (experiment, 2026-11-23, branch `experiment/inequality`)
+
+Done: `>=`, `<=` and `!=` on arrow numbers: format, compile (`lo`/`hi`/`ne`), solver, checker, clue colours, rating rules (sound, tested), explanations, board/print drawing,
+generator option (`--ops mixed --min-ops 3`), books (group "Inequality", 8x8 / 10x10 / 12x12) and a help line. Not done: hex boards (hexhint/hexwhy assume exact counts), a rule that
+combines a pair of same-way arrows when one is an inequality (`rangeSame` skips them; a >= arrow behind a = arrow still tells you a minimum), regional inequality numbers, tuning
+the mix (at most clues are rare in generated puzzles because they say little; `!=` next to the real count is the hardest kind), tier calibration from play, Beginner-friendly books.
+Ideas: a "between" clue (`2..4`), a parity clue (even / odd), clues that count loop segments instead of boxes.
+
 ## Hex boards (started 2026-11-22)
 
 Done: topology in `compile` (`P.K`, `P.edgeA/edgeB`), solver/checker/CSV/board/clue colouring for hex, a generator (`js/generator_hex.js`), books by size (group "Hex").

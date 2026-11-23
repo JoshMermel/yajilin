@@ -150,7 +150,21 @@ export function compile(p) {
     const seen = new Set();
     for (const cl of p.clues) { const g = regionOf[cl.r * cols + cl.c]; if (seen.has(g)) throw new Error(`two clues in region ${g}`); seen.add(g); }
   }
-  return Object.assign(p, { N, hex, K, clueAt, labelAt, nb, ed, edgeA, edgeB, rays, cluesOf, numEdges, boxIdx, voidIdx, regional, regionOf, regionCells });
+  // What each clue allows: its count of shaded cells must lie in lo..hi and differ from ne (-1: nothing excluded). An ordinary clue has lo = hi = n;
+  // "at least n" (op '>=') has hi = the line's length, "at most n" ('<=') has lo = 0, and "not n" ('!=') excludes n.
+  const lo = new Int16Array(p.clues.length), hi = new Int16Array(p.clues.length), ne = new Int16Array(p.clues.length).fill(-1), exact = new Uint8Array(p.clues.length);
+  p.clues.forEach((cl, k) => {
+    const op = cl.op || '=', len = rays[k].length;
+    if (op !== '=' && (cl.region || cl.n < 0)) throw new Error(`a ${cl.n < 0 ? 'void' : 'region'} clue cannot have an operator`);
+    if (op !== '=' && op !== '>=' && op !== '<=' && op !== '!=') throw new Error(`unknown clue operator ${op}`);
+    exact[k] = op === '=' ? 1 : 0;
+    if (cl.n < 0) return;
+    lo[k] = op === '=' || op === '>=' ? cl.n : 0;
+    hi[k] = op === '=' || op === '<=' ? cl.n : len;
+    if (op === '!=') ne[k] = cl.n;
+  });
+  const inequality = exact.some((x) => !x);
+  return Object.assign(p, { N, hex, K, clueAt, labelAt, nb, ed, edgeA, edgeB, rays, cluesOf, numEdges, boxIdx, voidIdx, regional, regionOf, regionCells, lo, hi, ne, exact, inequality });
 }
 
 export function initialState(P) {
@@ -229,13 +243,16 @@ export function propagate(P, st) {
     }
     // Clues.
     for (let k = 0; k < rays.length && ok; k++) {
-      const n = P.clues[k].n;
-      if (n < 0) continue; // a blocked cell: no count to satisfy
+      if (P.clues[k].n < 0) continue; // a blocked cell: no count to satisfy
+      const lo = P.lo[k], hi = P.hi[k], ne = P.ne[k];
       let s = 0, u = 0;
       for (const i of rays[k]) { if (cell[i] === SHADED) s++; else if (cell[i] === UNKNOWN) u++; }
-      if (s > n || s + u < n) { ok = false; break; }
-      if (u > 0 && (s === n || s + u === n)) {
-        const v = s === n ? LOOP : SHADED;
+      if (s > hi || s + u < lo || (ne >= 0 && u === 0 && s === ne)) { ok = false; break; }
+      if (u > 0 && (s === hi || s + u === lo)) {
+        const v = s === hi ? LOOP : SHADED;
+        for (const i of rays[k]) if (cell[i] === UNKNOWN) setCell(i, v);
+      } else if (ne >= 0 && u === 1 && (s === ne || s + 1 === ne)) {     // one open cell left: it may not make the count n
+        const v = s === ne ? SHADED : LOOP;
         for (const i of rays[k]) if (cell[i] === UNKNOWN) setCell(i, v);
       }
     }
@@ -371,7 +388,7 @@ export function checkSolved(P, shaded, edges) {
     if (P.clues[k].n < 0) continue;
     let s = 0;
     for (const i of P.rays[k]) if (shaded[i]) s++;
-    if (s !== P.clues[k].n) return false;
+    if (s < P.lo[k] || s > P.hi[k] || s === P.ne[k]) return false;
   }
   const deg = new Int8Array(N);
   let loopCells = 0, start = -1;
@@ -408,20 +425,26 @@ export const CSV_HEADER = 'name,rows,cols,clues,solution,rules,tier,score,boxes'
 export const CSV_HEADER_REGIONAL = CSV_HEADER + ',regions';
 export const CSV_HEADER_HEX = CSV_HEADER_REGIONAL + ',grid';     // a hex puzzle's eleventh column says 'hex' (its arrows use HEX_DIR_LETTERS)
 
-/** A void cell is written r:c:V:-1 (a clue with n < 0 and no direction; the old r:c:U:-1 form reads the same).
+/** How a clue's operator is written on the board. */
+export const OP_SIGN = { '=': '', '>=': '≥', '<=': '≤', '!=': '≠' };
+
+/** An arrow clue's number may carry an operator: r:c:E:>=2 (at least 2), r:c:E:<=2 (at most 2), r:c:E:!=2 (not 2); plain 2 means exactly 2.
+ *  A void cell is written r:c:V:-1 (a clue with n < 0 and no direction; the old r:c:U:-1 form reads the same).
  *  A region clue is written r:c:G:n (the number n sits in cell r,c and counts that cell's region). */
 export function cluesToString(clues, hex = false) {
   const letters = hex ? HEX_DIR_LETTERS : DIR_LETTERS;
-  return clues.map((c) => (c.region ? `${c.r}:${c.c}:G:${c.n}` : c.n < 0 ? `${c.r}:${c.c}:V:-1` : `${c.r}:${c.c}:${letters[c.d]}:${c.n}`)).join(';');
+  return clues.map((c) => (c.region ? `${c.r}:${c.c}:G:${c.n}` : c.n < 0 ? `${c.r}:${c.c}:V:-1` : `${c.r}:${c.c}:${letters[c.d]}:${c.op || ''}${c.n}`)).join(';');
 }
 
 export function cluesFromString(s, hex = false) {
   if (!s) return [];
   const letters = hex ? HEX_DIR_LETTERS : DIR_LETTERS;
   return s.split(';').map((t) => {
-    const [r, c, d, n] = t.split(':');
-    if (d === 'G') return { r: +r, c: +c, d: 0, n: +n, region: true };
-    return +n < 0 ? { r: +r, c: +c, d: 0, n: -1 } : { r: +r, c: +c, d: letters.indexOf(d), n: +n };
+    const [r, c, d, nField] = t.split(':');
+    const m = /^(>=|<=|!=)?(-?\d+)$/.exec(nField), n = m ? +m[2] : NaN;
+    if (!m) throw new Error(`bad clue number "${nField}" in "${t}"`);
+    if (d === 'G') return { r: +r, c: +c, d: 0, n, region: true };
+    return n < 0 ? { r: +r, c: +c, d: 0, n: -1 } : { r: +r, c: +c, d: letters.indexOf(d), n, ...(m[1] ? { op: m[1] } : {}) };
   });
 }
 
@@ -509,7 +532,7 @@ export function symmetryKey(p) {
   if (p.grid === 'hex') {
     let best = null;
     for (const t of hexSymmetries(rows, cols)) {
-      const clues = p.clues.map((c) => { const [r, cc] = t.cell(c.r, c.c); return `${r}:${cc}:${c.n < 0 ? 'V' : HEX_DIR_LETTERS[t.dir(c.d)]}:${c.n}`; }).sort().join(';');
+      const clues = p.clues.map((c) => { const [r, cc] = t.cell(c.r, c.c); return `${r}:${cc}:${c.n < 0 ? 'V' : HEX_DIR_LETTERS[t.dir(c.d)]}:${c.op || ''}${c.n}`; }).sort().join(';');
       const boxes = (p.boxes || []).map((b) => t.cell(b.r, b.c).join(':')).sort().join(';');
       const key = `hex${rows}x${cols}|${clues}|${boxes}`;
       if (best === null || key < best) best = key;
@@ -524,7 +547,7 @@ export function symmetryKey(p) {
     const turn = (d) => { let dr = DR[d], dc = DC[d]; if (swap) [dr, dc] = [dc, dr]; return dirOf(flipR ? -dr : dr, flipC ? -dc : dc); };
     const arrows = p.clues.filter((c) => !c.region).map((c) => {
       const [r, cc] = move(c.r, c.c);
-      return [r * C + cc, `${r}:${cc}:${c.n < 0 ? 'V' : DIR_LETTERS[turn(c.d)]}:${c.n}`];
+      return [r * C + cc, `${r}:${cc}:${c.n < 0 ? 'V' : DIR_LETTERS[turn(c.d)]}:${c.op || ''}${c.n}`];
     }).sort((a, b) => a[0] - b[0]).map((x) => x[1]).join(';');
     const boxes = (p.boxes || []).map((b) => { const [r, c] = move(b.r, b.c); return [r * C + c, `${r}:${c}`]; }).sort((a, b) => a[0] - b[0]).map((x) => x[1]).join(';');
     let regions = '';

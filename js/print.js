@@ -4,7 +4,7 @@
 //
 // buildPrintRoot() fills the hidden #print-root element; style.css shows only that element while printing (see "Printing" there).
 // Everything except buildPrintRoot is pure (no DOM), so the layout and the drawing can be tested in node.
-import { SHADED, E_ON, hexStep } from './logic.js';
+import { SHADED, E_ON, hexStep, OP_SIGN } from './logic.js';
 import { hexClueLayout, HEX_UNIT } from './hexarrow.js';
 
 const INK = '#111', GRID = '#9a9a9a', CLUE_BG = '#dcdcdc', VOID_BG = '#b4b4b4';
@@ -100,6 +100,9 @@ function arrowMarkup(x, y, d, len, vec = VEC) {
   return `<path class="arrow" d="M${f(x - ux * h)} ${f(y - uy * h)}L${f(tx)} ${f(ty)}${barb(1)}${barb(-1)}" fill="none" stroke="${INK}" stroke-width="0.075" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
 
+/** A clue's number, with its operator (at least, at most, not) small in front of it. */
+const numberMarkup = (cl) => (cl.op ? `<tspan font-size="0.28" dy="-0.02">${OP_SIGN[cl.op]}</tspan><tspan dy="0.02">${cl.n}</tspan>` : `${cl.n}`);
+
 /**
  * One board as an SVG string (a cell is 1 unit). `sol` (decoded solution: { cell, e }) draws the answer: the boxes and the loop.
  * Clue cells are grey with the number and an arrow; pre-placed boxes are always drawn.
@@ -121,7 +124,7 @@ export function boardSvg(P, sol = null) {
       // number and arrow stack for sideways arrows and sit side by side for vertical ones, as on screen
       const nx = x + 0.5 - (horiz ? 0 : 0.17), ny = y + 0.5 + (horiz ? -0.2 : 0);
       const ax = x + 0.5 + (horiz ? 0 : 0.26), ay = y + 0.5 + (horiz ? 0.25 : 0);
-      g += `<text class="num" x="${f(nx)}" y="${f(ny + 0.16)}" font-size="0.46" font-weight="700" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" fill="${INK}">${cl.n}</text>`;
+      g += `<text class="num" x="${f(nx)}" y="${f(ny + 0.16)}" font-size="0.46" font-weight="700" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" fill="${INK}">${numberMarkup(cl)}</text>`;
       g += arrowMarkup(ax, ay, cl.d, horiz ? 0.42 : 0.46);
     }
   }
@@ -171,7 +174,7 @@ function hexBoardSvg(P, sol) {
     }
     g += `<polygon class="clue" points="${pts(i)}" fill="${CLUE_BG}"/>`;
     const lay = hexClueLayout(cl.d);                  // the arrow at its true angle through the cell, the number beside it (js/hexarrow.js)
-    g += `<text class="num" x="${f(x + lay.num[0])}" y="${f(y + lay.num[1] + 0.16)}" font-size="0.46" font-weight="700" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" fill="${INK}">${cl.n}</text>`;
+    g += `<text class="num" x="${f(x + lay.num[0])}" y="${f(y + lay.num[1] + 0.16)}" font-size="0.46" font-weight="700" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" fill="${INK}">${numberMarkup(cl)}</text>`;
     g += arrowMarkup(x + lay.arrow[0], y + lay.arrow[1], cl.d, lay.len, HEX_VEC);
   }
   g += `<path d="${grid}" fill="none" stroke="${GRID}" stroke-width="0.025" stroke-dasharray="0.07 0.06"/>`;

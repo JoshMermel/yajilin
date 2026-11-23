@@ -20,13 +20,15 @@ export function clueStates(P, marks) {
       if (marks.cells[i] === 1) boxes++;
       else if (marks.cells[i] === 0 && !seg[i] && P.clueAt[i] < 0) open++;
     }
-    if (boxes > cl.n || (open === 0 && boxes < cl.n)) return 'bad';
-    if (boxes === cl.n) return 'ok';
-    return cl.region ? '' : isCovered(P, marks, cl) ? 'ok' : '';       // (a region is not a line: no other number covers it)
+    const lo = P.lo[k], hi = P.hi[k], ne = P.ne[k];
+    if (boxes > hi || (open === 0 && (boxes < lo || boxes === ne))) return 'bad';
+    // satisfied for good: an exact count is reached; "at least" is reached; "at most" is full (or nothing more can be added); "not n" has no open cell left
+    if (cl.op === '>=' ? boxes >= cl.n : cl.op === '<=' ? boxes === cl.n || open === 0 : cl.op === '!=' ? open === 0 : boxes === cl.n) return 'ok';
+    return cl.region || cl.op ? '' : isCovered(P, marks, cl) ? 'ok' : '';       // (a region is not a line: no other number covers it)
   });
   // two arrows that cannot both be right are both red, so the player sees "there is a problem between these two"
   P.clues.forEach((cl, k) => {
-    if (cl.n < 0 || cl.region) return;
+    if (cl.n < 0 || cl.region || cl.op) return;
     forEachBadPair(P, marks, seg, cl, (other) => { states[k] = 'bad'; states[P.clueAt[other]] = 'bad'; });
   });
   return states;
@@ -45,7 +47,7 @@ function forEachBadPair(P, marks, seg, cl, found) {
     const i = r * P.cols + c, k = P.clueAt[i];
     if (k >= 0) {
       const other = P.clues[k];
-      if (other.d === cl.d && other.n >= 0 && other.n <= cl.n && !other.region) {
+      if (other.d === cl.d && other.n >= 0 && other.n <= cl.n && !other.region && !other.op) {
         const need = cl.n - other.n;
         if (boxes > need || boxes + open < need) found(i);
       }
@@ -67,7 +69,7 @@ function isCovered(P, marks, cl) {
     const i = r * P.cols + c, k = P.clueAt[i];
     if (k >= 0) {
       const other = P.clues[k];
-      if (other.d === cl.d && other.n >= 0 && other.n <= cl.n && boxes === cl.n - other.n) return true;
+      if (other.d === cl.d && other.n >= 0 && other.n <= cl.n && !other.op && boxes === cl.n - other.n) return true;
     } else if (marks.cells[i] === 1) boxes++;
   }
   return false;

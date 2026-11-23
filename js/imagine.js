@@ -69,7 +69,7 @@ const clueBad = (P, st, k) => {
   if (P.clues[k].n < 0) return false;
   let s = 0, u = 0;
   for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) u++; }
-  return s > P.clues[k].n || s + u < P.clues[k].n;
+  return s > P.hi[k] || s + u < P.lo[k] || (u === 0 && s === P.ne[k]);
 };
 let scratchParent = new Int16Array(0);
 /** the loop closed early: some segments form a cycle while a loop cell lies off it */
@@ -197,7 +197,8 @@ export const LOCAL = {
       const cl = P.clues[k]; if (cl.n < 0) continue;
       let s = 0; const unk = [];
       for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) unk.push(i); }
-      if (s === cl.n && unk.length) out.push({ sets: unk.map((i) => cSet(i, LOOP)) });
+      if (s === P.hi[k] && unk.length) out.push({ sets: unk.map((i) => cSet(i, LOOP)) });
+      else if (unk.length === 1 && (s === P.ne[k] || s + 1 === P.ne[k])) out.push({ sets: [cSet(unk[0], s === P.ne[k] ? SHADED : LOOP)] });
     }
     return out;
   },
@@ -207,7 +208,7 @@ export const LOCAL = {
       const cl = P.clues[k]; if (cl.n < 0) continue;
       let s = 0; const unk = [];
       for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) unk.push(i); }
-      if (unk.length && cl.n - s === unk.length) out.push({ sets: unk.map((i) => cSet(i, SHADED)) });
+      if (unk.length && P.lo[k] - s === unk.length) out.push({ sets: unk.map((i) => cSet(i, SHADED)) });
     }
     return out;
   },
@@ -215,7 +216,7 @@ export const LOCAL = {
     const out = [];
     for (const k of cx.get('nearClues')) {          // (a box next to an open cell takes it out of the runs, so the clues of cells beside a new box count too)
       const cl = P.clues[k];
-      if (cl.n < 2 || cl.region) continue;
+      if (P.lo[k] < 2 || cl.region) continue;
       let boxes = 0, run = [];
       const runs = [];
       for (const i of P.rays[k]) {
@@ -226,7 +227,7 @@ export const LOCAL = {
         } else { if (run.length) runs.push(run); run = []; }
       }
       if (run.length) runs.push(run);
-      const need = cl.n - boxes;
+      const need = P.lo[k] - boxes;
       if (need < 2 || !runs.length || runs.some((r) => r.length % 2 === 0)) continue;
       if (runs.reduce((a, r) => a + (r.length + 1) / 2, 0) !== need) continue;
       out.push({ sets: runs.flatMap((r) => r.map((i, q) => (q % 2 === 0 ? cSet(i, SHADED) : cSet(i, LOOP)))) });

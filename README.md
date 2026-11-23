@@ -56,6 +56,18 @@ name,rows,cols,clues,solution,rules,tier,score
   `row:col:V:-1` (a clue with no arrow and no number): nothing goes there. It is not shaded and not on the loop, arrows skip over it when they
   count (as they skip clue cells), and a shaded cell may touch it. Everything (solver, rules, hints, GUI, print, generator) supports voids;
   the rest of the code simply treats them as clues with `n < 0`, which have no line and no count.
+- **Inequality clues** (experiment, branch `experiment/inequality`): an arrow's number may carry an operator, written in front of it, `row:col:dir:>=2` (at least 2
+  boxes in that direction), `<=2` (at most 2) or `!=2` (anything but 2); a plain `2` is exactly 2. A clue object has `op` (absent for exact), and `compile` turns each
+  clue into what it allows: `P.lo[k]`, `P.hi[k]` (the count lies in lo..hi) and `P.ne[k]` (the count is not this; -1 if nothing excluded), `P.exact[k]`, `P.inequality`.
+  The solver, checker, `clueStates` (green/red), rating rules and imagine chains use those, so they are sound for every operator (a random cross-check against the
+  brute-force reference and a soundness test of every rule are in `tests/inequality.test.mjs`). Rules that reason about exactly n boxes (pairs of arrows on one line, placements
+  of exactly n boxes in the dead-end search) skip inequality clues; `clueDone`, `clueFull`, `clueTight`, `cluePlacements`, the starve rules and the imagine rules use the bounds,
+  and a new Beginner rule `clueNot` handles a "not n" clue with one open cell left. Shown as a small sign in front of the number (board, print, hint text). Square boards only
+  so far (the hex hints still assume exact counts). Generator: `generatePuzzle(..., { ops: { ge, le, ne }, minOps })` gives every clue cell a random kind (shares of at least,
+  at most and not; the rest are ordinary), keeping the real count for ≥ and ≤ and a count next to the real one for ≠, then the usual climb and pruning run on that
+  (`makeOpFor`, `buildPuzzle`'s `opFor`); `node tools/generate.mjs --size 8x8 --ops mixed --min-ops 3`, pools by `tools/make_inequality_pools.sh`, books by
+  `tools/build_inequality_books.mjs` (group "Inequality": 8×8, 10×10, 12×12). An operator that would say no more than "=" for that line (at least 0, at most the whole line)
+  stays plain.
 - **Regional puzzles**: no arrows and no clue cells. A tenth CSV column, `regions`, gives each cell's
   region id (ids joined by `.`, row-major), and a region's number is written `row:col:G:n` (the number sits in that cell and counts the
   cell's whole region; a region may have no number). `compile` turns a region clue into an ordinary clue whose line is the region

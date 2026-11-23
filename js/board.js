@@ -5,7 +5,7 @@
 //   * a right-click on a cell              -> handlers.onRight(cell)
 //   * a press that moves into other cells  -> handlers.onStep(fromCell, toCell, isFirstStep) for each step
 // handlers.onStart() / handlers.onEnd() bracket every gesture, so a whole gesture is one undo step.
-import { colName, hexStep, hexDistance } from './logic.js';
+import { colName, hexStep, hexDistance, OP_SIGN } from './logic.js';
 import { hexClueLayout, arrowPathData } from './hexarrow.js';
 import { makeColorKeeper, assignPathColors } from './pathcolors.js';
 import { makeGrace } from './grace.js';
@@ -29,6 +29,9 @@ function pointersAt(P, i) {
   }
   return P._pointers[i];
 }
+
+/** A clue's number, with its operator (at least, at most, not) small in front of it. */
+const numberMarkup = (cl) => (cl.op ? `<tspan class="clue-op" font-size="0.8em" dy="-0.03em">${OP_SIGN[cl.op]}</tspan><tspan dy="0.03em">${cl.n}</tspan>` : `${cl.n}`);
 
 export class Board {
   constructor(el, handlers) {
@@ -132,7 +135,7 @@ export class Board {
           g += `<rect class="clue-bg ${info.clueState[k] === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : info.clueState[k] || ''}" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
           const horiz = cl.d === 1 || cl.d === 3;
           // number and arrow side by side along the arrow's axis keeps the glyph readable in every direction
-          g += `<text class="clue-text" x="${x + S / 2 - (horiz ? 0 : 7)}" y="${y + S / 2 + (horiz ? -8 : 1)}" font-size="${S * 0.46}">${cl.n}</text>`;
+          g += `<text class="clue-text" x="${x + S / 2 - (horiz ? 0 : cl.op ? 10 : 7)}" y="${y + S / 2 + (horiz ? -8 : 1)}" font-size="${S * 0.46}">${numberMarkup(cl)}</text>`;
           g += `<text class="clue-text" x="${x + S / 2 + (horiz ? 0 : 11)}" y="${y + S / 2 + (horiz ? 12 : 1)}" font-size="${S * 0.42}">${ARROWS[cl.d]}</text>`;
         }                                                    // (a blank cell has no rect of its own: see the one behind the grid below)
       }
@@ -281,7 +284,7 @@ export class Board {
       const st = info.clueState[k] === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : info.clueState[k] || '';
       const lay = hexClueLayout(cl.d);                      // the arrow is drawn at its true angle (see js/hexarrow.js), the number beside it
       g += `<polygon class="clue-bg ${st}" points="${points(i)}"/>`;
-      g += `<text class="clue-text" x="${(x + lay.num[0] * S).toFixed(1)}" y="${(y + lay.num[1] * S).toFixed(1)}" font-size="${S * 0.46}">${cl.n}</text>`;
+      g += `<text class="clue-text" x="${(x + lay.num[0] * S).toFixed(1)}" y="${(y + lay.num[1] * S).toFixed(1)}" font-size="${S * 0.46}">${numberMarkup(cl)}</text>`;
       g += `<path class="clue-arrow" stroke-width="${S * 0.07}" d="${arrowPathData(x + lay.arrow[0] * S, y + lay.arrow[1] * S, lay.u[0], lay.u[1], lay.len * S, (v) => +v.toFixed(1))}"/>`;
     }
     const roles = (hint && hint.roles) || {};

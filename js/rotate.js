@@ -42,7 +42,7 @@ export function rotateRaw(p, hashKey) {
   const at = (r, c) => cm[r * cols + c];
   const out = {
     name: p.name, rows: cols, cols: rows, rules: p.rules, tier: p.tier, score: p.score, hashKey, rotated: true,
-    clues: p.clues.map((cl) => { const i = at(cl.r, cl.c); return cl.region ? { r: Math.floor(i / rows), c: i % rows, d: 0, n: cl.n, region: true } : { r: Math.floor(i / rows), c: i % rows, d: turnDir(cl.d), n: cl.n }; }),
+    clues: p.clues.map((cl) => { const i = at(cl.r, cl.c); return cl.region ? { r: Math.floor(i / rows), c: i % rows, d: 0, n: cl.n, region: true } : { r: Math.floor(i / rows), c: i % rows, d: turnDir(cl.d), n: cl.n, ...(cl.op ? { op: cl.op } : {}) }; }),
     boxes: (p.boxes || []).map((b) => { const i = at(b.r, b.c); return { r: Math.floor(i / rows), c: i % rows }; }),
     solution: '',
   };

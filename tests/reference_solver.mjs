@@ -37,7 +37,8 @@ function validShading(P, shaded) {
   for (let k = 0; k < P.clues.length; k++) {
     let s = 0;
     for (const i of P.rays[k]) s += shaded[i];
-    if (s !== P.clues[k].n) return false;
+    const { n, op } = P.clues[k];
+    if (op === '>=' ? s < n : op === '<=' ? s > n : op === '!=' ? s === n : s !== n) return false;
   }
   return true;
 }

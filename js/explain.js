@@ -1,6 +1,6 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can color them differently) and the marks the step makes.
-import { SHADED, LOOP, CLUE, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
+import { OP_SIGN, SHADED, LOOP, CLUE, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
 import { ruleLabel, followLines, boxProof, roomGroups, dotTrace, contradiction, oddOpenEnds, chokepointCheck } from './rating.js';
 import { replayImagine } from './imagine.js';
 
@@ -9,7 +9,7 @@ const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
 const cellName = (P, i) => `${colName(i % P.cols)}${((i / P.cols) | 0) + 1}`;
 const clueName = (P, k) => (P.clues[k].region
   ? `region numbered ${P.clues[k].n} (at ${cellName(P, P.clues[k].r * P.cols + P.clues[k].c)})`            // regional puzzles: the number counts its region
-  : `${P.clues[k].n}${ARROWS[P.clues[k].d]} clue at ${cellName(P, P.clues[k].r * P.cols + P.clues[k].c)}`);
+  : `${OP_SIGN[P.clues[k].op || '=']}${P.clues[k].n}${ARROWS[P.clues[k].d]} clue at ${cellName(P, P.clues[k].r * P.cols + P.clues[k].c)}`);
 const clueCell = (P, k) => P.clues[k].r * P.cols + P.clues[k].c;
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 
@@ -59,8 +59,9 @@ function brokenAt(P, s) {
     if (P.clues[k].n < 0) continue;
     let sh = 0, open = 0;
     for (const i of P.rays[k]) { if (s.cell[i] === SHADED) sh++; else if (s.cell[i] === 0) open++; }
-    if (sh > P.clues[k].n) return { text: `the ${clueName(P, k)} would have too many boxes`, cells: [clueCell(P, k)] };
-    if (sh + open < P.clues[k].n) return { text: `the ${clueName(P, k)} could no longer reach ${P.clues[k].n}`, cells: [clueCell(P, k)] };
+    if (sh > P.hi[k]) return { text: `the ${clueName(P, k)} would have too many boxes`, cells: [clueCell(P, k)] };
+    if (sh + open < P.lo[k]) return { text: `the ${clueName(P, k)} could no longer reach ${P.lo[k]}`, cells: [clueCell(P, k)] };
+    if (open === 0 && sh === P.ne[k]) return { text: `the ${clueName(P, k)} would have exactly ${plural(sh, 'box', 'boxes')}, which it rules out`, cells: [clueCell(P, k)] };
   }
   for (let i = 0; i < P.N; i++) {
     if (s.cell[i] === CLUE || s.cell[i] === SHADED) continue;
@@ -146,7 +147,14 @@ export function explainStep(P, step, st = null) {
     case 'clueDone': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', P.rays[k]);
       const line = P.clues[k].region ? 'region' : 'line';
-      text = P.clues[k].n === 0 ? `The ${clueName(P, k)} needs no boxes: its whole ${line} gets dots.` : `The ${clueName(P, k)} has all ${plural(P.clues[k].n, 'box', 'boxes')}: the rest of its ${line} gets dots.`;
+      const most = P.clues[k].op === '<=';
+      text = P.clues[k].n === 0 ? `The ${clueName(P, k)} ${most ? 'allows' : 'needs'} no boxes: its whole ${line} gets dots.` : `The ${clueName(P, k)} has all ${most ? 'the ' : ''}${plural(P.clues[k].n, 'box', 'boxes')}${most ? ' it allows' : ''}: the rest of its ${line} gets dots.`;
+      break;
+    }
+    case 'clueNot': {
+      const k = info.clue, cell = info.cells[0], box = info.count === P.ne[k];     // (already n boxes: a dot would leave exactly n, so a box; one short: a box would make n, so a dot)
+      role('clue', clueCell(P, k)); role('range', P.rays[k]); role('focus', cell);
+      text = `The ${clueName(P, k)} may not hold exactly ${plural(P.ne[k], 'box', 'boxes')}. It has ${plural(info.count, 'box', 'boxes')} and one open cell, ${N(cell)}: ${box ? 'a dot there would leave' : 'a box there would make'} exactly ${P.ne[k]}, so it is ${box ? 'a box' : 'a dot'}.`;
       break;
     }
     case 'clueFull': {
@@ -469,7 +477,7 @@ export function explainStep(P, step, st = null) {
           if (dots.length) said.push(`${list(dots.map(N))} would be ${dots.length === 1 ? 'a dot' : 'dots'}, since boxes never touch`);
         } else if (rule === 'clueDone') {
           const dots = cellsOf(LOOP); dots.forEach((i) => dotted.add(i));
-          const k = clueOf(dots, (q) => boxesIn(q) === P.clues[q].n);
+          const k = clueOf(dots, (q) => boxesIn(q) === P.hi[q]);
           if (k >= 0) { role('clue', clueCell(P, k)); said.push(`the ${clueName(P, k)} would have all its boxes, so the rest of its ${P.clues[k].region ? 'region' : 'line'} would be dots`); }
         } else if (rule === 'clueFull' || rule === 'clueTight') {
           const bs = cellsOf(SHADED).filter((i) => !boxed.has(i)); bs.forEach((i) => boxed.add(i));

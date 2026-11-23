@@ -74,6 +74,11 @@
       "blurb": "Hexagonal boards: every cell has six neighbours, and an arrow points along any of six directions. Same rules. An experiment."
     },
     {
+      "name": "Inequality",
+      "icon": "≥",
+      "blurb": "Some numbers carry a sign: ≥2 means at least two boxes in that direction, ≤2 at most two, ≠2 anything but two. Same loop, same boxes. An experiment."
+    },
+    {
       "name": "Bonus",
       "icon": "🎁",
       "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
@@ -651,6 +656,33 @@
       "label": "10×10",
       "group": "Hex",
       "blurb": "10×10 hex boards, 80 puzzles from easy to hard. An experiment."
+    },
+    {
+      "id": "ineq-8x8",
+      "name": "Inequality: 8×8",
+      "file": "data/ineq-8x8.csv",
+      "count": 160,
+      "label": "8×8",
+      "group": "Inequality",
+      "blurb": "8×8 boards with ≥, ≤ and ≠ numbers, 160 puzzles from easy to hard. An experiment."
+    },
+    {
+      "id": "ineq-10x10",
+      "name": "Inequality: 10×10",
+      "file": "data/ineq-10x10.csv",
+      "count": 99,
+      "label": "10×10",
+      "group": "Inequality",
+      "blurb": "10×10 boards with ≥, ≤ and ≠ numbers, 99 puzzles from easy to hard. An experiment."
+    },
+    {
+      "id": "ineq-12x12",
+      "name": "Inequality: 12×12",
+      "file": "data/ineq-12x12.csv",
+      "count": 120,
+      "label": "12×12",
+      "group": "Inequality",
+      "blurb": "12×12 boards with ≥, ≤ and ≠ numbers, 120 puzzles from easy to hard. An experiment."
     }
   ],
   "default": "bonus-intro"

@@ -32,6 +32,8 @@ const tightRate = +arg('tight-rate', 0);                          // tight arrow
 const cheapFirst = arg('cheap', '') === '' ? null : arg('cheap') === '1';   // climb with the cheap rules first (default: boards of 150+ cells)
 const crossNodes = +arg('cross-check-nodes', 5000000);                // node cap of the from-scratch uniqueness cross-check on boards of up to 150 cells (0: skip it); a lower cap trades the tail of slow checks for coverage
 const diagonal = +arg('diagonal', 0);                           // the share of the arrows that point diagonally (1: every arrow is diagonal, like "Diagonal Yajilin")
+const opsArg = arg('ops', '');                                      // --ops ge=0.25,le=0.25,ne=0.15: shares of "at least", "at most" and "not" clues (the rest are ordinary); or --ops mixed (0.25,0.25,0.15)
+const ops = !opsArg ? null : opsArg === 'mixed' ? { ge: 0.25, le: 0.25, ne: 0.15 } : Object.fromEntries(['ge', 'le', 'ne'].map((k) => [k, +((opsArg.split(',').find((t) => t.startsWith(k + '=')) || '').split('=')[1] || 0)]));
 const voids = +arg('voids', 0);                                   // this many void cells (not box, not loop, no arrow) in every puzzle
 const without = arg('rules-without', '') ? arg('rules-without').split(',') : null;   // experiments: generate as if these rules did not exist (their ids, comma separated)
 const maxTier = arg('max-tier', '');   // 'medium': only the rules up to Medium (no shadeForcesLines etc.)
@@ -66,7 +68,7 @@ for (let attempt = 0; made < count && attempt < count * 4; attempt++) {
     ? generateVoidsOnly(rows, cols, rng, { name, upto, budgetMs: budget * 1000 })
     : regional
     ? generateRegional(rows, cols, rng, { name, density: arg('density', '') === '' ? 0.2 : density, avgSize, maxSize, shape, spread, minNumbered, stuck: process.argv.includes('--stuck'), upto, acceptU: arg('accept', '') === '' ? 12 : acceptU, prune: arg('prune', '1') !== '0', budgetMs: budget * 1000 })
-    : generatePuzzle(rows, cols, rng, { name, density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, boxRange, cheapFirst, tightArrows: Math.round(tightRate * cols * rows / 100), prune: arg('prune', '1') !== '0', voids, diagonal, loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
+    : generatePuzzle(rows, cols, rng, { name, ops, minOps: +arg('min-ops', 0), density, shadeShare, acceptU, clump, upto, edgeBias, oneDirection, directions, numbers, minMean, boxRange, cheapFirst, tightArrows: Math.round(tightRate * cols * rows / 100), prune: arg('prune', '1') !== '0', voids, diagonal, loopGate: arg('gate', '1') !== '0', tight: arg('tight', '1') !== '0', budgetMs: budget * 1000 });
   if (!r) { console.log(`${name}: no puzzle within ${budget} s`); continue; }
   const P = r.puzzle;
   // check: the stored solution is valid and the exhaustive solver agrees it is the only one
