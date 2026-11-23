@@ -58,6 +58,10 @@ test('an explained imagine step reads as a story: it names the imagined mark, en
         assert.ok(s.explain.roles.problem.length > 0, 'something is marked as the trouble');
         for (const i of s.explain.roles.clue) assert.ok(P.clueAt[i] >= 0, 'a highlighted arrow is an arrow');
         assert.ok(text.length < 1100, `a long chain is shortened: ${text.length}`);
+        const im = s.explain.imagined;      // what the move forces is drawn as a what-if: only undecided cells, never the imagined cell itself
+        for (const i of [...im.shaded, ...im.loop]) assert.ok(st.cell[i] === 0 && !s.focus.includes(i), `imagined cell ${i} is undecided and not the focus`);
+        if (/since boxes never touch/.test(text)) assert.ok(im.loop.length > 0, 'the forced dots are shown');
+        if (/, so (?:a box|boxes)|would all be boxes|would be a box/.test(text)) assert.ok(im.shaded.length > 0, 'the forced boxes are shown');
       }
       applyHexStep(st, s);
     }

@@ -17,7 +17,7 @@ const plural = (n, one, many) => (n === 1 ? one : many);
 /**
  * Explain why imagining `assume` on top of `base` (a solver state: the player's marks, with every cell a segment touches on the loop) cannot be right.
  * assume: { kind: 'cell', i, v: SHADED | LOOP } or { kind: 'edge', x, v: E_ON | E_OFF }.  name(i): a cell's name ("C4").
- * Returns { text, roles: { clue, range, problem, focus }, chain: [segments], steps: n } or null if this reasoning finds no contradiction
+ * Returns { text, roles: { clue, range, problem, focus }, imagined: { shaded, loop } (the boxes and dots the move would force), chain: [segments], steps: n } or null if this reasoning finds no contradiction
  * (the caller then falls back to a plainer sentence).
  */
 export function explainImagine(P, base, assume, name) {
@@ -112,24 +112,24 @@ export function explainImagine(P, base, assume, name) {
     if (last && last.key === key) last.facts.push(f); else groups.push({ key, rule: f.rule, ref: f.ref, facts: [f] });
   }
 
-  const roles = { clue: [], range: [], problem: [], focus: [] }, chain = [];
+  const roles = { clue: [], range: [], problem: [], focus: [] }, chain = [], imagined = { shaded: [], loop: [] };   // imagined: the boxes and dots the move forces (drawn as a what-if)
   const arrowCell = (k) => P.clues[k].r * P.cols + P.clues[k].c;
   const cellsOf = (g) => g.facts.filter((f) => f.kind === 'c').map((f) => f.idx);
   const pieces = groups.map((g) => {
     const cs = cellsOf(g).map(name);
     switch (g.rule) {
-      case 'box-neighbor': roles.range.push(...cellsOf(g)); return `${list(cs)} would be ${plural(cs.length, 'a dot', 'dots')}, since boxes never touch`;
+      case 'box-neighbor': imagined.loop.push(...cellsOf(g)); return `${list(cs)} would be ${plural(cs.length, 'a dot', 'dots')}, since boxes never touch`;
       case 'arrow-done': {
-        const n = P.clues[g.ref].n; roles.clue.push(arrowCell(g.ref)); roles.range.push(...cellsOf(g));
+        const n = P.clues[g.ref].n; roles.clue.push(arrowCell(g.ref)); roles.range.push(...P.rays[g.ref]); imagined.loop.push(...cellsOf(g));
         return n === 0 ? `the clue at ${name(arrowCell(g.ref))} says 0, so ${list(cs)} on its line would ${plural(cs.length, 'be a dot', 'be dots')}`
           : `the clue at ${name(arrowCell(g.ref))} would have all its ${n} ${plural(n, 'box', 'boxes')}, so ${list(cs)} on its line would ${plural(cs.length, 'be a dot', 'be dots')}`;
       }
       case 'arrow-full': {
-        const n = P.clues[g.ref].n; roles.clue.push(arrowCell(g.ref)); roles.problem.push(...cellsOf(g));
+        const n = P.clues[g.ref].n; roles.clue.push(arrowCell(g.ref)); roles.range.push(...P.rays[g.ref]); imagined.shaded.push(...cellsOf(g));
         return `the clue at ${name(arrowCell(g.ref))} could only get its ${n} ${plural(n, 'box', 'boxes')} by using ${list(cs)}, so ${cs.length === 1 ? `${cs[0]} would be a box` : 'they would all be boxes'}`;
       }
       case 'no-room': {
-        roles.problem.push(...cellsOf(g));
+        imagined.shaded.push(...cellsOf(g));
         const beside = [...new Set(g.facts.flatMap((f) => f.extra || []))].map(name);
         return `${list(cs)} would be left with fewer than two ways out${cs.length === 1 && beside.length ? ` (the ${plural(beside.length, 'box', 'boxes')} at ${list(beside)} ${plural(beside.length, 'is', 'are')} next to it)` : ''}, so ${plural(cs.length, 'a box', 'boxes')}`;
       }
@@ -168,7 +168,8 @@ export function explainImagine(P, base, assume, name) {
   }
   const uniq = (xs) => [...new Set(xs)];
   for (const k of Object.keys(roles)) roles[k] = uniq(roles[k]);
+  for (const k of Object.keys(imagined)) imagined[k] = uniq(imagined[k]).filter((i) => !(assume.kind === 'cell' && i === assume.i));
   const told = pieces.length > 8 ? [...pieces.slice(0, 4), `${pieces.length - 7} more steps of the same kind follow`, ...pieces.slice(-3)] : pieces;       // a very long chain: its start and its end
   const text = `Imagine ${what}: ${told.length ? `${told.join('; then ')}; and then ` : 'then '}${broken}. ${verdict}`;
-  return { text, roles, chain: uniq(chain), steps: pieces.length };
+  return { text, roles, imagined, chain: uniq(chain), steps: pieces.length };
 }

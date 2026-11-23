@@ -154,7 +154,7 @@ export function explainStep(P, step, st = null) {
   const { rule, info } = step;
   const roles = {};
   const role = (r, ...cells) => { roles[r] = [...new Set([...(roles[r] || []), ...cells.flat().filter((c) => c !== undefined && c >= 0)])]; };
-  let text = '', chain = [];
+  let text = '', chain = [], imagined = { shaded: [], loop: [] };       // imagined: what an imagined move would turn into boxes and dots (drawn as a what-if)
 
   const N = (i) => cellName(P, i);
   const join = (xs) => (xs.length > 2 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs.join(' and '));
@@ -522,7 +522,7 @@ export function explainStep(P, step, st = null) {
           saidLines = true; said.push('the lines that follow (dashed)');       // (said where the first forced line comes in the chain)
         }
       }
-      role('problem', ...boxed);
+      imagined = { shaded: [...boxed].filter((i) => i !== info.cell), loop: [...dotted].filter((i) => i !== info.cell) };      // (hatching is for where it breaks, below)
       let why = brokenAt(P, rp.state);
       if (info.area) {
         const c = chokepointCheck(P, rp.state);
@@ -555,7 +555,7 @@ export function explainStep(P, step, st = null) {
     else (v === E_ON ? targets.segOn : v === E_OFF ? targets.segOff : []).push(idx);
   }
   const sourceCells = [...new Set(Object.values(roles).flat())];
-  return { rule, tier: step.tier, weight: step.weight, label: ruleLabel(rule), text, roles, sourceCells, targets, chain };
+  return { rule, tier: step.tier, weight: step.weight, label: ruleLabel(rule), text, roles, sourceCells, targets, chain, imagined };
 }
 
 /** One line saying what the step does to the board. */

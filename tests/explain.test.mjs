@@ -144,6 +144,10 @@ test('hint texts and highlights: no "exit" role, an imagined step names the clue
         if (/\(dashed\)/.test(e.text) && nx.res.rule.startsWith('segment')) { dashed++; assert.ok(e.chain.length > 0, `${nx.res.rule}: the dashed lines are drawn`); }
         if (nx.res.rule.startsWith('imagine')) {
           imagined++;
+          const im = e.imagined, shownAs = new Set([...im.shaded, ...im.loop]);       // what the move forces is drawn as a what-if
+          for (const i of shownAs) assert.ok(st.cell[i] === 0 && i !== f.info.cell, `imagined cell ${name(P, i)} is undecided and not the imagined cell`);
+          for (const m of e.text.matchAll(/would need (?:a box|boxes) at ([^;,.]*(?:, [^;,.]*)*?)(?=[;,.]| and then)/g)) for (const c of m[1].split(/, | and /).filter(Boolean)) assert.ok(im.shaded.some((i) => name(P, i) === c), `${c} is named as a forced box but not drawn: ${e.text}`);
+          for (const m of e.text.matchAll(/([A-Z]+\d+(?:, [A-Z]+\d+)*(?: and [A-Z]+\d+)?) would be (?:a dot|dots), since/g)) for (const c of m[1].split(/, | and /)) assert.ok(im.loop.some((i) => name(P, i) === c), `${c} is named as a forced dot but not drawn: ${e.text}`);
           for (const m of e.text.matchAll(/the \S+ clue at ([A-Z]+\d+) would need (?:a box|boxes) at ([^;,.]*(?:, [^;,.]*)*?)(?=[;,.]| and then)/g)) {
             const k = P.clues.findIndex((c) => name(P, c.r * P.cols + c.c) === m[1]);
             const cellsNamed = m[2].split(/, | and /).filter(Boolean);

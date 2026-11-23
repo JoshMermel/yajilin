@@ -94,7 +94,7 @@ export class Board {
    * info  = { clueState: array of 'ok'|'bad'|'' per clue, badShaded: Set of cell indexes }
    * hint  = optional overlay (ghost marks, nothing is changed):
    *   { roles: { clue, range, focus, problem, path: [cells] }, undecided: [cells], shaded: [cells], loop: [cells],
-   *     segOn: [edges], segOff: [edges], chain: [edges: the lines an imagined box would force], wrongCells: [cells], wrongEdges: [edges] }
+   *     imagined: { shaded: [cells], loop: [cells] } (what an imagined move forces), segOn: [edges], segOff: [edges], chain: [edges: the lines an imagined box would force], wrongCells: [cells], wrongEdges: [edges] }
    */
   render(marks, info, hint = null) {
     const P = this.P;
@@ -209,6 +209,9 @@ export class Board {
       for (const i of roles.focus || []) g += `<rect class="hint-focus-ring" x="${cellX(i) + 2}" y="${cellY(i) + 2}" width="${S - 4}" height="${S - 4}" rx="6"/>`;
       for (const i of hint.shaded || []) g += `<rect class="ghost-shade" x="${cellX(i) + 6}" y="${cellY(i) + 6}" width="${S - 12}" height="${S - 12}" rx="5"/>`;
       for (const i of hint.loop || []) g += `<circle class="ghost-dot" cx="${cx(i % P.cols)}" cy="${cy((i / P.cols) | 0)}" r="${S * 0.1}"/>`;
+      // what an imagined move would force (a what-if, in the problem colour; the yellow ghosts above are the answer)
+      for (const i of (hint.imagined && hint.imagined.shaded) || []) g += `<rect class="imag-shade" x="${cellX(i) + 6}" y="${cellY(i) + 6}" width="${S - 12}" height="${S - 12}" rx="5"/>`;
+      for (const i of (hint.imagined && hint.imagined.loop) || []) g += `<circle class="imag-dot" cx="${cx(i % P.cols)}" cy="${cy((i / P.cols) | 0)}" r="${S * 0.1}"/>`;
       // ghost segments stop short of the cell centres, so a dot or box in the cell stays visible
       for (const x of hint.segOn || []) {
         const [x1, y1, x2, y2] = seg(x);
@@ -328,6 +331,8 @@ export class Board {
       for (const i of roles.focus || []) g += `<polygon class="hint-focus-ring" stroke-linejoin="round" points="${points(i, 0.94)}"/>`;
       for (const i of hint.shaded || []) g += `<polygon class="ghost-shade" stroke-linejoin="round" points="${points(i, 0.5)}"/>`;
       for (const i of hint.loop || []) { const [x, y] = ctr(i); g += `<circle class="ghost-dot" cx="${x}" cy="${y}" r="${S * 0.1}"/>`; }
+      for (const i of (hint.imagined && hint.imagined.shaded) || []) g += `<polygon class="imag-shade" stroke-linejoin="round" points="${points(i, 0.5)}"/>`;
+      for (const i of (hint.imagined && hint.imagined.loop) || []) { const [x, y] = ctr(i); g += `<circle class="imag-dot" cx="${x}" cy="${y}" r="${S * 0.1}"/>`; }
       for (const x of hint.chain || []) { const [x1, y1, x2, y2] = seg(x); g += `<line class="chain-seg" stroke-width="${S * 0.1}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; }
       for (const x of hint.segOn || []) {                                      // ghost segments stop short of the centres, so a dot or box in the cell stays visible
         const [x1, y1, x2, y2] = seg(x), k = (S * 0.3) / Math.hypot(x2 - x1, y2 - y1);
