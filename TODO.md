@@ -160,8 +160,10 @@ and for `tryCell`/`tryEdge`. On the samples, Hard went 83% -> 27% at 12x12, 96% 
 about 30% Beginner. The eight costly "imagine" rules are skipped by prefix closures (generator, `tryCell`), so generation is as fast as before.
 Books and pools rescored and re-sorted (puzzle numbers changed), and `docs/how_to_solve.md` regenerated with new examples, the same day.
 Open:
-- The Hint panel's colour key reuses role names that read oddly for the chokepoint rules ("the cells it counts" for the cut-off area,
-  "where the box would cause trouble" for the only way in): give those roles labels per rule.
+- Hint panel (done 2026-11-23, audit with Josh): the `exit` role is gone, every text ends in what it settles, the key explains only "where it goes wrong", the
+  path ends and the dashed lines, the meta line is "Rule name · tier", and the segment and parity rules draw their lines / pocket. Still open: ghost the
+  consequences an imagined box forces (dots, boxes) and keep hatching for where it breaks; the hex "forced" step names no cause; `colorBalance`, `uniqueRoute`
+  and `boxStarvesClueByPlacements` texts are still long; `docs/how_to_solve.md` and `examples.json` still hold the old texts (rerun `tools/how_to_examples.mjs`).
 - An Expert tier for puzzles that need trial and error or very long chains: a janko.at sample (31 puzzles up to 20x20) needed `tryCell` in
   3 of 4 at levels 7-8 and 1 of 26 below; the generator would have to accept such puzzles for the books to have any.
 - Calibrate the tiers and costs against janko.at's human difficulty levels (620 Yajilin with solutions in the page source; keep them private).

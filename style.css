@@ -28,7 +28,7 @@
   --shaded-bad: #c62828;
   --loop: #1976d2;
   --hint-focus: rgba(244, 236, 156, 0.8); --hint-clue: rgba(25, 118, 210, 0.28); --hint-range: rgba(25, 118, 210, 0.13);
-  --hint-path: rgba(122, 81, 149, 0.28); --hint-problem: #d55e00; --hint-exit: #1b8a3a; --hint-ink: #8a6d00;
+  --hint-path: rgba(122, 81, 149, 0.28); --hint-problem: #d55e00; --hint-ink: #8a6d00;
   --axis: #888;
   --dot: #6b7a8c;
   --frame: #111;
@@ -66,7 +66,7 @@
   --shaded-bad: #ef5350;
   --loop: #64b5f6;
   --hint-focus: rgba(255, 213, 79, 0.35); --hint-clue: rgba(100, 181, 246, 0.35); --hint-range: rgba(100, 181, 246, 0.16);
-  --hint-path: rgba(179, 157, 219, 0.35); --hint-problem: #ff8a50; --hint-exit: #66bb6a; --hint-ink: #ffd54f;
+  --hint-path: rgba(179, 157, 219, 0.35); --hint-problem: #ff8a50; --hint-ink: #ffd54f;
   --axis: #999;
   --dot: #8a99ab;
   --frame: #ccc;
@@ -147,7 +147,6 @@ button.ghost { background: transparent; }
 .hatch-bg { fill: transparent; }
 .hatch-line { stroke: var(--hint-problem); opacity: 0.55; }
 .hint-focus-ring { fill: none; stroke: var(--hint-ink); stroke-width: 3; pointer-events: none; }
-.hint-exit { fill: none; stroke: var(--hint-exit); stroke-width: 2.5; stroke-dasharray: 5 3; pointer-events: none; }
 .ghost-shade { fill: var(--hint-focus); stroke: var(--hint-ink); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
 .ghost-dot { fill: none; stroke: var(--hint-ink); stroke-width: 2.5; pointer-events: none; }
 .chain-seg { stroke: var(--hint-problem); stroke-linecap: round; stroke-dasharray: 6 5; opacity: 0.9; pointer-events: none; }
@@ -176,7 +175,6 @@ button.ghost { background: transparent; }
 .toast.ghost { visibility: hidden; }   /* a dismissed in-page message: gone, but its space stays so the board does not move */
 .toast.hint { text-align: left; width: min(560px, 94vw); line-height: 1.4; }
 .toast.hint .hint-meta { font-size: 0.75rem; opacity: 0.75; margin-bottom: 2px; font-family: ui-monospace, Menlo, monospace; }
-.toast.hint .hint-marks { margin-top: 4px; font-weight: 600; }
 .toast.hint .hint-more { margin-top: 4px; font-size: 0.78rem; opacity: 0.75; }
 
 /* --- Modals (same look as polyomino-panel / multiverse-star-battle) ------------------------ */

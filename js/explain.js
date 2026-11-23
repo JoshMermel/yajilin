@@ -1,7 +1,7 @@
 // Turns a step of the human-style solver (see rating.js) into something the Hint button can show:
 // a sentence, the cells to look at (each with a role, so the board can color them differently) and the marks the step makes.
 import { OP_SIGN, SHADED, LOOP, CLUE, E_ON, E_OFF, E_UNKNOWN, edgeCells, colName, cloneState } from './logic.js';
-import { ruleLabel, followLines, boxProof, roomGroups, dotTrace, contradiction, oddOpenEnds, chokepointCheck } from './rating.js';
+import { ruleLabel, followLines, boxProof, hypothesisProof, roomGroups, dotTrace, contradiction, oddOpenEnds, chokepointCheck } from './rating.js';
 import { replayImagine } from './imagine.js';
 
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
@@ -18,19 +18,34 @@ export const ROLES = {
   clue: 'the clue',
   range: 'the cells it counts',
   focus: 'the cell being decided',
-  problem: 'where the box would cause trouble',
-  exit: 'its remaining ways out',
+  problem: 'where it goes wrong',
   path: 'the ends of a path',
 };
+/** The roles the hint panel's key explains: the others are named by the sentence itself (the clue, the line it counts, the cell it is about). */
+export const KEYED_ROLES = ['problem', 'path'];
+
+/** What the hint panel calls a rule (the ids are for us). */
+const RULE_NAMES = {
+  shadedNeighbor: 'Boxes never touch', clueDone: 'Clue has all its boxes', clueFull: 'Clue needs every open cell', clueNot: 'A "not n" clue', clueTight: 'Clue fits exactly',
+  rangeSameOne: 'Two clues, one way', rangeSame: 'Two clues, one way', rangeFacingKnown: 'Two clues facing', rangeFacing: 'Two clues facing',
+  deadEnd: 'Dead end', forcedExits: 'Only two ways out', tightCell: 'A box would strand a neighbour', noEarlyClose: 'No early close',
+  sameSegmentExits: 'Ends of one path', closingCell: 'Ends of one path', cluePlacements: 'Placing a clue\'s boxes', placementDeadEnd: 'Placing a clue\'s boxes', regionPairs: 'Two regions together',
+  twoEndsJoin: 'Open ends of an area', pairedEnds: 'Open ends of an area', parityPocket: 'Odd open ends', parityForces: 'Odd open ends', crossingParity: 'Crossing a border',
+  colorBalance: 'Chessboard colours', chokepoint: 'Only one way in', chokepointArea: 'Only one way in',
+  segmentShortChain: 'A line would force lines', segmentForcesLines: 'A line would force lines', segmentClosesLoop: 'A line would close the loop', segmentStarvesClue: 'A line would starve a clue',
+  boxStarvesClueByPlacements: 'A box would starve a clue', imagine: 'Imagine a move', imagineLong: 'Imagine a move (long)', tryCell: 'Trial and error', tryEdge: 'Trial and error', uniqueRoute: 'Only one solution',
+  'arrow-done': 'Clue has all its boxes', 'arrow-full': 'Clue needs every open cell', 'next-to-box': 'Boxes never touch', 'no-room': 'Dead end', 'two-exits': 'Only two ways out', forced: 'Forced together',
+};
+export const ruleName = (id) => RULE_NAMES[id] || id;
 
 /** The cells a loop cell could still connect to, ignoring `ignore` (treated as shaded). Needs the solver position `st`. */
-function waysOut(P, st, i, ignore = -1, skipOn = false) {
+function waysOut(P, st, i, ignore = -1) {
   const out = [];
   for (let d = 0; d < 4; d++) {
     const x = P.ed[i * 4 + d];
     if (x < 0) continue;
     const j = P.nb[i * 4 + d];
-    if (j === ignore || st.e[x] === E_OFF || st.cell[j] === SHADED || (skipOn && st.e[x] === E_ON)) continue;
+    if (j === ignore || st.e[x] === E_OFF || st.cell[j] === SHADED) continue;
     out.push(j);
   }
   return out;
@@ -142,6 +157,14 @@ export function explainStep(P, step, st = null) {
   let text = '', chain = [];
 
   const N = (i) => cellName(P, i);
+  const join = (xs) => (xs.length > 2 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs.join(' and '));
+  // what the step settles, as a clause: "F8 is a box and F5 is a dot" (every text ends in it, so the player is told what to mark)
+  const settled = () => {
+    const bx = [], dt = [];
+    for (const [kind, idx, v] of step.sets) if (kind === 'c') (v === SHADED ? bx : dt).push(idx);
+    const part = (xs, one, many) => (xs.length ? `${join(xs.map(N))} ${xs.length === 1 ? one : many}` : '');
+    return [part(bx, 'is a box', 'are boxes'), part(dt, 'is a dot', 'are dots')].filter(Boolean).join(' and ');
+  };
   const edgeName = (edge) => { const [a, b] = edgeCells(P, edge); return `${N(a)} and ${N(b)}`; };
   switch (rule) {
     case 'clueDone': {
@@ -172,7 +195,6 @@ export function explainStep(P, step, st = null) {
       break;
     case 'forcedExits': {
       role('focus', info.cell);
-      if (st) role('exit', waysOut(P, st, info.cell, -1, info.on >= 1));   // with a line already, outline only where it goes next, not where it came from
       text = info.on >= 1
         ? `${N(info.cell)} has a line and one way left to go: the line continues there.`
         : `${N(info.cell)} has only two ways out: it uses both.`;
@@ -180,12 +202,10 @@ export function explainStep(P, step, st = null) {
     }
     case 'tightCell':
       role('focus', info.cell); role('problem', info.neighbor);
-      if (st) role('exit', waysOut(P, st, info.neighbor).filter((j) => j !== info.cell));
-      text = `A box at ${N(info.cell)} would leave ${N(info.neighbor)} with just one way out.`;
+      text = `A box at ${N(info.cell)} would leave ${N(info.neighbor)} with just one way out, so ${N(info.cell)} is a dot.`;
       break;
     case 'deadEndNeighbor':
       role('focus', info.cell); role('problem', info.neighbor);
-      if (st) role('exit', waysOut(P, st, info.neighbor, info.cell));
       const left = st ? waysOut(P, st, info.neighbor, info.cell).length : -1;
       text = `A box at ${N(info.cell)} would leave ${N(info.neighbor)} with ${left === 0 ? 'no way out' : left === 1 ? 'just one way out' : 'fewer than two ways out'}.`;
       break;
@@ -246,12 +266,12 @@ export function explainStep(P, step, st = null) {
         role('focus', info.cell); role('problem', info.neighbor);
         text = `${lead} A box at ${N(info.cell)} would leave ${N(info.neighbor)} with only those two ways out, closing the loop early.`;
       } else {
-        text = `${lead} A segment between them would close the loop early.`;
+        text = `${lead} A line between them would close the loop early.`;
       }
       break;
     }
     case 'sameSegmentExits':
-      role('focus', info.cell); role('path', info.a, info.b); role('exit', info.third);
+      role('focus', info.cell); role('path', info.a, info.b);
       text = `${N(info.cell)} has three ways out; ${N(info.a)} and ${N(info.b)} lead to the two ends of one path. Using both would close the loop early, so it uses ${N(info.third)}.`;
       break;
     case 'closingCell':
@@ -260,7 +280,7 @@ export function explainStep(P, step, st = null) {
       break;
     case 'noEarlyClose': {
       const [a, b] = edgeCells(P, info.edge); role('path', a, b);
-      text = `${N(a)} and ${N(b)} are the two ends of one path. A segment between them would close the loop early, so there is none.`;
+      text = `${N(a)} and ${N(b)} are the two ends of one path. A line between them would close the loop early, so there is none.`;
       break;
     }
     case 'colorBalance': {
@@ -272,23 +292,23 @@ export function explainStep(P, step, st = null) {
     }
     case 'regionPairs': {
       role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
-      text = `Place the boxes of the ${clueName(P, info.clue)} and the ${clueName(P, info.other)} together, without touching: each marked cell is a box in every placement of the pair, or in none.`;
+      text = `In every way to place the boxes of the ${clueName(P, info.clue)} and the ${clueName(P, info.other)} together without touching, ${settled()}.`;
       break;
     }
     case 'cluePlacements': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', info.cells);
-      text = `Place the boxes of the ${clueName(P, k)} without touching: each marked cell is a box in every placement, or in none.`;
+      text = `In every way to place the boxes of the ${clueName(P, k)} without touching, ${settled()}.`;
       break;
     }
     case 'placementDeadEnd': {
       const k = info.clue; role('clue', clueCell(P, k)); role('range', info.cells);
-      text = `Place the boxes of the ${clueName(P, k)} without touching, and without stranding a dot (leaving it just one way out): each marked cell is a box in every placement that works, or in none.`;
+      text = `In every way to place the boxes of the ${clueName(P, k)} without touching and without leaving a dot just one way out, ${settled()}.`;
       break;
     }
     case 'clueTight': {
-      const k = info.clue; role('clue', clueCell(P, k)); role('range', info.cells);
+      const k = info.clue; role('clue', clueCell(P, k)); role('range', P.rays[k]);
       text = info.runs > 1
-        ? `The ${clueName(P, k)} needs ${info.need} boxes and has exactly enough room, in runs of odd length: in each run the boxes go on every other cell.`
+        ? `The ${clueName(P, k)} needs ${info.need} boxes and has exactly enough room: its open cells form ${info.runs} stretches of odd length, and in each the boxes go on every other cell, starting with the first.`
         : `The ${clueName(P, k)} needs ${info.need} ${info.need === 1 ? 'box' : 'boxes'} and has exactly ${info.cells.length} open cells left in its line, so they go on every other cell, starting at ${N(info.cells[0])}.`;
       break;
     }
@@ -300,7 +320,7 @@ export function explainStep(P, step, st = null) {
     }
     case 'rangeSame': {
       role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
-      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point the same way, so the cells between them hold ${P.clues[info.clue].n} − ${P.clues[info.other].n} = ${plural(info.count, 'box', 'boxes')}${info.count === 0 ? ': they get dots.' : '. Each marked cell is a box in every way of placing those, or in none.'}`;
+      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point the same way, so the cells between them hold ${P.clues[info.clue].n} − ${P.clues[info.other].n} = ${plural(info.count, 'box', 'boxes')}${info.count === 0 ? ': they get dots.' : `. In every way to place them, ${settled()}.`}`;
       break;
     }
     case 'rangeFacingKnown': {
@@ -309,13 +329,13 @@ export function explainStep(P, step, st = null) {
       const part = { M: 'the cells between them', R: `the cells past ${N(clueCell(P, info.other))}`, L: `the cells past ${N(clueCell(P, info.clue))}` };
       const boxes = (n) => (n === 0 ? 'no boxes' : plural(n, 'box', 'boxes'));
       const rest = ['M', 'R', 'L'].filter((k) => k !== info.known);
-      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} face each other. ${part[info.known][0].toUpperCase()}${part[info.known].slice(1)} hold ${boxes(info.counts[info.known])}, so ${part[rest[0]]} hold ${boxes(info.counts[rest[0]])} and ${part[rest[1]]} hold ${boxes(info.counts[rest[1]])}. Placing those settles the marked cells.`;
+      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} face each other. ${part[info.known][0].toUpperCase()}${part[info.known].slice(1)} hold ${boxes(info.counts[info.known])}, so ${part[rest[0]]} hold ${boxes(info.counts[rest[0]])} and ${part[rest[1]]} hold ${boxes(info.counts[rest[1]])}. In every way to place those, ${settled()}.`;
       break;
     }
     case 'rangeFacing': {
       role('clue', clueCell(P, info.clue), clueCell(P, info.other)); role('range', info.cells);
       const [lo, hi] = info.between;
-      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point at each other. What fits around them means the cells between hold ${lo === hi ? plural(lo, 'box', 'boxes') : `${lo} to ${hi} boxes`}, which settles the marked cells.`;
+      text = `The ${clueName(P, info.clue)} and the ${clueName(P, info.other)} point at each other. What fits around them means the cells between hold ${lo === hi ? plural(lo, 'box', 'boxes') : `${lo} to ${hi} boxes`}, so ${settled()}.`;
       break;
     }
     case 'shadeForcesLines':
@@ -349,31 +369,41 @@ export function explainStep(P, step, st = null) {
     case 'uniqueRoute': {
       role('range', info.cells); role('focus', ...info.ends);
       const [a, b] = edgeCells(P, info.edge);
-      text = `Some ways to join the open ends here could be drawn two ways over the same cells (two solutions). Without those, ${info.value === E_ON ? 'there is a segment' : 'there is no segment'} between ${N(a)} and ${N(b)}.`;
+      text = `Some ways to join the open ends here could be drawn two ways over the same cells (two solutions). Without those, ${info.value === E_ON ? 'there is a line' : 'there is no line'} between ${N(a)} and ${N(b)}.`;
       break;
     }
     case 'segmentForcesLines':
     case 'segmentShortChain':
     case 'segmentClosesLoop': {
       const [a, b] = edgeCells(P, info.edge); role('focus', a, b); role('problem', info.stranded);
+      if (st) {                                              // the lines the assumption forces that the contradiction needs, drawn dashed so the player can follow them
+        const pr = hypothesisProof(P, st, [['e', info.edge, info.assumed === 'off' ? E_OFF : E_ON]]);
+        if (pr) chain = pr.edges.filter((x) => x !== info.edge);
+        else {
+          const s2 = cloneState(st); s2.e[info.edge] = info.assumed === 'off' ? E_OFF : E_ON; followLines(P, s2);
+          for (let x = 0; x < P.numEdges; x++) if (s2.e[x] === E_ON && st.e[x] !== E_ON && x !== info.edge) chain.push(x);
+        }
+      }
+      const dashed = chain.length ? ' (dashed)' : '';
+      const closes = rule === 'segmentClosesLoop';
       text = info.assumed === 'off'
-        ? `Without a segment between ${N(a)} and ${N(b)}, the forced lines would ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}.`
-        : `A segment between ${N(a)} and ${N(b)} would force lines that ${segmentResult(P, st, info, rule === 'segmentClosesLoop')}.`;
+        ? `If there were no line between ${N(a)} and ${N(b)}, the forced lines${dashed} would ${segmentResult(P, st, info, closes)}. So the loop runs between them.`
+        : `A line between ${N(a)} and ${N(b)} would force lines${dashed} that ${segmentResult(P, st, info, closes)}. So there is no line between them.`;
       break;
     }
     case 'parityForces':
     case 'parityPocket': {
       const k = info.ends.length;
-      role('path', info.ends);
+      role('path', info.ends); if (info.cells) role('range', info.cells);
       const odd = `${plural(k, 'open end')} (purple), which can't be paired up`;
       if (info.cell !== undefined) {
         role('focus', info.cell);
-        text = `A box at ${N(info.cell)} would cut off ${rule === 'parityPocket' ? `a small pocket (${plural(info.area, 'cell')})` : 'an area'} with ${odd}.`;
+        text = `A box at ${N(info.cell)} would cut off ${rule === 'parityPocket' ? `a small pocket (${plural(info.area, 'cell')}, tinted)` : 'an area'} with ${odd}. So ${N(info.cell)} is a dot.`;
       } else {
         const [a, b] = edgeCells(P, info.edge); role('focus', a, b);
         text = info.assumed === 'off'
-          ? `No segment between ${N(a)} and ${N(b)} would cut off an area with ${odd}.`
-          : `A segment between ${N(a)} and ${N(b)} would cut off an area with ${odd}.`;
+          ? `No line between ${N(a)} and ${N(b)} would cut off an area with ${odd}. So the loop runs between them.`
+          : `A line between ${N(a)} and ${N(b)} would cut off an area with ${odd}. So there is no line between them.`;
       }
       break;
     }
@@ -384,7 +414,7 @@ export function explainStep(P, step, st = null) {
       role('range', cells);
       const [a, b] = edgeCells(P, info.edge); role('path', a, b);
       const what = `${colName(c0)}${r0 + 1} to ${colName(c1)}${r1 + 1}`;
-      text = `The loop crosses the border of ${what} an even number of times. ${plural(info.crossings, 'crossing')} already drawn, and the segment between ${N(a)} and ${N(b)} is the last undecided one: ${info.value === E_ON ? 'there is a segment' : 'there is none'}.`;
+      text = `The loop crosses the border of ${what} an even number of times. ${plural(info.crossings, 'crossing')} already drawn, and the line between ${N(a)} and ${N(b)} is the last undecided one: ${info.value === E_ON ? 'there is a line' : 'there is none'}.`;
       break;
     }
     case 'segmentStarvesClue': {
@@ -395,9 +425,9 @@ export function explainStep(P, step, st = null) {
         chain = []; for (let x = 0; x < P.numEdges; x++) if (s2.e[x] === E_ON && st.e[x] !== E_ON && x !== info.edge) chain.push(x);
         role('problem', ...P.rays[k].filter((j) => st.cell[j] === 0 && s2.cell[j] === LOOP));
       }
-      const what = info.assumed === 'off' ? `Without a segment between ${N(a)} and ${N(b)}, the forced lines` : `A segment between ${N(a)} and ${N(b)} would force lines that`;
+      const what = info.assumed === 'off' ? `Without a line between ${N(a)} and ${N(b)}, the forced lines` : `A line between ${N(a)} and ${N(b)} would force lines that`;
       const more = plural(info.need, 'more box', 'more boxes');
-      text = `${what} ${info.assumed === 'off' ? 'would leave' : 'leave'} the ${clueName(P, k)} without room: it would still need ${more}, but only ${info.room} fit in what is left of its line. So there is ${info.assumed === 'off' ? 'a segment' : 'no segment'} there.`;
+      text = `${what} ${info.assumed === 'off' ? 'would leave' : 'leave'} the ${clueName(P, k)} without room: it would still need ${more}, but only ${info.room} fit in what is left of its line. So there is ${info.assumed === 'off' ? 'a line' : 'no line'} there.`;
       break;
     }
     case 'dotShortChain':
@@ -444,13 +474,13 @@ export function explainStep(P, step, st = null) {
     case 'chokepointArea': {
       role('range', info.part);
       if (info.cut >= 0) role('problem', info.cut);
-      const move = info.cell !== undefined ? `A box at ${N(info.cell)}` : info.assumed === 'off' ? `Without a segment between ${edgeName(info.edge)}` : `A segment between ${edgeName(info.edge)}`;
+      const move = info.cell !== undefined ? `A box at ${N(info.cell)}` : info.assumed === 'off' ? `Without a line between ${edgeName(info.edge)}` : `A line between ${edgeName(info.edge)}`;
       if (info.cell !== undefined) role('focus', info.cell); else { const [a, b] = edgeCells(P, info.edge); role('focus', a, b); }
       const area = rule === 'chokepoint' ? `the marked area (${plural(info.part.length, 'cell')})` : `a large area (${plural(info.part.length, 'cell')}, marked)`;
-      const result = info.cell !== undefined ? `So ${N(info.cell)} is a dot.` : info.assumed === 'off' ? 'So the segment is there.' : 'So there is no segment there.';
+      const result = info.cell !== undefined ? `So ${N(info.cell)} is a dot.` : info.assumed === 'off' ? 'So the line is there.' : 'So there is no line there.';
       text = info.cut >= 0
-        ? `${move}, the only way into ${area} would be through ${N(info.cut)}. It holds loop cells, but the loop passes through a cell only once, so it could not get in and back out: those cells would have no way to join the rest of the loop. ${result}`
-        : `${move}, ${area} would be cut off from the rest of the board: its loop cells would have no way to join the rest of the loop. ${result}`;
+        ? `${move}, ${area} could only be reached through ${N(info.cut)}. It holds loop cells, and a loop cannot go in and come back out through one cell. ${result}`
+        : `${move}, ${area} would be cut off from the rest of the board, yet it holds loop cells. ${result}`;
       if (info.cell !== undefined) text = text.replace(/^A box at (\S+), /, 'With a box at $1, ');
       break;
     }
@@ -463,27 +493,28 @@ export function explainStep(P, step, st = null) {
       if (!st) { text = `${box ? 'A box' : 'A dot'} at ${N(info.cell)} would lead, by easy steps, to a contradiction. ${verdict}`; break; }
       const rp = replayImagine(P, st, info);
       const list = (xs) => (xs.length > 2 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs.join(' and '));
-      const clueOf = (cells, test) => { for (const c of cells) for (const k of P.cluesOf[c]) if (cells.every((x) => P.rays[k].includes(x)) && test(k)) return k; return -1; };
-      const boxesIn = (k) => P.rays[k].filter((i) => rp.state.cell[i] === SHADED).length;
       const said = [], dotted = new Set(), boxed = new Set();
       let saidLines = false;
       chain = info.facts.filter((f) => f.k === 'e' && f.v === E_ON).map((f) => f.i).sort((a, b) => a - b);
       for (const n of new Set(rp.facts.map((f) => f.step))) {
         const fs = rp.facts.filter((f) => f.step === n);
         const rule = fs[0].rule;
-        const cellsOf = (v) => fs.filter((f) => f.k === 'c' && f.v === v).map((f) => f.i);
+        const cellsOf = (v) => [...new Set(fs.filter((f) => f.k === 'c' && f.v === v).map((f) => f.i))];
+        const byClue = (v) => { const m = new Map(); for (const f of fs) if (f.k === 'c' && f.v === v && f.clue !== undefined) m.set(f.clue, [...(m.get(f.clue) || []), f.i]); return [...m]; };   // the clue each fact came from
         if (rule === 'shadedNeighbor') {
           const dots = cellsOf(LOOP).filter((i) => !dotted.has(i)); dots.forEach((i) => dotted.add(i));
           if (dots.length) said.push(`${list(dots.map(N))} would be ${dots.length === 1 ? 'a dot' : 'dots'}, since boxes never touch`);
         } else if (rule === 'clueDone') {
-          const dots = cellsOf(LOOP); dots.forEach((i) => dotted.add(i));
-          const k = clueOf(dots, (q) => boxesIn(q) === P.hi[q]);
-          if (k >= 0) { role('clue', clueCell(P, k)); said.push(`the ${clueName(P, k)} would have all its boxes, so the rest of its ${P.clues[k].region ? 'region' : 'line'} would be dots`); }
+          for (const [k, cs] of byClue(LOOP)) {
+            cs.forEach((i) => dotted.add(i)); role('clue', clueCell(P, k)); role('range', P.rays[k]);
+            said.push(P.clues[k].op !== '!=' ? `the ${clueName(P, k)} would have all ${P.clues[k].op === '<=' ? 'the boxes it allows' : 'its boxes'}, so the rest of its ${P.clues[k].region ? 'region' : 'line'} would be dots` : `the ${clueName(P, k)} could not take a box at ${list([...new Set(cs)].map(N))}`);
+          }
         } else if (rule === 'clueFull' || rule === 'clueTight') {
-          const bs = cellsOf(SHADED).filter((i) => !boxed.has(i)); bs.forEach((i) => boxed.add(i));
-          const k = clueOf(cellsOf(SHADED), () => true);
-          if (k >= 0) role('clue', clueCell(P, k));
-          if (bs.length) said.push(`${k >= 0 ? `the ${clueName(P, k)}` : 'a clue'} would need ${bs.length === 1 ? `a box at ${N(bs[0])}` : `boxes at ${list(bs.map(N))}`}`);
+          for (const [k, cs] of byClue(SHADED)) {
+            const bs = [...new Set(cs)].filter((i) => !boxed.has(i)); bs.forEach((i) => boxed.add(i));
+            role('clue', clueCell(P, k)); role('range', P.rays[k]);
+            if (bs.length) said.push(`the ${clueName(P, k)} would need ${bs.length === 1 ? `a box at ${N(bs[0])}` : `boxes at ${list(bs.map(N))}`}`);
+          }
         } else if (rule === 'deadEnd') {
           const bs = cellsOf(SHADED).filter((i) => !boxed.has(i)); bs.forEach((i) => boxed.add(i));
           if (bs.length) said.push(`${list(bs.map(N))} would be left with fewer than two ways out, so ${bs.length === 1 ? 'a box' : 'boxes'}`);
@@ -511,7 +542,7 @@ export function explainStep(P, step, st = null) {
       break;
     case 'tryEdge': {
       const [a, b] = edgeCells(P, info.edge); role('path', a, b);
-      text = `Trying ${info.assumed === 'on' ? 'a segment' : 'no segment'} between ${N(a)} and ${N(b)} leads to a contradiction, so there is ${info.assumed === 'on' ? 'none' : 'one'}.`;
+      text = `Trying ${info.assumed === 'on' ? 'a line' : 'no line'} between ${N(a)} and ${N(b)} leads to a contradiction, so there is ${info.assumed === 'on' ? 'none' : 'one'}.`;
       break;
     }
     default:
@@ -532,8 +563,8 @@ export function describeMarks(t) {
   const parts = [];
   if (t.shaded.length) parts.push(`shade ${plural(t.shaded.length, 'cell')}`);
   if (t.loop.length) parts.push(`mark ${plural(t.loop.length, 'cell')} as loop`);
-  if (t.segOn.length) parts.push(`draw ${plural(t.segOn.length, 'segment')}`);
-  if (t.segOff.length) parts.push(`rule out ${plural(t.segOff.length, 'segment')}`);
+  if (t.segOn.length) parts.push(`draw ${plural(t.segOn.length, 'line')}`);
+  if (t.segOff.length) parts.push(`rule out ${plural(t.segOff.length, 'line')}`);
   return parts.join(', ');
 }
 

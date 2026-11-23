@@ -93,7 +93,7 @@ export class Board {
    * marks = { cells: Uint8Array (0 blank, 1 shaded, 2 dot), edges: Uint8Array (1 = loop segment) }
    * info  = { clueState: array of 'ok'|'bad'|'' per clue, badShaded: Set of cell indexes }
    * hint  = optional overlay (ghost marks, nothing is changed):
-   *   { roles: { clue, range, focus, problem, exit, path: [cells] }, undecided: [cells], shaded: [cells], loop: [cells],
+   *   { roles: { clue, range, focus, problem, path: [cells] }, undecided: [cells], shaded: [cells], loop: [cells],
    *     segOn: [edges], segOff: [edges], chain: [edges: the lines an imagined box would force], wrongCells: [cells], wrongEdges: [edges] }
    */
   render(marks, info, hint = null) {
@@ -205,8 +205,7 @@ export class Board {
     if (hint) {
       const seg = (x) => { const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1; return [cx(a % P.cols), cy((a / P.cols) | 0), cx(b % P.cols), cy((b / P.cols) | 0)]; };
       const roles = hint.roles || {};
-      // outlines on top of the marks: the cell being decided, and the ways out
-      for (const i of roles.exit || []) g += `<rect class="hint-exit" x="${cellX(i) + 3}" y="${cellY(i) + 3}" width="${S - 6}" height="${S - 6}" rx="6"/>`;
+      // outlines on top of the marks: the cell being decided
       for (const i of roles.focus || []) g += `<rect class="hint-focus-ring" x="${cellX(i) + 2}" y="${cellY(i) + 2}" width="${S - 4}" height="${S - 4}" rx="6"/>`;
       for (const i of hint.shaded || []) g += `<rect class="ghost-shade" x="${cellX(i) + 6}" y="${cellY(i) + 6}" width="${S - 12}" height="${S - 12}" rx="5"/>`;
       for (const i of hint.loop || []) g += `<circle class="ghost-dot" cx="${cx(i % P.cols)}" cy="${cy((i / P.cols) | 0)}" r="${S * 0.1}"/>`;

@@ -118,3 +118,42 @@ test('boxStarvesClueByPlacements says what the clue still needs against the room
   assert.ok(ex.chain.length > 0, 'the forced lines are drawn dashed');
   assert.deepEqual(ex.roles.focus, [f.info.cell]);
 });
+
+test('hint texts and highlights: no "exit" role, an imagined step names the clue that really needs the box, no cell is listed twice, drawn lines are handed to the board', async () => {
+  const fs = await import('node:fs');
+  const { parseCsv, initialState, SHADED, LOOP, E_ON, colName } = await import('../js/logic.js');
+  const { nextMarkableStep } = await import('../js/hintstep.js');
+  const name = (P, i) => `${colName(i % P.cols)}${((i / P.cols) | 0) + 1}`;
+  let imagined = 0, checkedClues = 0, dashed = 0;
+  for (const [file, names] of [['sparse-8x8-both.csv', [29, 30]], ['12x12.csv', [84, 333]], ['frame-experiment.csv', [1, 2]], ['armory.csv', ['Y6x6_s8009_3']]]) {   // (the last: the imagined step that used to blame the wrong clue)
+    const all = parseCsv(fs.readFileSync(new URL(`../data/${file}`, import.meta.url), 'utf8'));
+    for (const q of names.map((n) => (typeof n === 'string' ? all.find((p) => p.name === n) : all[n % all.length]))) {
+      const P = compile(q);
+      const cells = new Uint8Array(P.N), edges = new Uint8Array(P.numEdges);
+      for (const i of P.boxIdx) cells[i] = 1;
+      for (let n = 0; n < 300; n++) {
+        const st = initialState(P);
+        for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0) { if (cells[i] === 1) st.cell[i] = SHADED; else if (cells[i] === 2) st.cell[i] = LOOP; }
+        for (let x = 0; x < P.numEdges; x++) if (edges[x]) st.e[x] = E_ON;
+        const nx = nextMarkableStep(P, st);
+        if (!nx) break;
+        const f = nx.res.firings[0];
+        const e = explainStep(P, { rule: nx.res.rule, tier: nx.res.tier, weight: nx.res.weight, sets: f.sets, info: f.info }, st);
+        assert.equal(e.roles.exit, undefined, `${nx.res.rule} has no exit role`);
+        assert.ok(/[.]$/.test(e.text), `${nx.res.rule} ends its sentence: ${e.text}`);
+        if (/\(dashed\)/.test(e.text) && nx.res.rule.startsWith('segment')) { dashed++; assert.ok(e.chain.length > 0, `${nx.res.rule}: the dashed lines are drawn`); }
+        if (nx.res.rule.startsWith('imagine')) {
+          imagined++;
+          for (const m of e.text.matchAll(/the \S+ clue at ([A-Z]+\d+) would need (?:a box|boxes) at ([^;,.]*(?:, [^;,.]*)*?)(?=[;,.]| and then)/g)) {
+            const k = P.clues.findIndex((c) => name(P, c.r * P.cols + c.c) === m[1]);
+            const cellsNamed = m[2].split(/, | and /).filter(Boolean);
+            assert.equal(new Set(cellsNamed).size, cellsNamed.length, `a cell is listed twice: ${e.text}`);
+            for (const c of cellsNamed) { checkedClues++; assert.ok(P.rays[k].some((i) => name(P, i) === c), `${m[1]} does not count ${c}: ${e.text}`); }
+          }
+        }
+        for (const [k, i, v] of f.sets) { if (k === 'c') cells[i] = v === SHADED ? 1 : 2; else if (v === E_ON) edges[i] = 1; }
+      }
+    }
+  }
+  assert.ok(imagined > 0 && checkedClues > 0, `imagined ${imagined}, clue claims checked ${checkedClues}`);
+});

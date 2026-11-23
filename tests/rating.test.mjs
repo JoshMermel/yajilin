@@ -780,7 +780,7 @@ test('chokepoint (Medium): one cell as the only way into an area with loop cells
   assert.deepEqual(f.sets, [['e', 2 * I3 + 1, E_ON]]);
   assert.equal(f.info.cut, G3);
   assert.ok(f.info.part.includes(cellIdx(P, 'H2')) && f.info.part.length <= 6, JSON.stringify(f.info.part));
-  assert.match(explainStep(P, { rule: 'chokepoint', info: f.info, sets: f.sets }, st).text, /^Without a segment between I3 and I4, the only way into the marked area \(\d+ cells?\) would be through G3\./);
+  assert.match(explainStep(P, { rule: 'chokepoint', info: f.info, sets: f.sets }, st).text, /^Without a line between I3 and I4, the marked area \(\d+ cells?\) could only be reached through G3\./);
   assert.equal(rule.tier, 'Medium');
   assert.equal(RULES.find((r) => r.id === 'chokepointArea').tier, 'Hard');
   void I4;

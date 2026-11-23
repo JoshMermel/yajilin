@@ -158,9 +158,9 @@ export function oddOpenGroup(P, st) {
   let best = null;
   for (const [r, c] of count) if (c % 2 && (!best || c < best[1])) best = [r, c];
   if (!best) return null;
-  let area = 0;
-  for (let i = 0; i < P.N; i++) if (needy[i] && find(i) === best[0]) area++;
-  return { ends: ends.filter((i) => find(i) === best[0]), area };
+  let area = 0; const cells = [];
+  for (let i = 0; i < P.N; i++) if (needy[i] && find(i) === best[0]) { area++; cells.push(i); }
+  return { ends: ends.filter((i) => find(i) === best[0]), area, cells };
 }
 
 /** Is the position impossible? (Used by the lookahead rules.) */
@@ -1603,7 +1603,7 @@ function parityForces(P, st) {
     st2.cell[i] = SHADED;
     for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && st2.e[x] === E_UNKNOWN) st2.e[x] = E_OFF; }
     const g = oddOpenGroup(P, st2);
-    if (g) out.push(firing([setCell(i, LOOP)], { cell: i, assumed: 'shaded', ends: g.ends, area: g.area }));
+    if (g) out.push(firing([setCell(i, LOOP)], { cell: i, assumed: 'shaded', ends: g.ends, area: g.area, cells: g.cells }));
   }
   for (let x = 0; x < P.numEdges; x++) {
     if (st.e[x] !== E_UNKNOWN || !validEdge(P, x)) continue;
@@ -1611,10 +1611,10 @@ function parityForces(P, st) {
     if (st.cell[a] === SHADED || st.cell[b] === SHADED) continue;
     const off = cloneState(st); off.e[x] = E_OFF;
     const gOff = oddOpenGroup(P, off);
-    if (gOff) { out.push(firing([setEdge(x, E_ON)], { edge: x, assumed: 'off', ends: gOff.ends, area: gOff.area })); continue; }
+    if (gOff) { out.push(firing([setEdge(x, E_ON)], { edge: x, assumed: 'off', ends: gOff.ends, area: gOff.area, cells: gOff.cells })); continue; }
     const on = cloneState(st); on.e[x] = E_ON; on.cell[a] = LOOP; on.cell[b] = LOOP;
     const gOn = oddOpenGroup(P, on);
-    if (gOn) out.push(firing([setEdge(x, E_OFF)], { edge: x, assumed: 'on', ends: gOn.ends, area: gOn.area }));
+    if (gOn) out.push(firing([setEdge(x, E_OFF)], { edge: x, assumed: 'on', ends: gOn.ends, area: gOn.area, cells: gOn.cells }));
   }
   // smallest areas first: the easiest to see
   return out.sort((p, q) => p.info.ends.length - q.info.ends.length || p.info.area - q.info.area);

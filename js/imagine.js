@@ -197,8 +197,8 @@ export const LOCAL = {
       const cl = P.clues[k]; if (cl.n < 0) continue;
       let s = 0; const unk = [];
       for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) unk.push(i); }
-      if (s === P.hi[k] && unk.length) out.push({ sets: unk.map((i) => cSet(i, LOOP)) });
-      else if (unk.length === 1 && (s === P.ne[k] || s + 1 === P.ne[k])) out.push({ sets: [cSet(unk[0], s === P.ne[k] ? SHADED : LOOP)] });
+      if (s === P.hi[k] && unk.length) out.push({ sets: unk.map((i) => cSet(i, LOOP)), clue: k });
+      else if (unk.length === 1 && (s === P.ne[k] || s + 1 === P.ne[k])) out.push({ sets: [cSet(unk[0], s === P.ne[k] ? SHADED : LOOP)], clue: k });
     }
     return out;
   },
@@ -208,7 +208,7 @@ export const LOCAL = {
       const cl = P.clues[k]; if (cl.n < 0) continue;
       let s = 0; const unk = [];
       for (const i of P.rays[k]) { if (st.cell[i] === SHADED) s++; else if (st.cell[i] === UNKNOWN) unk.push(i); }
-      if (unk.length && P.lo[k] - s === unk.length) out.push({ sets: unk.map((i) => cSet(i, SHADED)) });
+      if (unk.length && P.lo[k] - s === unk.length) out.push({ sets: unk.map((i) => cSet(i, SHADED)), clue: k });
     }
     return out;
   },
@@ -230,7 +230,7 @@ export const LOCAL = {
       const need = P.lo[k] - boxes;
       if (need < 2 || !runs.length || runs.some((r) => r.length % 2 === 0)) continue;
       if (runs.reduce((a, r) => a + (r.length + 1) / 2, 0) !== need) continue;
-      out.push({ sets: runs.flatMap((r) => r.map((i, q) => (q % 2 === 0 ? cSet(i, SHADED) : cSet(i, LOOP)))) });
+      out.push({ sets: runs.flatMap((r) => r.map((i, q) => (q % 2 === 0 ? cSet(i, SHADED) : cSet(i, LOOP)))), clue: k });
     }
     return out;
   },
@@ -278,6 +278,7 @@ export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContra
       for (const f of fs) for (const t of f.sets) {
         if ((t[0] === 'c' ? s2.cell : s2.e)[t[1]] === t[2]) continue;
         if (!FREE.has(id) && forbid && forbid.has(key(...t))) continue;
+        if (f.clue !== undefined) t.clue = f.clue;      // (the clue that made it: the explanation names it)
         sets.push(t);
       }
       if (!sets.length) { gate[ri] = 0; continue; }
@@ -285,7 +286,7 @@ export function run(P, st, hyp, forbid = null, maxFacts = 80, contr = easyContra
       pend = sets;
       cx.add(sets);
       { const m = kindsOf(sets); for (let q = 0; q < gate.length; q++) gate[q] |= m; }
-      if (!FREE.has(id)) { steps++; for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: id, step: steps, g }); }
+      if (!FREE.has(id)) { steps++; for (const t of sets) facts.push({ k: t[0], i: t[1], v: t[2], rule: id, step: steps, g, clue: t.clue }); }
       if (!ok) return { ok: true, facts, steps, snaps, state: s2 };
       if (facts.length > maxFacts) return { ok: false, facts, steps, snaps, state: s2 };
       fired = true; break;

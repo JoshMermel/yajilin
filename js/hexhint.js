@@ -147,12 +147,12 @@ export function describeHexStep(step, name) {
     const w = step.why, noun = (n) => (n === 1 ? 'box' : 'boxes');
     switch (step.rule) {
       case 'arrow-done': return w.n === 0
-        ? `The arrow at ${name(w.arrow)} says 0 boxes on its line, so none of its cells can be a box: ${list(w.cells)} ${w.cells.length === 1 ? 'is a dot' : 'are dots'}.`
-        : `The arrow at ${name(w.arrow)} has all ${w.n} of its ${noun(w.n)} already, so the rest of its line cannot hold one: ${list(w.cells)} ${w.cells.length === 1 ? 'is a dot' : 'are dots'}.`;
-      case 'arrow-full': return `The arrow at ${name(w.arrow)} needs ${w.n} ${noun(w.n)} and has no more open cells on its line than that, so ${list(w.cells)} ${w.cells.length === 1 ? 'is a box' : 'are all boxes'}.`;
+        ? `The clue at ${name(w.arrow)} says 0 boxes on its line, so none of its cells can be a box: ${list(w.cells)} ${w.cells.length === 1 ? 'is a dot' : 'are dots'}.`
+        : `The clue at ${name(w.arrow)} has all ${w.n} of its ${noun(w.n)} already, so the rest of its line cannot hold one: ${list(w.cells)} ${w.cells.length === 1 ? 'is a dot' : 'are dots'}.`;
+      case 'arrow-full': return `The clue at ${name(w.arrow)} needs ${w.n} ${noun(w.n)} and has no more open cells on its line than that, so ${list(w.cells)} ${w.cells.length === 1 ? 'is a box' : 'are all boxes'}.`;
       case 'next-to-box': return `${name(w.cell)} is a box, and boxes never touch, so ${list(w.cells)} ${w.cells.length === 1 ? 'is a dot' : 'are dots'}.`;
-      case 'no-room': return `${name(w.cell)} has fewer than two neighbours the loop could use, so the loop cannot pass through it: it is a box.`;
-      default: return `${name(w.cell)} is on the loop and only two of its neighbours are left (${list(w.cells)}), so the loop goes through both.`;
+      case 'no-room': return `${name(w.cell)} has fewer than two ways out, so the loop cannot pass through it: it is a box.`;
+      default: return `${name(w.cell)} is on the loop and has only two ways out (${list(w.cells)}): it uses both.`;
     }
   }
   if (step.kind === 'forced') {
@@ -160,9 +160,9 @@ export function describeHexStep(step, name) {
     const parts = [];
     if (step.shaded.length) parts.push(`${step.shaded.length === 1 ? 'a box' : `${step.shaded.length} boxes`} (${list(step.shaded)})`);
     if (step.loop.length) parts.push(`${step.loop.length === 1 ? 'a dot' : `${step.loop.length} dots`} (${list(step.loop)})`);
-    if (step.segOn.length) parts.push(`${step.segOn.length === 1 ? 'a line segment' : `${step.segOn.length} line segments`}`);
+    if (step.segOn.length) parts.push(`${step.segOn.length === 1 ? 'a line' : `${step.segOn.length} lines`}`);
     const more = step.total > n ? ` (${step.total - n} more follow after these)` : '';
-    return `No single rule shows it, but together the arrows' counts and the shape of the loop force ${parts.join(', ')}.${more}`;
+    return `Together the clues' counts and the shape of the loop force ${parts.join(', ')}.${more}`;
   }
   if (step.explain) return step.explain.text;
   if (step.imagined === 'gap') return `Imagine no line between ${name(step.focus[0])} and ${name(step.focus[1])}: the position can no longer be completed. So the loop runs between them.`;

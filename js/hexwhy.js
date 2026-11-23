@@ -1,7 +1,7 @@
 // Why does an imagined mark break a hex position? The propagation in logic.js finds the contradiction but cannot say how; this redoes the same easy
 // reasoning one fact at a time, remembering what each fact was concluded from, and then tells the story of only the facts the contradiction needs:
 //
-//   Imagine a box at E1: the arrow at D1 would have all its boxes, so ... would be dots; then ... would be left with fewer than two ways out; and then
+//   Imagine a box at E1: the clue at D1 would have all its boxes, so ... would be dots; then ... would be left with fewer than two ways out; and then
 //   B3 would have only one line to go on. So E1 is a dot.
 //
 // The rules are the ones propagate() uses: a box's neighbours are on the loop; an undecided cell with fewer than two neighbours it could join is a box;
@@ -121,12 +121,12 @@ export function explainImagine(P, base, assume, name) {
       case 'box-neighbor': roles.range.push(...cellsOf(g)); return `${list(cs)} would be ${plural(cs.length, 'a dot', 'dots')}, since boxes never touch`;
       case 'arrow-done': {
         const n = P.clues[g.ref].n; roles.clue.push(arrowCell(g.ref)); roles.range.push(...cellsOf(g));
-        return n === 0 ? `the arrow at ${name(arrowCell(g.ref))} says 0, so ${list(cs)} on its line would ${plural(cs.length, 'be a dot', 'be dots')}`
-          : `the arrow at ${name(arrowCell(g.ref))} would have all its ${n} ${plural(n, 'box', 'boxes')}, so ${list(cs)} on its line would ${plural(cs.length, 'be a dot', 'be dots')}`;
+        return n === 0 ? `the clue at ${name(arrowCell(g.ref))} says 0, so ${list(cs)} on its line would ${plural(cs.length, 'be a dot', 'be dots')}`
+          : `the clue at ${name(arrowCell(g.ref))} would have all its ${n} ${plural(n, 'box', 'boxes')}, so ${list(cs)} on its line would ${plural(cs.length, 'be a dot', 'be dots')}`;
       }
       case 'arrow-full': {
         const n = P.clues[g.ref].n; roles.clue.push(arrowCell(g.ref)); roles.problem.push(...cellsOf(g));
-        return `the arrow at ${name(arrowCell(g.ref))} could only get its ${n} ${plural(n, 'box', 'boxes')} by using ${list(cs)}, so ${cs.length === 1 ? `${cs[0]} would be a box` : 'they would all be boxes'}`;
+        return `the clue at ${name(arrowCell(g.ref))} could only get its ${n} ${plural(n, 'box', 'boxes')} by using ${list(cs)}, so ${cs.length === 1 ? `${cs[0]} would be a box` : 'they would all be boxes'}`;
       }
       case 'no-room': {
         roles.problem.push(...cellsOf(g));
@@ -149,8 +149,8 @@ export function explainImagine(P, base, assume, name) {
     'box-touch': () => `the boxes at ${list(cs)} would touch`,
     'loop-few': () => `${cs[0]} would be on the loop with ${c.ways.length ? `only one way out (${c.ways.map(name)[0]})` : 'no way out'}, and a loop cell needs two`,
     'loop-many': () => `${cs[0]} would have more than two lines`,
-    'arrow-over': () => `the arrow at ${name(arrowCell(c.arrows[0]))} would have ${c.count} ${plural(c.count, 'box', 'boxes')} on its line, more than the ${P.clues[c.arrows[0]].n} it asks for`,
-    'arrow-short': () => `the arrow at ${name(arrowCell(c.arrows[0]))} asks for ${P.clues[c.arrows[0]].n} ${plural(P.clues[c.arrows[0]].n, 'box', 'boxes')} but its line would have room for only ${c.count}`,
+    'arrow-over': () => `the clue at ${name(arrowCell(c.arrows[0]))} would have ${c.count} ${plural(c.count, 'box', 'boxes')} on its line, more than the ${P.clues[c.arrows[0]].n} it asks for`,
+    'arrow-short': () => `the clue at ${name(arrowCell(c.arrows[0]))} asks for ${P.clues[c.arrows[0]].n} ${plural(P.clues[c.arrows[0]].n, 'box', 'boxes')} but its line would have room for only ${c.count}`,
     'early-close': () => `the lines would close a loop (${list(cs)}) that leaves out other loop cells`,
   }[c.rule]();
 
