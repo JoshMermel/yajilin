@@ -1,6 +1,16 @@
 // Slow, obviously-correct yajilin solver for tiny boards, used only to cross-check js/logic.js.
 // Enumerates every set of shaded cells, then counts Hamiltonian cycles through the remaining non-clue cells.
-import { DR, DC } from '../js/logic.js';
+import { DR, DC, hexStep } from '../js/logic.js';
+
+/** Neighbour cells of (r, c) on a rows x cols board, square or hex (written out here, independent of compile()'s tables). */
+function neighbours(P, r, c) {
+  const out = [];
+  for (let d = 0; d < (P.grid === 'hex' ? 6 : 4); d++) {
+    const [nr, nc] = P.grid === 'hex' ? hexStep(r, c, d) : [r + DR[d], c + DC[d]];
+    if (nr >= 0 && nc >= 0 && nr < P.rows && nc < P.cols) out.push(nr * P.cols + nc);
+  }
+  return out;
+}
 
 /** Number of solutions of a compiled puzzle (rows*cols must be small, <= ~20). */
 export function referenceCount(P) {
@@ -13,7 +23,7 @@ export function referenceCount(P) {
     free.forEach((i, k) => { if (mask >> k & 1) shaded[i] = 1; });
     if (!validShading(P, shaded)) continue;
     const loop = free.filter((i) => !shaded[i]);
-    total += countHamiltonianCycles(rows, cols, loop);
+    total += countHamiltonianCycles(P, loop);
   }
   return total;
 }
@@ -22,11 +32,7 @@ function validShading(P, shaded) {
   const { rows, cols, N } = P;
   for (let i = 0; i < N; i++) {
     if (!shaded[i]) continue;
-    const r = (i / cols) | 0, c = i % cols;
-    for (let d = 0; d < 4; d++) {
-      const nr = r + DR[d], nc = c + DC[d];
-      if (nr >= 0 && nc >= 0 && nr < rows && nc < cols && shaded[nr * cols + nc]) return false;
-    }
+    for (const j of neighbours(P, (i / cols) | 0, i % cols)) if (shaded[j]) return false;
   }
   for (let k = 0; k < P.clues.length; k++) {
     let s = 0;
@@ -36,22 +42,14 @@ function validShading(P, shaded) {
   return true;
 }
 
-function countHamiltonianCycles(rows, cols, cells) {
-  if (cells.length < 4) return 0;
+function countHamiltonianCycles(P, cells) {
+  const { rows, cols } = P;
+  if (cells.length < 3) return 0;
   const inSet = new Set(cells);
   const start = cells[0];
   const seen = new Set([start]);
   let directed = 0;
-  const adj = (i) => {
-    const r = (i / cols) | 0, c = i % cols, out = [];
-    for (let d = 0; d < 4; d++) {
-      const nr = r + DR[d], nc = c + DC[d];
-      if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
-      const j = nr * cols + nc;
-      if (inSet.has(j)) out.push(j);
-    }
-    return out;
-  };
+  const adj = (i) => neighbours(P, (i / cols) | 0, i % cols).filter((j) => inSet.has(j));
   const dfs = (i) => {
     for (const j of adj(i)) {
       if (j === start && seen.size === cells.length) directed++;

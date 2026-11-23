@@ -35,6 +35,30 @@ export const oppositeDir = (d) => (d < 4 ? (d + 2) % 4 : 4 + ((d - 2) % 4));
 export const UNKNOWN = 0, SHADED = 1, LOOP = 2, CLUE = 3;
 export const E_UNKNOWN = 0, E_ON = 1, E_OFF = 2;
 
+// HEX GRIDS (`p.grid === 'hex'`): pointy-top hexagons stored as rows x cols with every odd row shifted half a cell to the right ("odd-r"
+// offset layout), so a board is a rectangle with a zigzag edge. A cell has six neighbours, in the directions
+//   0 E, 1 SE, 2 SW, 3 W, 4 NW, 5 NE   (clockwise from east; an arrow counts the cells in a straight line that way to the board's edge).
+// Edges: edge 3*i + k (k = 0 E, 1 SE, 2 SW) joins cell i to its neighbour in direction k (there are 3 per cell, so numEdges = 3N); the other
+// three directions share the neighbour's edges. Everything else (shaded cells never touch, one loop through every other cell) is unchanged.
+export const HEX_DIR_LETTERS = 'ABCDEF';
+export const HEX_ARROWS = ['→', '↘', '↙', '←', '↖', '↗'];
+/** The cell one step from (r, c) in hex direction d, as [r, c] (maybe off the board). */
+export function hexStep(r, c, d) {
+  const odd = r & 1;
+  switch (d) {
+    case 0: return [r, c + 1];
+    case 1: return [r + 1, odd ? c + 1 : c];
+    case 2: return [r + 1, odd ? c : c - 1];
+    case 3: return [r, c - 1];
+    case 4: return [r - 1, odd ? c : c - 1];
+    default: return [r - 1, odd ? c + 1 : c];
+  }
+}
+export const oppositeHexDir = (d) => (d + 3) % 6;
+
+/** The characters of a hex puzzle's solution string: a loop cell's exit mask has 6 bits, so one of 64 symbols ('x' and '#' are taken). */
+const SOL_ALPHABET = '0123456789abcdefghijklmnopqrstuvwyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/_';
+
 /** Puzzle = { name, rows, cols, clues: [{r, c, d, n}], solution?: string, rules?, tier?, score? }.
  *  compile() adds the lookup tables every other function uses. */
 export function compile(p) {
@@ -59,19 +83,27 @@ export function compile(p) {
     regionCells = Array.from({ length: Math.max(...regionOf) + 1 }, () => []);
     for (let i = 0; i < N; i++) regionCells[regionOf[i]].push(i);
   } else if (p.clues.some((cl) => cl.region)) throw new Error('a region clue needs regions');
-  // nb[i*4+d]: neighbour cell in direction d if both are non-clue cells, else -1. ed: the edge between them.
-  const nb = new Int16Array(N * 4).fill(-1);
-  const ed = new Int16Array(N * 4).fill(-1);
+  // The topology: K neighbours per cell (4 on a square grid, 6 on a hex grid), and a list of edges with their two end cells.
+  const hex = p.grid === 'hex';
+  const K = hex ? 6 : 4;
+  const numEdges = (hex ? 3 : 2) * N;
+  const edgeA = new Int16Array(numEdges).fill(-1), edgeB = new Int16Array(numEdges).fill(-1);       // -1: no such edge (off the board)
+  const stepOf = hex ? hexStep : (r, c, d) => [r + DR[d], c + DC[d]];
+  // nb[i*K+d]: neighbour cell in direction d if both are non-clue cells, else -1. ed: the edge between them.
+  const nb = new Int16Array(N * K).fill(-1);
+  const ed = new Int16Array(N * K).fill(-1);
   for (let i = 0; i < N; i++) {
-    if (clueAt[i] >= 0) continue;
     const r = (i / cols) | 0, c = i % cols;
-    for (let d = 0; d < 4; d++) {
-      const nr = r + DR[d], nc = c + DC[d];
+    for (let d = 0; d < K; d++) {
+      const [nr, nc] = stepOf(r, c, d);
       if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
       const j = nr * cols + nc;
-      if (clueAt[j] >= 0) continue;
-      nb[i * 4 + d] = j;
-      ed[i * 4 + d] = d === 1 ? 2 * i : d === 2 ? 2 * i + 1 : d === 3 ? 2 * j : 2 * j + 1;
+      // edge numbering: the square grid's 2i (right) and 2i+1 (bottom), the hex grid's 3i+0/1/2 (E, SE, SW); the other directions use the neighbour's
+      const x = hex ? (d < 3 ? 3 * i + d : 3 * j + d - 3) : (d === 1 ? 2 * i : d === 2 ? 2 * i + 1 : d === 3 ? 2 * j : 2 * j + 1);
+      if (edgeA[x] < 0) { edgeA[x] = Math.min(i, j); edgeB[x] = Math.max(i, j); }
+      if (clueAt[i] >= 0 || clueAt[j] >= 0) continue;
+      nb[i * K + d] = j;
+      ed[i * K + d] = x;
     }
   }
   // rays[k]: the non-clue cells a clue counts shaded cells in.
@@ -82,11 +114,11 @@ export function compile(p) {
     const cells = [];
     if (cl.region) return regionCells[regionOf[cl.r * cols + cl.c]].slice();     // a region clue counts its whole region
     if (cl.n < 0) return cells;                   // a void cell has no line
-    let r = cl.r + DR[cl.d], c = cl.c + DC[cl.d];
+    let [r, c] = stepOf(cl.r, cl.c, cl.d);
     while (r >= 0 && c >= 0 && r < rows && c < cols) {
       const i = r * cols + c;
       if (clueAt[i] < 0) cells.push(i);
-      r += DR[cl.d]; c += DC[cl.d];
+      [r, c] = stepOf(r, c, cl.d);
     }
     return cells;
   });
@@ -100,7 +132,7 @@ export function compile(p) {
     const seen = new Set();
     for (const cl of p.clues) { const g = regionOf[cl.r * cols + cl.c]; if (seen.has(g)) throw new Error(`two clues in region ${g}`); seen.add(g); }
   }
-  return Object.assign(p, { N, clueAt, labelAt, nb, ed, rays, cluesOf, numEdges: 2 * N, boxIdx, voidIdx, regional, regionOf, regionCells });
+  return Object.assign(p, { N, hex, K, clueAt, labelAt, nb, ed, edgeA, edgeB, rays, cluesOf, numEdges, boxIdx, voidIdx, regional, regionOf, regionCells });
 }
 
 export function initialState(P) {
@@ -116,8 +148,7 @@ export function cloneState(st) {
 
 /** Endpoints of an edge index. */
 export function edgeCells(P, e) {
-  const i = e >> 1;
-  return [i, (e & 1) ? i + P.cols : i + 1];
+  return [P.edgeA[e], P.edgeB[e]];
 }
 
 /**
@@ -126,7 +157,7 @@ export function edgeCells(P, e) {
  */
 let scratchParent = new Int16Array(0), scratchSize = new Int32Array(0);       // reused by every propagate call (it never calls itself)
 export function propagate(P, st) {
-  const { N, nb, ed, rays, clueAt } = P;
+  const { N, nb, ed, rays, clueAt, K, edgeA, edgeB } = P;
   const cell = st.cell, e = st.e;
   let changed = true;
   let ok = true;
@@ -150,10 +181,10 @@ export function propagate(P, st) {
       const s = cell[i];
       if (s === CLUE) continue;
       let on = 0, unk = 0;
-      for (let d = 0; d < 4; d++) {
-        const x = ed[i * 4 + d];
+      for (let d = 0; d < K; d++) {
+        const x = ed[i * K + d];
         if (x < 0) continue;
-        if (s === SHADED) { setEdge(x, E_OFF); setCell(nb[i * 4 + d], LOOP); continue; }
+        if (s === SHADED) { setEdge(x, E_OFF); setCell(nb[i * K + d], LOOP); continue; }
         const v = e[x];
         if (v === E_ON) on++; else if (v === E_UNKNOWN) unk++;
       }
@@ -167,17 +198,16 @@ export function propagate(P, st) {
       // s === LOOP
       if (on > 2 || on + unk < 2) { ok = false; break; }
       if (on === 2 && unk > 0) {
-        for (let d = 0; d < 4; d++) { const x = ed[i * 4 + d]; if (x >= 0 && e[x] === E_UNKNOWN) setEdge(x, E_OFF); }
+        for (let d = 0; d < K; d++) { const x = ed[i * K + d]; if (x >= 0 && e[x] === E_UNKNOWN) setEdge(x, E_OFF); }
       } else if (on + unk === 2 && unk > 0) {
-        for (let d = 0; d < 4; d++) { const x = ed[i * 4 + d]; if (x >= 0 && e[x] === E_UNKNOWN) setEdge(x, E_ON); }
+        for (let d = 0; d < K; d++) { const x = ed[i * K + d]; if (x >= 0 && e[x] === E_UNKNOWN) setEdge(x, E_ON); }
       }
     }
     if (!ok) break;
     // An edge that is on makes both its cells loop cells. An edge touching a shaded cell is off (done above).
     for (let x = 0; x < P.numEdges && ok; x++) {
       if (e[x] !== E_ON) continue;
-      const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
-      setCell(a, LOOP); setCell(b, LOOP);
+      setCell(edgeA[x], LOOP); setCell(edgeB[x], LOOP);
     }
     // Clues.
     for (let k = 0; k < rays.length && ok; k++) {
@@ -197,8 +227,7 @@ export function propagate(P, st) {
     let cycleRoot = -1;
     for (let x = 0; x < P.numEdges; x++) {
       if (e[x] !== E_ON) continue;
-      const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
-      const ra = find(a), rb = find(b);
+      const ra = find(edgeA[x]), rb = find(edgeB[x]);
       if (ra === rb) cycleRoot = ra; else parent[ra] = rb;
     }
     let loopCount = 0;
@@ -217,8 +246,8 @@ export function propagate(P, st) {
       for (let i = 0; i < N; i++) if (cell[i] === LOOP) { const r = find(i); size[r] = (size[r] < 0 ? 0 : size[r]) + 1; }
       for (let x = 0; x < P.numEdges; x++) {
         if (e[x] !== E_UNKNOWN) continue;
-        const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
-        if (cell[a] === CLUE || cell[b] === CLUE) continue;
+        const a = edgeA[x], b = edgeB[x];
+        if (a < 0 || cell[a] === CLUE || cell[b] === CLUE) continue;
         const ra = find(a);
         if (ra === find(b) && size[ra] >= 0 && size[ra] < loopCount) setEdge(x, E_OFF);
       }
@@ -242,7 +271,7 @@ export function solve(P, { limit = 2, state = null, maxNodes = Infinity, rng = n
     for (let i = 0; i < P.N; i++) {
       if (st.cell[i] !== LOOP) continue;
       let on = 0, unk = 0;
-      for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x < 0) continue; if (st.e[x] === E_ON) on++; else if (st.e[x] === E_UNKNOWN) unk++; }
+      for (let d = 0; d < P.K; d++) { const x = P.ed[i * P.K + d]; if (x < 0) continue; if (st.e[x] === E_ON) on++; else if (st.e[x] === E_UNKNOWN) unk++; }
       if (unk === 0) continue;
       if (rng) {
         if (on > bon) { bon = on; ties.length = 0; }
@@ -252,7 +281,7 @@ export function solve(P, { limit = 2, state = null, maxNodes = Infinity, rng = n
     if (rng && ties.length) bi = ties[(rng() * ties.length) | 0];
     if (bi >= 0) {
       const open = [];
-      for (let d = 0; d < 4; d++) { const y = P.ed[bi * 4 + d]; if (y >= 0 && st.e[y] === E_UNKNOWN) open.push(y); }
+      for (let d = 0; d < P.K; d++) { const y = P.ed[bi * P.K + d]; if (y >= 0 && st.e[y] === E_UNKNOWN) open.push(y); }
       const x = rng ? open[(rng() * open.length) | 0] : open[0];
       const onFirst = rng ? rng() < 0.5 : true;
       for (const v of onFirst ? [E_ON, E_OFF] : [E_OFF, E_ON]) { const a = cloneState(st); a.e[x] = v; dfs(a); }
@@ -275,10 +304,10 @@ export function solve(P, { limit = 2, state = null, maxNodes = Infinity, rng = n
   };
   dfs(state ? cloneState(state) : initialState(P));
   // `exceeded`: the search was cut off by maxNodes, so `count` is only a lower bound (never claim uniqueness from it)
-  return { count: solutions.length, solutions, exceeded };
+  return { count: solutions.length, solutions, exceeded, nodes };
 }
 
-/** Solution string: '#' clue, 'x' shaded, otherwise a hex digit of the loop cell's exits (U=1 R=2 D=4 L=8). */
+/** Solution string: '#' clue, 'x' shaded, otherwise a hex digit of the loop cell's exits (U=1 R=2 D=4 L=8; a hex grid: one of 64 symbols, bit d = direction d). */
 export function encodeSolution(P, st) {
   let s = '';
   for (let i = 0; i < P.N; i++) {
@@ -286,8 +315,8 @@ export function encodeSolution(P, st) {
     else if (st.cell[i] === SHADED) s += 'x';
     else {
       let m = 0;
-      for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && st.e[x] === E_ON) m |= 1 << d; }
-      s += m.toString(16);
+      for (let d = 0; d < P.K; d++) { const x = P.ed[i * P.K + d]; if (x >= 0 && st.e[x] === E_ON) m |= 1 << d; }
+      s += P.hex ? SOL_ALPHABET[m] : m.toString(16);
     }
   }
   return s;
@@ -301,8 +330,8 @@ export function decodeSolution(P, str) {
     if (ch === '#') continue;
     if (ch === 'x') { st.cell[i] = SHADED; continue; }
     st.cell[i] = LOOP;
-    const m = parseInt(ch, 16);
-    for (let d = 0; d < 4; d++) if (m & (1 << d)) st.e[P.ed[i * 4 + d]] = E_ON;
+    const m = P.hex ? SOL_ALPHABET.indexOf(ch) : parseInt(ch, 16);
+    for (let d = 0; d < P.K; d++) if (m & (1 << d)) st.e[P.ed[i * P.K + d]] = E_ON;
   }
   st.cycle = true;
   return st;
@@ -313,12 +342,12 @@ export function decodeSolution(P, str) {
  * numEdges (1 = loop segment). Independent of the stored solution: any valid answer counts.
  */
 export function checkSolved(P, shaded, edges) {
-  const { N, cols } = P;
+  const { N, K } = P;
   for (const i of P.boxIdx) if (!shaded[i]) return false;
   for (let i = 0; i < N; i++) {
     if (shaded[i] && P.clueAt[i] >= 0) return false;
     if (!shaded[i]) continue;
-    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && shaded[j]) return false; }
+    for (let d = 0; d < K; d++) { const j = P.nb[i * K + d]; if (j >= 0 && shaded[j]) return false; }
   }
   for (let k = 0; k < P.clues.length; k++) {
     if (P.clues[k].n < 0) continue;
@@ -330,8 +359,8 @@ export function checkSolved(P, shaded, edges) {
   let loopCells = 0, start = -1;
   for (let x = 0; x < P.numEdges; x++) {
     if (edges[x] !== E_ON) continue;
-    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
-    if (b >= N || (!(x & 1) && (b % cols === 0)) ) return false; // edge off the board
+    const a = P.edgeA[x], b = P.edgeB[x];
+    if (a < 0) return false; // edge off the board
     if (P.clueAt[a] >= 0 || P.clueAt[b] >= 0 || shaded[a] || shaded[b]) return false;
     deg[a]++; deg[b]++;
   }
@@ -345,9 +374,9 @@ export function checkSolved(P, shaded, edges) {
   let prev = -1, cur = start, steps = 0;
   do {
     let next = -1;
-    for (let d = 0; d < 4; d++) {
-      const x = P.ed[cur * 4 + d];
-      if (x >= 0 && edges[x] === E_ON) { const j = P.nb[cur * 4 + d]; if (j !== prev) { next = j; break; } }
+    for (let d = 0; d < K; d++) {
+      const x = P.ed[cur * K + d];
+      if (x >= 0 && edges[x] === E_ON) { const j = P.nb[cur * K + d]; if (j !== prev) { next = j; break; } }
     }
     if (next < 0) return false;
     prev = cur; cur = next; steps++;
@@ -359,19 +388,22 @@ export function checkSolved(P, shaded, edges) {
 
 export const CSV_HEADER = 'name,rows,cols,clues,solution,rules,tier,score,boxes';
 export const CSV_HEADER_REGIONAL = CSV_HEADER + ',regions';
+export const CSV_HEADER_HEX = CSV_HEADER_REGIONAL + ',grid';     // a hex puzzle's eleventh column says 'hex' (its arrows use HEX_DIR_LETTERS)
 
 /** A void cell is written r:c:V:-1 (a clue with n < 0 and no direction; the old r:c:U:-1 form reads the same).
  *  A region clue is written r:c:G:n (the number n sits in cell r,c and counts that cell's region). */
-export function cluesToString(clues) {
-  return clues.map((c) => (c.region ? `${c.r}:${c.c}:G:${c.n}` : c.n < 0 ? `${c.r}:${c.c}:V:-1` : `${c.r}:${c.c}:${DIR_LETTERS[c.d]}:${c.n}`)).join(';');
+export function cluesToString(clues, hex = false) {
+  const letters = hex ? HEX_DIR_LETTERS : DIR_LETTERS;
+  return clues.map((c) => (c.region ? `${c.r}:${c.c}:G:${c.n}` : c.n < 0 ? `${c.r}:${c.c}:V:-1` : `${c.r}:${c.c}:${letters[c.d]}:${c.n}`)).join(';');
 }
 
-export function cluesFromString(s) {
+export function cluesFromString(s, hex = false) {
   if (!s) return [];
+  const letters = hex ? HEX_DIR_LETTERS : DIR_LETTERS;
   return s.split(';').map((t) => {
     const [r, c, d, n] = t.split(':');
     if (d === 'G') return { r: +r, c: +c, d: 0, n: +n, region: true };
-    return +n < 0 ? { r: +r, c: +c, d: 0, n: -1 } : { r: +r, c: +c, d: DIR_LETTERS.indexOf(d), n: +n };
+    return +n < 0 ? { r: +r, c: +c, d: 0, n: -1 } : { r: +r, c: +c, d: letters.indexOf(d), n: +n };
   });
 }
 
@@ -411,14 +443,19 @@ export const regionsToString = (regions) => (regions && regions.length ? Array.f
 export const regionsFromString = (s) => (s ? s.split('.').map(Number) : []);
 
 export function toCsvRow(p) {
-  const row = [p.name, p.rows, p.cols, cluesToString(p.clues), p.solution || '', p.rules || '', p.tier || '', p.score ?? '', boxesToString(p.boxes)];
+  const hex = p.grid === 'hex';
+  const row = [p.name, p.rows, p.cols, cluesToString(p.clues, hex), p.solution || '', p.rules || '', p.tier || '', p.score ?? '', boxesToString(p.boxes)];
   if (p.regions && p.regions.length) row.push(regionsToString(p.regions));
+  if (hex) { if (row.length < 10) row.push(''); row.push('hex'); }
   return row.join(',');
 }
 
 export function toCsv(puzzles) {
+  const hex = puzzles.some((p) => p.grid === 'hex');
   const regional = puzzles.some((p) => p.regions && p.regions.length);
-  return [regional ? CSV_HEADER_REGIONAL : CSV_HEADER, ...puzzles.map((p) => (regional && !(p.regions && p.regions.length) ? toCsvRow(p) + ',' : toCsvRow(p)))].join('\n') + '\n';
+  const width = hex ? 11 : regional ? 10 : 9;                          // every row has as many columns as the header
+  const rowOf = (p) => { const r = toCsvRow(p); return r + ','.repeat(Math.max(0, width - 1 - (r.match(/,/g) || []).length)); };
+  return [hex ? CSV_HEADER_HEX : regional ? CSV_HEADER_REGIONAL : CSV_HEADER, ...puzzles.map(rowOf)].join('\n') + '\n';
 }
 
 export function parseCsv(text) {
@@ -426,12 +463,14 @@ export function parseCsv(text) {
   for (const line of text.split(/\r?\n/)) {
     const t = line.trim();
     if (!t || t.startsWith('#') || t.startsWith('name,')) continue;
-    const [name, rows, cols, clues, solution, rules, tier, score, boxes, regions] = t.split(',');
+    const [name, rows, cols, clues, solution, rules, tier, score, boxes, regions, grid] = t.split(',');
+    const hex = grid === 'hex';
     const p = {
-      name, rows: +rows, cols: +cols, clues: cluesFromString(clues), boxes: boxesFromString(boxes),
+      name, rows: +rows, cols: +cols, clues: cluesFromString(clues, hex), boxes: boxesFromString(boxes),
       solution: solution || '', rules: rules || '', tier: tier || '', score: score === undefined || score === '' ? null : +score,
     };
     if (regions) p.regions = regionsFromString(regions);
+    if (hex) p.grid = 'hex';
     out.push(p);
   }
   return out;
@@ -449,6 +488,7 @@ const dirOf = (dr, dc) => DR.findIndex((v, d) => v === dr && DC[d] === dc);
  */
 export function symmetryKey(p) {
   const { rows, cols } = p;
+  if (p.grid === 'hex') return `hex${rows}x${cols}|${cluesToString(p.clues, true).split(';').sort().join(';')}|${boxesToString(p.boxes)}`;     // (the hex board's own symmetries are not folded in yet)
   let best = null;
   for (let t = 0; t < 8; t++) {
     const swap = t & 1, flipR = t & 2, flipC = t & 4;
@@ -478,7 +518,7 @@ export function symmetryKey(p) {
 /** A short stable hash of a puzzle's identity (size + clues), for save keys that survive renumbering. */
 export function puzzleHash(p) {
   if (p.hashKey) return p.hashKey;   // a rotated twin of a puzzle (js/rotate.js) keeps the original's identity
-  const s = `${p.rows}x${p.cols}|${cluesToString(p.clues)}` + (p.boxes && p.boxes.length ? `|${boxesToString(p.boxes)}` : '')
+  const s = `${p.grid === 'hex' ? 'hex' : ''}${p.rows}x${p.cols}|${cluesToString(p.clues, p.grid === 'hex')}` + (p.boxes && p.boxes.length ? `|${boxesToString(p.boxes)}` : '')
     + (p.regions && p.regions.length ? `|g${regionsToString(p.regions)}` : '');
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;

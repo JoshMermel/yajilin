@@ -85,7 +85,7 @@ test('hovering an arrow, or tapping it on a touch screen, tints the cells it cou
 {
   const { otherEnd } = await import('../js/lineends.js');
   // a 4x4 board with no clues: edge 2a joins cell a to the right, 2a+1 joins it to the one below
-  const P = { cols: 4, rows: 4, N: 16, numEdges: 32 };
+  const P = compile({ name: 'ends', rows: 4, cols: 4, clues: [] });
   const draw = (...pairs) => { const e = new Uint8Array(32); for (const [a, b] of pairs) e[b === a + 1 ? 2 * a : 2 * a + 1] = 1; return e; };
 
   test('otherEnd: the far end of a plain line, from either end', () => {

@@ -24,7 +24,7 @@ export function reasonsOf(P, m) {
   const add = (i, r) => { let s = out.get(i); if (!s) out.set(i, (s = new Set())); s.add(r); };
   for (let i = 0; i < P.N; i++) {
     if (m.cells[i] !== BOX) continue;
-    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0) add(j, `s${i}`); }
+    for (let d = 0; d < P.K; d++) { const j = P.nb[i * P.K + d]; if (j >= 0) add(j, `s${i}`); }
   }
   P.clues.forEach((cl, k) => {
     let shaded = 0;

@@ -11,8 +11,7 @@ export function clueStates(P, marks) {
   const seg = new Uint8Array(P.N);
   for (let x = 0; x < P.numEdges; x++) {
     if (!marks.edges[x]) continue;
-    const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
-    seg[a] = 1; if (b < P.N) seg[b] = 1;
+    seg[P.edgeA[x]] = 1; seg[P.edgeB[x]] = 1;
   }
   const states = P.clues.map((cl, k) => {
     if (cl.n < 0) return '';
@@ -41,7 +40,8 @@ export function clueStates(P, marks) {
  */
 function forEachBadPair(P, marks, seg, cl, found) {
   let boxes = 0, open = 0;                             // between cl and the arrow being looked at
-  for (let r = cl.r + DR[cl.d], c = cl.c + DC[cl.d]; r >= 0 && c >= 0 && r < P.rows && c < P.cols; r += DR[cl.d], c += DC[cl.d]) {
+  const step = stepper(P);
+  for (let [r, c] = step(cl.r, cl.c, cl.d); r >= 0 && c >= 0 && r < P.rows && c < P.cols; [r, c] = step(r, c, cl.d)) {
     const i = r * P.cols + c, k = P.clueAt[i];
     if (k >= 0) {
       const other = P.clues[k];
@@ -54,12 +54,16 @@ function forEachBadPair(P, marks, seg, cl, found) {
   }
 }
 
-import { DR, DC } from './logic.js';
+import { DR, DC, hexStep } from './logic.js';
+
+/** One step along a line on this puzzle's grid: (r, c, d) -> [r, c]. */
+const stepper = (P) => (P.hex ? hexStep : (r, c, d) => [r + DR[d], c + DC[d]]);
 
 /** Is the arrow `cl` covered (see the top of the file)? Walks its line; at every arrow pointing the same way it checks the count so far. */
 function isCovered(P, marks, cl) {
   let boxes = 0;                                       // boxes in the cells between cl and the arrow being looked at
-  for (let r = cl.r + DR[cl.d], c = cl.c + DC[cl.d]; r >= 0 && c >= 0 && r < P.rows && c < P.cols; r += DR[cl.d], c += DC[cl.d]) {
+  const step = stepper(P);
+  for (let [r, c] = step(cl.r, cl.c, cl.d); r >= 0 && c >= 0 && r < P.rows && c < P.cols; [r, c] = step(r, c, cl.d)) {
     const i = r * P.cols + c, k = P.clueAt[i];
     if (k >= 0) {
       const other = P.clues[k];
