@@ -267,7 +267,7 @@ Done: topology in `compile` (`P.K`, `P.edgeA/edgeB`), solver/checker/CSV/board/c
 Findings: unique-loop hole sets are rare on a hex board (about 1% of random maximal sets at 6x6, none in 3000 at 8x8), so the generator searches for them
 (about 1-5 s at 8x8). At 10x10 the hole search found nothing within 150 s: bigger boards need a smarter search (build the loop and the holes together).
 Next:
-- Hex-aware human rules and a rating (rating.js, imagine.js, explain.js are square-only); the hex Hint is the machine's reasoning, with no named rules yet, and the book tiers are by rank.
+- Hex-aware human rules and a rating (rating.js, imagine.js, explain.js are square-only); the hex Hint is the machine's reasoning, with no named rules yet, and the tiers are a first guess from the number of imagine steps (not calibrated with players).
 - Larger boards (10x10 and up), other shapes (a true hexagon, voids), diagonal-style variants (hex arrows that skip, "all six directions" puzzles).
 - Path-colour spacing (`near` in js/pathcolors.js) is off for hex.
 

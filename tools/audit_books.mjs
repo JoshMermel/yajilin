@@ -15,6 +15,7 @@ import { spawn } from 'node:child_process';
 import { parseCsv, compile, solve, decodeSolution, checkSolved, symmetryKey, SHADED, E_ON } from '../js/logic.js';
 import { RULES, solvedByRules, rate } from '../js/rating.js';
 import { probe } from '../js/generator_hex.js';
+import { hexDifficulty, hexTier } from '../js/hexhint.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
@@ -68,6 +69,11 @@ if (process.argv.includes('--worker')) {
       if (r.exceeded) return fail('uniqueness not proved: the rules stop short and the exhaustive search hit its node cap');
       if (r.count !== 1) return fail(`${r.count} solutions`);
       if (!same(r.solutions[0])) return fail('the only solution differs from the stored one');
+    }
+    if (withRating && P.hex) {
+      const d = hexDifficulty(P);
+      if (!d) fail('the hex hints get stuck');
+      else if (d.imagine !== raw.score || hexTier(d.imagine) !== raw.tier) fail(`stored ${raw.tier}/${raw.score} but the hints say ${hexTier(d.imagine)}/${d.imagine}`);
     }
     if (withRating && !P.hex) {
       const q = rate(P);

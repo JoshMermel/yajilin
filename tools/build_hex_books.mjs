@@ -2,10 +2,12 @@
 //
 //   node tools/build_hex_books.mjs 5x5 6x6 7x7 8x8
 //
-// Puzzles are deduplicated, sorted easiest first (by the number of lookahead deductions, then by how few cells propagation leaves open), and
-// given a tier by rank: the easiest 35% Beginner, the next 45% Medium, the rest Hard. (The tiers are relative to the book, not calibrated.)
+// Puzzles are deduplicated and scored by playing them with the hex hints (js/hexhint.js): the score is the number of 'imagine' steps (a what-if that
+// fails) the solution needs. A book runs easiest first; the tier comes from the score (Beginner up to 2, Medium up to 11, Hard above), the same
+// scale on every size. (Not calibrated against players yet.)
 import fs from 'node:fs';
-import { parseCsv, toCsv, symmetryKey } from '../js/logic.js';
+import { parseCsv, toCsv, symmetryKey, compile } from '../js/logic.js';
+import { hexDifficulty, hexTier } from '../js/hexhint.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const dir = `${root}tools/library/hex/`;
@@ -30,11 +32,17 @@ for (const size of sizes) {
     }
   }
   if (!puzzles.length) { console.log(`${size}: no pool puzzles, skipped`); continue; }
+  for (const p of puzzles) {
+    const d = hexDifficulty(compile(p));
+    if (!d) { console.error(`${p.name}: the hints get stuck, dropped`); p.drop = true; continue; }
+    p.score = d.imagine; p.tier = hexTier(d.imagine);
+  }
+  puzzles.splice(0, puzzles.length, ...puzzles.filter((p) => !p.drop));
   puzzles.sort((a, b) => (a.score - b.score) || (a.clues.length - b.clues.length));
   const id = `hex-${size}`, n = puzzles.length;
+  const tiers = {}; for (const p of puzzles) tiers[p.tier] = (tiers[p.tier] || 0) + 1;
   puzzles.forEach((p, i) => {
     p.name = `${id.toUpperCase()}-${String(i + 1).padStart(Math.max(2, String(n).length), '0')}`;
-    p.tier = i < 0.35 * n ? 'Beginner' : i < 0.8 * n ? 'Medium' : 'Hard';
   });
   fs.writeFileSync(`${root}data/${id}.csv`, toCsv(puzzles));
   const label = size.replace('x', '×');
@@ -44,6 +52,6 @@ for (const size of sizes) {
   };
   const at = manifest.books.findIndex((b) => b.id === id);
   if (at >= 0) manifest.books[at] = entry; else manifest.books.push(entry);
-  console.log(`${size}: ${n} puzzles in data/${id}.csv (steps ${puzzles[0].score}..${puzzles[n - 1].score})`);
+  console.log(`${size}: ${n} puzzles in data/${id}.csv (imagine steps ${puzzles[0].score}..${puzzles[n - 1].score}; ${Object.entries(tiers).map(([t, k]) => `${k} ${t}`).join(', ')})`);
 }
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');

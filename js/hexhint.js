@@ -8,7 +8,7 @@
 //
 // Pure (no DOM). Marks the player can make are boxes, dots and loop segments: a fact that only rules a segment out has nothing to mark, so it is
 // never a step by itself.
-import { cloneState, propagate, UNKNOWN, SHADED, LOOP, E_UNKNOWN, E_ON, E_OFF } from './logic.js';
+import { cloneState, initialState, propagate, UNKNOWN, SHADED, LOOP, E_UNKNOWN, E_ON, E_OFF } from './logic.js';
 
 const MAX_FORCED = 8;
 
@@ -105,3 +105,30 @@ export function describeHexStep(step, name) {
   const want = step.shaded.length ? 'a box' : 'a dot';
   return `Imagine ${step.imagined === 'box' ? 'a box' : 'a dot'} at ${c}: the position can no longer be completed${step.chain.length ? ' (the dashed lines are what the box would force)' : ''}. So ${c} must be ${want}.`;
 }
+
+/** Apply a step's marks to a position (a solver state). */
+export function applyHexStep(st, step) {
+  for (const i of step.shaded) st.cell[i] = SHADED;
+  for (const i of step.loop) st.cell[i] = LOOP;
+  for (const x of step.segOn) st.e[x] = E_ON;
+}
+
+/**
+ * How hard a hex puzzle is for a player, measured by playing it with the hints: how many 'imagine' steps (a what-if that fails) the solution needs,
+ * and how many 'forced' steps. `imagine` is the score; null if the hints get stuck before the end.
+ */
+export function hexDifficulty(P) {
+  const st = initialState(P);
+  let imagine = 0, forced = 0;
+  for (let k = 0; k < 4 * P.N; k++) {
+    const s = hexNextStep(P, st);
+    if (!s) break;
+    if (s.kind === 'imagine') imagine++; else forced++;
+    applyHexStep(st, s);
+  }
+  for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0 && st.cell[i] === UNKNOWN) return null;
+  return { imagine, forced };
+}
+
+/** The tier for a score (the number of imagine steps): up to 2 Beginner, up to 11 Medium, then Hard. */
+export const hexTier = (imagine) => (imagine <= 2 ? 'Beginner' : imagine <= 11 ? 'Medium' : 'Hard');

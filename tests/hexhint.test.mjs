@@ -51,3 +51,15 @@ test('hex hints: a solved position has no step, and a contradictory one has none
   for (let d = 0; d < 6; d++) { const j = P.nb[free[0] * 6 + d]; if (j >= 0) { bad.cell[j] = SHADED; break; } }      // two boxes touching
   assert.equal(hexNextStep(P, bad), null);
 });
+
+import { hexDifficulty, hexTier } from '../js/hexhint.js';
+
+test('hexDifficulty counts the imagine steps of playing with the hints; the tier follows the score', () => {
+  for (const [id, k] of [['hex-5x5', 2], ['hex-6x6', 60], ['hex-7x7', 100]]) {
+    const P = load(id, k), sol = decodeSolution(P, P.solution);
+    const d = hexDifficulty(P), r = followHints(P, sol);
+    assert.equal(d.imagine, r.kinds.imagine);
+    assert.equal(d.forced, r.kinds.forced);
+  }
+  assert.deepEqual([0, 2, 3, 11, 12, 40].map(hexTier), ['Beginner', 'Beginner', 'Medium', 'Medium', 'Hard', 'Hard']);
+});
