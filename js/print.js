@@ -5,6 +5,7 @@
 // buildPrintRoot() fills the hidden #print-root element; style.css shows only that element while printing (see "Printing" there).
 // Everything except buildPrintRoot is pure (no DOM), so the layout and the drawing can be tested in node.
 import { SHADED, E_ON, hexStep } from './logic.js';
+import { hexClueLayout, HEX_UNIT } from './hexarrow.js';
 
 const INK = '#111', GRID = '#9a9a9a', CLUE_BG = '#dcdcdc', VOID_BG = '#b4b4b4';
 export const MAX_PRINT = 500;
@@ -88,7 +89,7 @@ export function planPrint({ puzzles, ids, keyIds = [], size = 'comfortable' }) {
 const f = (v) => +v.toFixed(3);
 const H = Math.SQRT1_2;
 const VEC = [[0, -1], [1, 0], [0, 1], [-1, 0], [H, -H], [H, H], [-H, H], [-H, -H]];     // arrow directions: 0 up, 1 right, 2 down, 3 left, then up-right, down-right, down-left, up-left
-const HEX_VEC = [[1, 0], [0.5, 0.866], [-0.5, 0.866], [-1, 0], [-0.5, -0.866], [0.5, -0.866]];     // hex arrows: east, south-east, south-west, west, north-west, north-east
+const HEX_VEC = HEX_UNIT;     // hex arrows: east, south-east, south-west, west, north-west, north-east
 
 /** An arrow centred at (x, y), `len` long, pointing in direction d, as lines (no font needed, so it prints the same everywhere). */
 function arrowMarkup(x, y, d, len, vec = VEC) {
@@ -162,16 +163,16 @@ function hexBoardSvg(P, sol) {
   for (let i = 0; i < P.N; i++) grid += outline(i);
   g += `<path d="${grid}" fill="#fff"/>`;
   for (const cl of P.clues) {
-    const i = cl.r * cols + cl.c, [x, y] = ctr(i), horiz = cl.d === 0 || cl.d === 3;
+    const i = cl.r * cols + cl.c, [x, y] = ctr(i);
     if (cl.n < 0) {
       g += `<polygon class="void" points="${pts(i)}" fill="${VOID_BG}"/>`;
       g += `<path class="void-x" d="M${f(x - 0.25)} ${f(y - 0.25)}L${f(x + 0.25)} ${f(y + 0.25)}M${f(x + 0.25)} ${f(y - 0.25)}L${f(x - 0.25)} ${f(y + 0.25)}" stroke="${INK}" stroke-width="0.06" stroke-linecap="round" opacity="0.55"/>`;
       continue;
     }
     g += `<polygon class="clue" points="${pts(i)}" fill="${CLUE_BG}"/>`;
-    const nx = x - (horiz ? 0 : 0.17), ny = y + (horiz ? -0.2 : 0), ax = x + (horiz ? 0 : 0.26), ay = y + (horiz ? 0.25 : 0);
-    g += `<text class="num" x="${f(nx)}" y="${f(ny + 0.16)}" font-size="0.46" font-weight="700" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" fill="${INK}">${cl.n}</text>`;
-    g += arrowMarkup(ax, ay, cl.d, horiz ? 0.42 : 0.46, HEX_VEC);
+    const lay = hexClueLayout(cl.d);                  // the arrow at its true angle through the cell, the number beside it (js/hexarrow.js)
+    g += `<text class="num" x="${f(x + lay.num[0])}" y="${f(y + lay.num[1] + 0.16)}" font-size="0.46" font-weight="700" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" fill="${INK}">${cl.n}</text>`;
+    g += arrowMarkup(x + lay.arrow[0], y + lay.arrow[1], cl.d, lay.len, HEX_VEC);
   }
   g += `<path d="${grid}" fill="none" stroke="${GRID}" stroke-width="0.025" stroke-dasharray="0.07 0.06"/>`;
   if (sol) {

@@ -187,3 +187,23 @@ test('symmetryKey (hex): a puzzle and its turned or flipped copy share a key, a 
     assert.notEqual(symmetryKey(p), symmetryKey({ ...p, clues: [...clues.slice(0, 2), { r: 3, c: 0, d: 4, n: 1 }] }));
   }
 });
+
+import { HEX_UNIT, hexClueLayout, arrowPathData } from '../js/hexarrow.js';
+
+test('hex arrows: each direction points exactly at the centre of the neighbour it counts towards, and the number sits beside the arrow, not on it', () => {
+  const centre = (r, c) => [c + 0.5 * (r & 1), (r * Math.sqrt(3)) / 2];     // cell centres in cell widths
+  for (const [r, c] of [[2, 3], [3, 3]]) for (let d = 0; d < 6; d++) {
+    const [nr, nc] = hexStep(r, c, d), [x0, y0] = centre(r, c), [x1, y1] = centre(nr, nc);
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    assert.ok(Math.abs(len - 1) < 1e-9, 'a neighbour is one cell width away');
+    assert.ok(Math.abs((x1 - x0) - HEX_UNIT[d][0]) < 1e-9 && Math.abs((y1 - y0) - HEX_UNIT[d][1]) < 1e-9, `direction ${d} at ${r},${c}`);
+  }
+  for (let d = 0; d < 6; d++) {
+    const L = hexClueLayout(d);
+    assert.ok(Math.abs(L.num[0] * L.u[0] + L.num[1] * L.u[1]) < 1e-9, `the number is at right angles to arrow ${d}`);
+    assert.ok(L.num[1] <= 1e-9, 'on the upper side');
+    assert.ok(Math.hypot(...L.num) < 0.3 && Math.hypot(...L.arrow) < 0.15, 'close to the middle of the cell');
+    assert.ok(Math.hypot(L.num[0] - L.arrow[0], L.num[1] - L.arrow[1]) > 0.35, 'number and arrow do not overlap');
+  }
+  assert.ok(/^M[-\d. ]+L[-\d. ]+M[-\d. ]+L[-\d. ]+M[-\d. ]+L[-\d. ]+$/.test(arrowPathData(0, 0, 1, 0, 10)));
+});

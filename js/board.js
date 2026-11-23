@@ -5,7 +5,8 @@
 //   * a right-click on a cell              -> handlers.onRight(cell)
 //   * a press that moves into other cells  -> handlers.onStep(fromCell, toCell, isFirstStep) for each step
 // handlers.onStart() / handlers.onEnd() bracket every gesture, so a whole gesture is one undo step.
-import { colName, hexStep, HEX_ARROWS } from './logic.js';
+import { colName, hexStep } from './logic.js';
+import { hexClueLayout, arrowPathData } from './hexarrow.js';
 import { makeColorKeeper, assignPathColors } from './pathcolors.js';
 import { makeGrace } from './grace.js';
 import { otherEnd } from './lineends.js';
@@ -278,10 +279,10 @@ export class Board {
       const cl = P.clues[k], i = cl.r * P.cols + cl.c, [x, y] = ctr(i);
       if (cl.n < 0) { g += `<polygon class="void-bg" points="${points(i)}"/>`; continue; }
       const st = info.clueState[k] === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : info.clueState[k] || '';
-      const horiz = cl.d === 0 || cl.d === 3;
+      const lay = hexClueLayout(cl.d);                      // the arrow is drawn at its true angle (see js/hexarrow.js), the number beside it
       g += `<polygon class="clue-bg ${st}" points="${points(i)}"/>`;
-      g += `<text class="clue-text" x="${x - (horiz ? 0 : 7)}" y="${y + (horiz ? -8 : 1)}" font-size="${S * 0.46}">${cl.n}</text>`;
-      g += `<text class="clue-text" x="${x + (horiz ? 0 : 11)}" y="${y + (horiz ? 12 : 1)}" font-size="${S * 0.42}">${HEX_ARROWS[cl.d]}</text>`;
+      g += `<text class="clue-text" x="${(x + lay.num[0] * S).toFixed(1)}" y="${(y + lay.num[1] * S).toFixed(1)}" font-size="${S * 0.46}">${cl.n}</text>`;
+      g += `<path class="clue-arrow" stroke-width="${S * 0.07}" d="${arrowPathData(x + lay.arrow[0] * S, y + lay.arrow[1] * S, lay.u[0], lay.u[1], lay.len * S, (v) => +v.toFixed(1))}"/>`;
     }
     const roles = (hint && hint.roles) || {};
     if (hint) {

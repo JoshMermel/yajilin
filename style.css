@@ -127,6 +127,7 @@ button.ghost { background: transparent; }
 .region-num.ok { fill: var(--clue-ok-ink); }
 .region-num.bad { fill: var(--shaded-bad); }
 .clue-text { fill: var(--clue-ink); font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.clue-arrow { fill: none; stroke: var(--clue-ink); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }   /* a hex arrow, drawn at its true angle */
 .shaded { fill: var(--shaded); }
 .shaded.bad { fill: var(--shaded-bad); }
 .seg { stroke: var(--loop); stroke-linecap: round; fill: none; }
