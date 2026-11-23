@@ -14,6 +14,7 @@ import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { parseCsv, compile, solve, decodeSolution, checkSolved, symmetryKey, SHADED, E_ON } from '../js/logic.js';
 import { RULES, solvedByRules, rate } from '../js/rating.js';
+import { probe } from '../js/generator_hex.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
@@ -38,7 +39,7 @@ if (process.argv.includes('--worker')) {
       if (seen.has(cell)) return fail('two clues on one cell');
       seen.add(cell);
       if (c.n === -1) continue;                                            // a void cell: no arrow, no number
-      if (!(c.d >= 0 && c.d <= 7) || !(c.n >= 0)) return fail('bad clue direction or number');
+      if (!(c.d >= 0 && c.d <= (raw.grid === 'hex' ? 5 : 7)) || !(c.n >= 0)) return fail('bad clue direction or number');
     }
     let P;
     try { P = compile(raw); } catch (e) { return fail(`does not compile: ${e.message}`); }
@@ -57,7 +58,9 @@ if (process.argv.includes('--worker')) {
     if (!checkSolved(P, Uint8Array.from(sol.cell, (v) => (v === SHADED ? 1 : 0)), Int8Array.from(sol.e, (v) => (v === E_ON ? 1 : 0)))) return fail('the stored solution is not a valid solution');
     // exactly one solution
     const same = (st) => { for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0 && (st.cell[i] === SHADED) !== (sol.cell[i] === SHADED)) return false; for (let x = 0; x < P.numEdges; x++) if ((st.e[x] === E_ON) !== (sol.e[x] === E_ON)) return false; return true; };
-    const byRules = solvedByRules(P, upto);
+    // (the rules of rating.js are written for square boards: a hex puzzle is proved by exhaustive search, and must fall to propagation plus a one-step lookahead)
+    if (P.hex && probe(P).level < 0) return fail('not solvable by propagation and a one-step lookahead');
+    const byRules = P.hex ? { solved: false } : solvedByRules(P, upto);
     if (byRules.solved) { if (!same(byRules.state)) return fail('the rules solve it to a DIFFERENT answer than the stored one'); }
     else {
       out.exhaustive++;
@@ -66,7 +69,7 @@ if (process.argv.includes('--worker')) {
       if (r.count !== 1) return fail(`${r.count} solutions`);
       if (!same(r.solutions[0])) return fail('the only solution differs from the stored one');
     }
-    if (withRating) {
+    if (withRating && !P.hex) {
       const q = rate(P);
       if (q.tier !== raw.tier || q.score !== raw.score) fail(`stored ${raw.tier}/${raw.score} but rates ${q.tier}/${q.score}`);
     }
