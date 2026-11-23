@@ -20,6 +20,45 @@ function newFacts(P, before, after) {
   return { shaded, loop, segOn };
 }
 
+/**
+ * A step a person can follow in one look, with its reason: the first of these rules that has something to mark (on `base`, where a cell a segment
+ * touches already counts as on the loop):
+ *   arrow-done   an arrow has all its boxes: the other cells on its line are dots
+ *   arrow-full   an arrow needs as many boxes as it has open cells left: they are all boxes
+ *   next-to-box  a box's neighbours are dots (boxes never touch)
+ *   no-room      an undecided cell with fewer than two neighbours the loop could use is a box
+ *   two-exits    a loop cell that has only two neighbours left must connect to both
+ */
+function directStep(P, base) {
+  const cellOfArrow = (k) => P.clues[k].r * P.cols + P.clues[k].c;
+  const step = (rule, why, marks) => ({ kind: 'rule', rule, why, shaded: marks.shaded || [], loop: marks.loop || [], segOn: marks.segOn || [], focus: marks.focus || [], clue: marks.clue || [], range: marks.range || [], chain: [] });
+  for (let k = 0; k < P.clues.length; k++) {
+    const cl = P.clues[k];
+    if (cl.n < 0) continue;
+    const ray = P.rays[k], open = ray.filter((i) => base.cell[i] === UNKNOWN), have = ray.filter((i) => base.cell[i] === SHADED).length;
+    if (!open.length) continue;
+    if (have === cl.n) return step('arrow-done', { arrow: cellOfArrow(k), n: cl.n, cells: open }, { loop: open, clue: [cellOfArrow(k)], range: ray });
+    if (have + open.length === cl.n) return step('arrow-full', { arrow: cellOfArrow(k), n: cl.n, cells: open }, { shaded: open, clue: [cellOfArrow(k)], range: ray });
+  }
+  for (let i = 0; i < P.N; i++) {
+    if (base.cell[i] !== SHADED) continue;
+    const next = [];
+    for (let d = 0; d < P.K; d++) { const j = P.nb[i * P.K + d]; if (j >= 0 && base.cell[j] === UNKNOWN) next.push(j); }
+    if (next.length) return step('next-to-box', { cell: i, cells: next }, { loop: next, focus: [i] });
+  }
+  const room = (i) => { let n = 0; for (let d = 0; d < P.K; d++) { const j = P.nb[i * P.K + d]; if (j >= 0 && base.cell[j] !== SHADED) n++; } return n; };
+  for (let i = 0; i < P.N; i++) if (base.cell[i] === UNKNOWN && P.clueAt[i] < 0 && room(i) < 2) return step('no-room', { cell: i }, { shaded: [i], focus: [i] });
+  for (let i = 0; i < P.N; i++) {
+    if (base.cell[i] !== LOOP) continue;
+    const exits = [];
+    for (let d = 0; d < P.K; d++) { const j = P.nb[i * P.K + d]; if (j >= 0 && base.cell[j] !== SHADED) exits.push(d); }
+    if (exits.length !== 2) continue;
+    const need = exits.filter((d) => base.e[P.ed[i * P.K + d]] === E_UNKNOWN).map((d) => P.ed[i * P.K + d]);
+    if (need.length) return step('two-exits', { cell: i, cells: exits.map((d) => P.nb[i * P.K + d]) }, { segOn: need, focus: [i] });
+  }
+  return null;
+}
+
 /** The cell nearest to `from` first (by hex distance on the board's own grid, good enough for choosing a neighbourhood). */
 function byDistance(P, from, cells) {
   const at = (i) => { const r = (i / P.cols) | 0, c = i % P.cols; return [c + (r & 1) * 0.5, r * 0.866]; };
@@ -33,15 +72,22 @@ const cellOf = (P, fact) => (fact.cell >= 0 ? fact.cell : P.edgeA[fact.edge]);
 /**
  * The next step from the position `st` (a solver state: the player's boxes, dots and segments), or null if there is none (solved, or stuck for
  * the machine, or the position is contradictory). Returns
- *   { kind: 'forced', shaded, loop, segOn, focus: [cells], chain: [] }
+ *   { kind: 'rule', rule, why, shaded, loop, segOn, focus, clue, range }   (one concrete rule with its reason: see directStep)
+ *   { kind: 'forced', shaded, loop, segOn, focus: [cells], chain: [] }   (several marks that follow together, no single rule)
  *   { kind: 'imagine', imagined: 'box' | 'dot' | 'gap', focus: [cell] (a gap: the segment's two cells), shaded, loop, segOn, chain: [segments] }
  */
 export function hexNextStep(P, st) {
-  const t = cloneState(st);
+  // a cell a segment touches is on the loop already (the player has drawn it): nothing to mark there
+  const base = cloneState(st);
+  for (let x = 0; x < P.numEdges; x++) if (base.e[x] === E_ON) { for (const i of [P.edgeA[x], P.edgeB[x]]) if (base.cell[i] === UNKNOWN) base.cell[i] = LOOP; }
+  const t = cloneState(base);
+  { const probe = cloneState(base); if (!propagate(P, probe)) return null; }
+  const direct = directStep(P, base);
+  if (direct) return direct;
   // `t` is the position with everything propagation (and the unmarkable segment-off lookaheads below) has settled; the loop ends when a step shows
   for (let round = 0; round <= P.numEdges; round++) {
     if (!propagate(P, t)) return null;
-    const f = newFacts(P, st, t);
+    const f = newFacts(P, base, t);
     const all = [...f.shaded.map((i) => ({ cell: i, edge: -1, v: 's' })), ...f.loop.map((i) => ({ cell: i, edge: -1, v: 'l' })), ...f.segOn.map((x) => ({ cell: -1, edge: x, v: 'e' }))];
     if (all.length) {
       // the facts near the first one: a hint is one place to look, not the whole board
@@ -91,14 +137,27 @@ export function hexNextStep(P, st) {
 
 /** The text of a step, in the app's voice. `name(i)` is a cell's name ("C4"). */
 export function describeHexStep(step, name) {
+  const list = (cells) => cells.map(name).join(', ');
+  if (step.kind === 'rule') {
+    const w = step.why, noun = (n) => (n === 1 ? 'box' : 'boxes');
+    switch (step.rule) {
+      case 'arrow-done': return w.n === 0
+        ? `The arrow at ${name(w.arrow)} says 0 boxes on its line, so none of its cells can be a box: ${list(w.cells)} ${w.cells.length === 1 ? 'is a dot' : 'are dots'}.`
+        : `The arrow at ${name(w.arrow)} has all ${w.n} of its ${noun(w.n)} already, so the rest of its line cannot hold one: ${list(w.cells)} ${w.cells.length === 1 ? 'is a dot' : 'are dots'}.`;
+      case 'arrow-full': return `The arrow at ${name(w.arrow)} needs ${w.n} ${noun(w.n)} and has no more open cells on its line than that, so ${list(w.cells)} ${w.cells.length === 1 ? 'is a box' : 'are all boxes'}.`;
+      case 'next-to-box': return `${name(w.cell)} is a box, and boxes never touch, so ${list(w.cells)} ${w.cells.length === 1 ? 'is a dot' : 'are dots'}.`;
+      case 'no-room': return `${name(w.cell)} has fewer than two neighbours the loop could use, so the loop cannot pass through it: it is a box.`;
+      default: return `${name(w.cell)} is on the loop and only two of its neighbours are left (${list(w.cells)}), so the loop goes through both.`;
+    }
+  }
   if (step.kind === 'forced') {
     const n = step.shaded.length + step.loop.length + step.segOn.length;
     const parts = [];
-    if (step.shaded.length) parts.push(`${step.shaded.length === 1 ? 'a box' : `${step.shaded.length} boxes`} (${step.shaded.map(name).join(', ')})`);
-    if (step.loop.length) parts.push(`${step.loop.length === 1 ? 'a dot' : `${step.loop.length} dots`} (${step.loop.map(name).join(', ')})`);
+    if (step.shaded.length) parts.push(`${step.shaded.length === 1 ? 'a box' : `${step.shaded.length} boxes`} (${list(step.shaded)})`);
+    if (step.loop.length) parts.push(`${step.loop.length === 1 ? 'a dot' : `${step.loop.length} dots`} (${list(step.loop)})`);
     if (step.segOn.length) parts.push(`${step.segOn.length === 1 ? 'a line segment' : `${step.segOn.length} line segments`}`);
     const more = step.total > n ? ` (${step.total - n} more follow after these)` : '';
-    return `The arrows' counts and the shape of the loop force ${parts.join(', ')}.${more}`;
+    return `No single rule shows it, but together the arrows' counts and the shape of the loop force ${parts.join(', ')}.${more}`;
   }
   if (step.imagined === 'gap') return `Imagine no line between ${name(step.focus[0])} and ${name(step.focus[1])}: the position can no longer be completed. So the loop runs between them.`;
   const c = name(step.focus[0]);
@@ -126,7 +185,9 @@ export function hexDifficulty(P) {
     if (s.kind === 'imagine') imagine++; else forced++;
     applyHexStep(st, s);
   }
-  for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0 && st.cell[i] === UNKNOWN) return null;
+  const touched = new Uint8Array(P.N);                              // a cell a segment touches is on the loop, dot or not
+  for (let x = 0; x < P.numEdges; x++) if (st.e[x] === E_ON) { touched[P.edgeA[x]] = 1; touched[P.edgeB[x]] = 1; }
+  for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0 && st.cell[i] === UNKNOWN && !touched[i]) return null;
   return { imagine, forced };
 }
 

@@ -286,6 +286,8 @@ export class Board {
     const roles = (hint && hint.roles) || {};
     if (hint) {
       for (const i of hint.undecided || []) g += `<polygon class="hint-undecided" points="${points(i)}"/>`;
+      for (const i of roles.range || []) g += `<polygon class="hint-range" points="${points(i)}"/>`;
+      for (const i of roles.clue || []) g += `<polygon class="hint-clue" points="${points(i)}"/>`;
       for (const i of roles.focus || []) g += `<polygon class="hint-focus" points="${points(i)}"/>`;
     }
     // an arrow that is hovered (or tapped, which keeps it) tints the cells it counts in
