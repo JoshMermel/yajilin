@@ -74,11 +74,14 @@ name,rows,cols,clues,solution,rules,tier,score
   rating (rating.js is square-only) and turning the board. Hint works (js/hexhint.js): the marks propagation forces, or else one cell where imagining a box
   (or a dot, or a missing segment) makes the position impossible; following the hints from an empty board always solves a hex puzzle. A hex board's symmetries (`hexSymmetries`: a vertical flip when the rows are odd, a half
   turn when they are even; never a horizontal mirror) are folded into `symmetryKey`, and printing draws hexagons (`hexBoardSvg` in js/print.js).
-  Generator: `generateHex` (js/generator_hex.js): a plateau search for a set of non-loop cells with exactly one loop through the rest, then every one of them
+  Generator: `generateHex` (js/generator_hex.js): simulated annealing for a set of non-loop cells with exactly one loop through the rest (cost: loop segments
+  still undecided after propagation; about a second at 10x10), then every one of them
   an arrow, then arrows taken away (turned into boxes the solver must find) while the puzzle still falls to propagation plus a one-step lookahead
   (the machine's "imagine a box or a dot"). The books are scored by playing each puzzle with the hex hints: `score` = the number of imagine steps
   (`hexDifficulty`), tier Beginner up to 2, Medium up to 11, Hard above (`hexTier`); the audit's `--rate` checks them. Tools: `tools/hex_pool.mjs` (a pool on worker threads),
   `tools/build_hex_books.mjs` (the books: group "Hex"), `tools/hex_spike.mjs` (one size, with statistics).
+  Uniqueness is proved by the lookahead itself (its deductions are sound), so the audit does not search exhaustively for hex; an exhaustive search on a sample of
+  10x10 puzzles confirmed 3 of 6 and ran out of nodes on the others (no contradiction).
 - `solution`: one char per cell, row-major: `#` clue cell, `x` shaded, otherwise a hex digit of the loop cell's exits
   (U=1, R=2, D=4, L=8; so `6` is a corner joining right and down, `a` a horizontal straight, `5` a vertical one).
 - `rules`, `tier`, `score`: difficulty from the human-style solver (`tools/generate.mjs` fills them in).

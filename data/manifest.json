@@ -642,6 +642,15 @@
       "label": "8×8",
       "group": "Hex",
       "blurb": "8×8 hex boards, 91 puzzles from easy to hard. An experiment."
+    },
+    {
+      "id": "hex-10x10",
+      "name": "Hex: 10×10",
+      "file": "data/hex-10x10.csv",
+      "count": 80,
+      "label": "10×10",
+      "group": "Hex",
+      "blurb": "10×10 hex boards, 80 puzzles from easy to hard. An experiment."
     }
   ],
   "default": "bonus-intro"

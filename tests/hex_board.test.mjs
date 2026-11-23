@@ -76,3 +76,16 @@ test('hex generator: a 6x6 puzzle has one solution, falls to propagation plus lo
   }
   assert.ok(made >= 1, 'at least one of four seeds makes a puzzle');
 });
+
+test('findHoles: no two holes touch, enough of them, and exactly one loop runs through the other cells (6x6 and 7x7)', async () => {
+  const { findHoles, loopCount, hexAdjacency } = await import('../js/generator_hex.js');
+  for (const [rows, cols, seed] of [[6, 6, 1], [6, 6, 2], [7, 7, 3]]) {
+    const holes = findHoles(rows, cols, makeRng(seed), { deadline: Date.now() + 60000 });
+    assert.ok(holes, `${rows}x${cols} seed ${seed}`);
+    assert.ok(holes.size >= 0.2 * rows * cols);
+    const adj = hexAdjacency(rows, cols);
+    for (const i of holes) for (const j of adj[i]) assert.ok(!holes.has(j), 'holes do not touch');
+    const r = loopCount(rows, cols, holes, { limit: 3 });
+    assert.equal(r.count, 1);
+  }
+});

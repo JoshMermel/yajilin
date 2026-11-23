@@ -34,37 +34,58 @@ export function loopCount(rows, cols, holes, { limit = 2, maxNodes = 200000 } = 
   return solve(P, { limit, maxNodes, state: st });
 }
 
+/** The cost of a hole set: loop segments still undecided after propagation with every other cell on the loop (Infinity: propagation already finds no loop). */
+function holeCost(rows, cols, holes) {
+  const N = rows * cols;
+  const clues = [...holes].map((i) => ({ r: (i / cols) | 0, c: i % cols, d: 0, n: -1 }));
+  const P = compile({ name: 'cost', grid: 'hex', rows, cols, clues });
+  const st = initialState(P);
+  for (let i = 0; i < N; i++) if (!holes.has(i)) st.cell[i] = LOOP;
+  if (!propagate(P, st)) return Infinity;
+  let u = 0;
+  for (let x = 0; x < P.numEdges; x++) if (P.edgeA[x] >= 0 && st.e[x] === E_UNKNOWN && !holes.has(P.edgeA[x]) && !holes.has(P.edgeB[x])) u++;
+  return u;
+}
+
 /**
  * A set of holes (no two touching) with exactly one loop through the other cells, or null.
  *
- * A greedy climb (add holes while a loop still exists) gets stuck: on a hex board most hole sets have no loop at all (a cell with six neighbours
- * has plenty of room, but each hole takes edges away unevenly), the sets that keep a loop usually keep several, and a maximal set cannot take
- * another hole. So this is a plateau search over hole sets: add, remove or move a hole, count the loops (capped), and accept a move that keeps at
- * least one loop and does not raise the count (rarely, one that does). It stops at the first set with exactly one loop and enough holes
- * (`minHoleShare` of the cells; fewer holes make a puzzle with hardly any boxes).
+ * Most hole sets have no loop at all and the ones that have one usually have many, so there is little to climb on if loops are counted (counting is
+ * also slow, 40 ms a count at 10x10, and the count sits at any cap one sets). What does slope is how much of the loop propagation settles: the
+ * cost of a set is the number of loop segments still undecided after propagating "every other cell is on the loop" (holeCost), and a set with cost 0
+ * has its loop forced outright. So this is simulated annealing on that cost over add / remove / move-a-hole moves, in rounds that cool and restart
+ * from nothing; a set that gets cheap (cost <= CHEAP) and has enough holes is checked exactly (`minHoleShare` of the cells: fewer holes make a
+ * puzzle with hardly any boxes). 10x10 takes about a second; the loop-counting climb this replaced found nothing at 10x10 in 150 s.
  */
-export function findHoles(rows, cols, rng, { maxNodes = 100000, deadline = Infinity, minHoleShare = 0.2, cap = 20 } = {}) {
+export function findHoles(rows, cols, rng, { maxNodes = 200000, deadline = Infinity, minHoleShare = 0.2, roundIters = 3000 * rows * cols, t0 = 1.5, cheap = 12 } = {}) {
   const N = rows * cols, adj = hexAdjacency(rows, cols);
-  const holes = new Set();
-  const count = () => { const r = loopCount(rows, cols, holes, { limit: cap, maxNodes }); return r.exceeded ? cap + 1 : r.count; };     // 0: no loop
-  let cur = count();
-  while (Date.now() < deadline) {
-    if (cur === 1 && holes.size >= minHoleShare * N) return holes;
-    const move = rng(), g = (rng() * N) | 0;
-    let removed = -1, added = -1;
-    if (move < 0.45) { if (holes.has(g) || adj[g].some((j) => holes.has(j))) continue; added = g; }              // add a hole
-    else if (move < 0.55) { if (!holes.has(g)) continue; removed = g; }                                          // remove one
-    else {                                                                                                       // move one to another cell
-      const to = (rng() * N) | 0;
-      if (!holes.has(g) || holes.has(to)) continue;
-      removed = g; added = to;
+  for (let round = 0; Date.now() < deadline; round++) {
+    const holes = new Set();
+    let cur = holeCost(rows, cols, holes);
+    for (let it = 0; it < roundIters; it++) {
+      if ((it & 1023) === 0 && Date.now() > deadline) return null;
+      const T = t0 * (1 - it / roundIters) + 0.05;
+      const move = rng(), g = (rng() * N) | 0;
+      let removed = -1, added = -1;
+      if (move < 0.4) { if (holes.has(g) || adj[g].some((j) => holes.has(j))) continue; added = g; }                       // add a hole
+      else if (move < 0.5) { if (!holes.has(g)) continue; removed = g; }                                                   // remove one
+      else {                                                                                                               // move one to another cell
+        const to = (rng() * N) | 0;
+        if (!holes.has(g) || holes.has(to)) continue;
+        removed = g; added = to;
+      }
+      if (removed >= 0) holes.delete(removed);
+      if (added >= 0 && adj[added].some((j) => holes.has(j))) { if (removed >= 0) holes.add(removed); continue; }
+      if (added >= 0) holes.add(added);
+      const c = holeCost(rows, cols, holes);
+      if (c <= cur || (c < Infinity && rng() < Math.exp(-(c - cur) / T))) {
+        cur = c;
+        if (cur <= cheap && holes.size >= minHoleShare * N) {
+          const r = loopCount(rows, cols, holes, { limit: 2, maxNodes });
+          if (!r.exceeded && r.count === 1) return holes;
+        }
+      } else { if (added >= 0) holes.delete(added); if (removed >= 0) holes.add(removed); }
     }
-    if (removed >= 0) holes.delete(removed);
-    if (added >= 0 && adj[added].some((j) => holes.has(j))) { if (removed >= 0) holes.add(removed); continue; }
-    if (added >= 0) holes.add(added);
-    const c = count();
-    if (c >= 1 && (c <= cur || rng() < 0.05)) cur = c;
-    else { if (added >= 0) holes.delete(added); if (removed >= 0) holes.add(removed); }
   }
   return null;
 }
@@ -107,13 +128,13 @@ function isComplete(P, st) {
  */
 export const probeLevel = (P) => probe(P).level;
 
-/** probeLevel, and how many lookahead deductions it took (a measure of how hard the puzzle is to a person: 0 for a puzzle propagation settles). */
+/** probeLevel, how many lookahead deductions it took, and (when it solves the puzzle) the solved position. */
 export function probe(P) {
-  let steps = 0;
+  let steps = 0, final = null;
   const level = (() => {
   const st = initialState(P);
   if (!propagate(P, st)) return -1;
-  if (isComplete(P, st)) return 0;
+  if (isComplete(P, st)) { final = st; return 0; }
   for (let progress = true; progress;) {
     progress = false;
     const tryValue = (set, undo) => {                                  // true if `set` (applied to a copy) contradicts
@@ -126,7 +147,7 @@ export function probe(P) {
       const shadedBad = tryValue((t) => { t.cell[i] = SHADED; });
       const loopBad = tryValue((t) => { t.cell[i] = LOOP; });
       if (shadedBad && loopBad) return -1;
-      if (shadedBad || loopBad) { st.cell[i] = shadedBad ? LOOP : SHADED; steps++; if (!propagate(P, st)) return -1; progress = true; if (isComplete(P, st)) return 1; }
+      if (shadedBad || loopBad) { st.cell[i] = shadedBad ? LOOP : SHADED; steps++; if (!propagate(P, st)) return -1; progress = true; if (isComplete(P, st)) { final = st; return 1; } }
     }
     for (let x = 0; x < P.numEdges; x++) {
       const a = P.edgeA[x];
@@ -134,12 +155,13 @@ export function probe(P) {
       const onBad = tryValue((t) => { t.e[x] = E_ON; });
       const offBad = tryValue((t) => { t.e[x] = E_OFF; });
       if (onBad && offBad) return -1;
-      if (onBad || offBad) { st.e[x] = onBad ? E_OFF : E_ON; steps++; if (!propagate(P, st)) return -1; progress = true; if (isComplete(P, st)) return 1; }
+      if (onBad || offBad) { st.e[x] = onBad ? E_OFF : E_ON; steps++; if (!propagate(P, st)) return -1; progress = true; if (isComplete(P, st)) { final = st; return 1; } }
     }
   }
-  return isComplete(P, st) ? 1 : -1;
+  if (isComplete(P, st)) { final = st; return 1; }
+  return -1;
   })();
-  return { level, steps };
+  return { level, steps, state: level >= 0 ? final : null };
 }
 
 const uniqueSolution = (P, maxNodes) => { const r = solve(P, { limit: 2, maxNodes }); return r.exceeded ? null : r.count === 1 ? r : false; };
@@ -220,13 +242,22 @@ export function generateHex(rows, cols, rng, { name = 'hex', maxNodes = 100000, 
     if (!gained) break;
   }
   const P = hexPuzzle(rows, cols, holes, arrows, name);
-  const final = solve(P, { limit: 2, maxNodes });
-  if (final.exceeded || final.count !== 1) return { fail: 'final check' };
-  P.solution = encodeSolution(P, final.solutions[0]);
+  // The solution: in 'probe' mode the lookahead has solved the puzzle, which (the deductions are sound) proves it has exactly this one solution, with
+  // no exhaustive search (which at 10x10 can hit any node cap). 'unique' mode searches.
+  let solved, nodes = 0;
+  if (mode === 'unique') {
+    const final = solve(P, { limit: 2, maxNodes });
+    if (final.exceeded || final.count !== 1) return { fail: 'final check' };
+    solved = final.solutions[0]; nodes = final.nodes;
+  } else {
+    solved = probe(P).state;
+    if (!solved) return { fail: 'final check' };
+  }
+  P.solution = encodeSolution(P, solved);
   return {
     puzzle: P, holes, arrows,
     stats: {
-      level: probe(P).level, steps: probe(P).steps, cells: rows * cols, holes: holes.size, arrows: arrows.size, arrowsBeforePrune, boxes: holes.size - arrows.size, undecided: undecided(P), nodes: final.nodes,
+      level: probe(P).level, steps: probe(P).steps, cells: rows * cols, holes: holes.size, arrows: arrows.size, arrowsBeforePrune, boxes: holes.size - arrows.size, undecided: undecided(P), nodes,
       checks, msHoles: tHoles, msTotal: Date.now() - t0,
     },
   };

@@ -60,8 +60,10 @@ if (process.argv.includes('--worker')) {
     // exactly one solution
     const same = (st) => { for (let i = 0; i < P.N; i++) if (P.clueAt[i] < 0 && (st.cell[i] === SHADED) !== (sol.cell[i] === SHADED)) return false; for (let x = 0; x < P.numEdges; x++) if ((st.e[x] === E_ON) !== (sol.e[x] === E_ON)) return false; return true; };
     // (the rules of rating.js are written for square boards: a hex puzzle is proved by exhaustive search, and must fall to propagation plus a one-step lookahead)
-    if (P.hex && probe(P).level < 0) return fail('not solvable by propagation and a one-step lookahead');
-    const byRules = P.hex ? { solved: false } : solvedByRules(P, upto);
+    // (the deductions are sound, so a lookahead that finishes the puzzle proves it has exactly one solution: no exhaustive search, which at 10x10 can hit any cap)
+    const byProbe = P.hex ? probe(P) : null;
+    if (P.hex && byProbe.level < 0) return fail('not solvable by propagation and a one-step lookahead');
+    const byRules = P.hex ? { solved: true, state: byProbe.state } : solvedByRules(P, upto);
     if (byRules.solved) { if (!same(byRules.state)) return fail('the rules solve it to a DIFFERENT answer than the stored one'); }
     else {
       out.exhaustive++;
