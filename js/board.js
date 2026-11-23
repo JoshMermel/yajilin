@@ -5,7 +5,7 @@
 //   * a right-click on a cell              -> handlers.onRight(cell)
 //   * a press that moves into other cells  -> handlers.onStep(fromCell, toCell, isFirstStep) for each step
 // handlers.onStart() / handlers.onEnd() bracket every gesture, so a whole gesture is one undo step.
-import { colName, hexStep } from './logic.js';
+import { colName, hexStep, hexDistance } from './logic.js';
 import { hexClueLayout, arrowPathData } from './hexarrow.js';
 import { makeColorKeeper, assignPathColors } from './pathcolors.js';
 import { makeGrace } from './grace.js';
@@ -81,7 +81,7 @@ export class Board {
     // colors stay with their lines: see pathcolors.js (a new line never recolors the others; a joined line keeps the older color)
     if (!this.colors || this.colors.birth.length !== P.numEdges) this.colors = makeColorKeeper(P.numEdges);
     const alike = this.opts.pathAlike;
-    const near = alike && !P.hex ? { cols: P.cols, alike: (i, j) => alike[i][j] } : null;       // (the colour-spacing aid is square-only for now)
+    const near = alike ? { cols: P.cols, alike: (i, j) => alike[i][j], ...(P.hex ? { ends: (x) => [P.edgeA[x], P.edgeB[x]], dist: hexDistance } : {}) } : null;
     const colorOf = assignPathColors(this.colors, marks.edges, (x) => find(P.edgeA[x]), (this.opts.pathColors || [0]).length, near);
     return { deg, colorOf, find };
   }

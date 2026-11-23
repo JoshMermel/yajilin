@@ -25,8 +25,9 @@ export const makeColorKeeper = (numEdges) => ({
 /**
  * keeper: from makeColorKeeper; on[x]: truthy if segment x is drawn; rootOf(x): an id for the path segment x belongs to;
  * palette: number of colors. Updates the keeper and returns a Map: path id (rootOf) -> color index.
- * near (optional): { cols, alike(i, j) } where segment x joins cell x >> 1 and the cell after it (x odd: the one below), the board being
- * `cols` wide, and alike(i, j) is 1 for the same color, 0 for colors that look entirely different, in between for colors that look a bit alike.
+ * near (optional): { cols, alike(i, j), ends?, dist? }: the board is `cols` wide and alike(i, j) is 1 for the same color, 0 for colors that look
+ * entirely different, in between for colors that look a bit alike. On a square board segment x joins cell x >> 1 and the cell after it (x odd:
+ * the one below) and distance is king moves; any other board gives ends(x) -> [cell, cell] and dist(row, col, row, col) -> steps between cells.
  */
 export function assignPathColors(keeper, on, rootOf, palette, near) {
   const { birth, pid, colorOfPid } = keeper;
@@ -55,7 +56,7 @@ export function assignPathColors(keeper, on, rootOf, palette, near) {
   for (const p of claimed) uses[colorOfPid.get(p)]++;
   const placed = new Map();                                   // path -> color index, for the lines that have one (the near scoring)
   if (near) for (const [r, p] of identity) placed.set(r, colorOfPid.get(p));
-  const where = near && lineCells(on, rootOf, near.cols);    // path -> [row, col, row, col, ...]
+  const where = near && lineCells(on, rootOf, near);    // path -> [row, col, row, col, ...]
   for (const r of fresh) {
     let c = 0;
     if (near) {
@@ -76,12 +77,14 @@ export function assignPathColors(keeper, on, rootOf, palette, near) {
 const USE = 0.5;   // what one more use of a color costs, against a line at distance 1 sharing it costing 1
 const REACH = 5;   // lines farther than this many cells (king moves, cell to cell) do not count as near
 
+const kingDistance = (r1, c1, r2, c2) => Math.max(Math.abs(r1 - r2), Math.abs(c1 - c2));
+
 /** The cells each path touches, as flat [row, col, ...] lists. */
-function lineCells(on, rootOf, cols) {
-  const out = new Map();
+function lineCells(on, rootOf, near) {
+  const { cols } = near, out = new Map();
   for (let x = 0; x < on.length; x++) {
     if (!on[x]) continue;
-    const a = x >> 1, b = (x & 1) ? a + cols : a + 1, r = rootOf(x);
+    const [a, b] = near.ends ? near.ends(x) : [x >> 1, (x & 1) ? (x >> 1) + cols : (x >> 1) + 1], r = rootOf(x);
     if (!out.has(r)) out.set(r, []);
     out.get(r).push((a / cols) | 0, a % cols, (b / cols) | 0, b % cols);
   }
@@ -90,14 +93,14 @@ function lineCells(on, rootOf, cols) {
 
 /** For path r: for every palette color, how crowded it is by the placed lines near r (see the top of this file). */
 function penalties(r, placed, where, palette, near) {
-  const pen = new Array(palette).fill(0), mine = where.get(r);
+  const pen = new Array(palette).fill(0), mine = where.get(r), dist = near.dist || kingDistance;
   for (const [o, color] of placed) {
     if (o === r) continue;
     const theirs = where.get(o);
     let d = Infinity;
     for (let i = 0; i < mine.length && d > 1; i += 2) {
       for (let j = 0; j < theirs.length; j += 2) {
-        const e = Math.max(Math.abs(mine[i] - theirs[j]), Math.abs(mine[i + 1] - theirs[j + 1]));
+        const e = dist(mine[i], mine[i + 1], theirs[j], theirs[j + 1]);
         if (e < d) { d = e; if (d <= 1) break; }
       }
     }

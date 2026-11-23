@@ -42,6 +42,12 @@ export const E_UNKNOWN = 0, E_ON = 1, E_OFF = 2;
 // three directions share the neighbour's edges. Everything else (shaded cells never touch, one loop through every other cell) is unchanged.
 export const HEX_DIR_LETTERS = 'ABCDEF';
 export const HEX_ARROWS = ['→', '↘', '↙', '←', '↖', '↗'];
+/** Steps between two cells of a hex board (odd rows shifted right). */
+export function hexDistance(r1, c1, r2, c2) {
+  const q1 = c1 - ((r1 - (r1 & 1)) >> 1), q2 = c2 - ((r2 - (r2 & 1)) >> 1), dq = q2 - q1, dr = r2 - r1;
+  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
 /** The cell one step from (r, c) in hex direction d, as [r, c] (maybe off the board). */
 export function hexStep(r, c, d) {
   const odd = r & 1;

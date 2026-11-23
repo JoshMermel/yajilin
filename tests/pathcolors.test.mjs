@@ -168,3 +168,20 @@ test('near: on a crowded board with too few colors, lines that touch or nearly t
   console.log(`      near clashes ${withNear} vs ${without} without (over ${trials} boards of 26 lines, 5 colors)`);
   assert.ok(withNear < without * 0.5, `${withNear} should be well below ${without}`);
 });
+
+test('near on a hex board: distance follows the six neighbours, and a repeat goes to the far line', async () => {
+  const { compile, hexDistance } = await import('../js/logic.js');
+  assert.equal(hexDistance(0, 0, 0, 3), 3);
+  assert.equal(hexDistance(0, 0, 2, 0), 2);
+  const P = compile({ rows: 5, cols: 12, grid: 'hex', clues: [], name: 't' });
+  const on = new Uint8Array(P.numEdges), keeper = makeColorKeeper(P.numEdges);
+  const edgeBetween = (a, b) => { for (let x = 0; x < P.numEdges; x++) if ((P.edgeA[x] === a && P.edgeB[x] === b) || (P.edgeA[x] === b && P.edgeB[x] === a)) return x; throw new Error('no edge'); };
+  const parent = Array.from({ length: P.N }, (_, i) => i);
+  const find = (a) => { while (parent[a] !== a) a = parent[a]; return a; };
+  const near = { cols: P.cols, alike: (i, j) => (i === j ? 1 : 0), ends: (x) => [P.edgeA[x], P.edgeB[x]], dist: hexDistance };
+  const draw = (a, b) => { on[edgeBetween(a, b)] = 1; parent[Math.max(find(a), find(b))] = Math.min(find(a), find(b)); return assignPathColors(keeper, on, (x) => find(P.edgeA[x]), 2, near); };
+  draw(0, 1);                                     // colour 0 at the top left
+  draw(8, 9);                                     // colour 1, 8 cells along the top
+  const c = draw(5 * 0 + 12 + 1, 12 + 2);         // row 1: a third line, no colour free; it sits right under the first line
+  assert.equal(c.get(find(13)), c.get(find(8)));  // so it takes the colour of the far line
+});
