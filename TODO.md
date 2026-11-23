@@ -260,3 +260,15 @@ Josh is excited by these four; **Regional** is in progress on the branch `experi
   loop generator builds a 2-factor with exactly two cycles (the merge step stops one cycle early); rules `noEarlyClose`, `closingCell`,
   `sameSegmentExits`, `pairedEnds`, `parityForces`, `crossingParity` all assume one loop and need a "how many loops remain" parameter;
   GUI colours the two loops differently (path colours already exist); uniqueness is harder to make (two cycles can swap parts).
+
+## Hex boards (started 2026-11-22)
+
+Done: topology in `compile` (`P.K`, `P.edgeA/edgeB`), solver/checker/CSV/board/clue colouring for hex, a generator (`js/generator_hex.js`), books by size (group "Hex").
+Findings: unique-loop hole sets are rare on a hex board (about 1% of random maximal sets at 6x6, none in 3000 at 8x8), so the generator searches for them
+(about 1-5 s at 8x8). At 10x10 the hole search found nothing within 150 s: bigger boards need a smarter search (build the loop and the holes together).
+Next:
+- Hex-aware human rules and a rating (rating.js, imagine.js, explain.js are square-only), then Hint on hex boards and real tiers (the book tiers are by rank).
+- Printing hex boards; the board's own symmetries in `symmetryKey` (a mirrored hex puzzle is a different puzzle there).
+- Larger boards (10x10 and up), other shapes (a true hexagon, voids), diagonal-style variants (hex arrows that skip, "all six directions" puzzles).
+- Path-colour spacing (`near` in js/pathcolors.js) is off for hex.
+

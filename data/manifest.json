@@ -69,6 +69,11 @@
       }
     },
     {
+      "name": "Hex",
+      "icon": "⬡",
+      "blurb": "Hexagonal boards: every cell has six neighbours, and an arrow points along any of six directions. Same rules. An experiment."
+    },
+    {
       "name": "Bonus",
       "icon": "🎁",
       "blurb": "Variations on the usual puzzle: the same rules, a different feel.",
@@ -601,6 +606,42 @@
       "count": 34,
       "hidden": true,
       "blurb": "The worked examples of docs/how_to_solve.md (not listed in the app)."
+    },
+    {
+      "id": "hex-5x5",
+      "name": "Hex: 5×5",
+      "file": "data/hex-5x5.csv",
+      "count": 37,
+      "label": "5×5",
+      "group": "Hex",
+      "blurb": "5×5 hex boards, 37 puzzles from easy to hard. An experiment."
+    },
+    {
+      "id": "hex-6x6",
+      "name": "Hex: 6×6",
+      "file": "data/hex-6x6.csv",
+      "count": 116,
+      "label": "6×6",
+      "group": "Hex",
+      "blurb": "6×6 hex boards, 116 puzzles from easy to hard. An experiment."
+    },
+    {
+      "id": "hex-7x7",
+      "name": "Hex: 7×7",
+      "file": "data/hex-7x7.csv",
+      "count": 133,
+      "label": "7×7",
+      "group": "Hex",
+      "blurb": "7×7 hex boards, 133 puzzles from easy to hard. An experiment."
+    },
+    {
+      "id": "hex-8x8",
+      "name": "Hex: 8×8",
+      "file": "data/hex-8x8.csv",
+      "count": 91,
+      "label": "8×8",
+      "group": "Hex",
+      "blurb": "8×8 hex boards, 91 puzzles from easy to hard. An experiment."
     }
   ],
   "default": "bonus-intro"

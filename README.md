@@ -64,6 +64,18 @@ name,rows,cols,clues,solution,rules,tier,score
   random regions, a climb that moves border cells, then number pruning); tool: `node tools/generate.mjs --regional --size 8x8 --avg-size 4`.
   The Regional books are layout-first instead: `tools/regional_layouts.mjs` (rooms, symmetric, dominoes, tetrominoes, pentominoes),
   `tools/cpsat_regional.py` (OR-tools) and `tools/regional_json_to_pool.mjs` (checks, drops numbers, rates); see `experiments/regional/LAYOUTS.md`.
+- **Hex puzzles**: an eleventh CSV column, `grid`, says `hex` (the tenth, `regions`, is then empty). The board is pointy-top hexagons stored as `rows`
+  x `cols` with every odd row shifted half a cell right, so it is a rectangle with a zigzag edge. A cell has six neighbours, and an arrow points in one of
+  six directions written `A B C D E F` = east, south-east, south-west, west, north-west, north-east (clockwise from east); it counts the
+  boxes along the straight line that way to the edge. Everything else is the same rule: boxes never touch (here: none of the six neighbours),
+  one loop through every other cell. `compile` (js/logic.js) takes `p.grid === 'hex'` and builds the topology (`P.K` = 6 neighbours, `P.edgeA/edgeB` = the two cells
+  of every edge, edge `3i + 0/1/2` = cell i's east / south-east / south-west edge), and the solver, checker, clue colouring and board work on it. In a hex
+  `solution` string a loop cell's exits are one of 64 symbols (bit d = direction d), not a hex digit. Not yet for hex: the human-style rules and
+  rating (rating.js is square-only), Hint, printing, turning the board, and the board's own symmetries in `symmetryKey`.
+  Generator: `generateHex` (js/generator_hex.js): a plateau search for a set of non-loop cells with exactly one loop through the rest, then every one of them
+  an arrow, then arrows taken away (turned into boxes the solver must find) while the puzzle still falls to propagation plus a one-step lookahead
+  (the machine's "imagine a box or a dot"); `score` is the number of lookahead deductions. Tools: `tools/hex_pool.mjs` (a pool on worker threads),
+  `tools/build_hex_books.mjs` (the books: group "Hex"), `tools/hex_spike.mjs` (one size, with statistics).
 - `solution`: one char per cell, row-major: `#` clue cell, `x` shaded, otherwise a hex digit of the loop cell's exits
   (U=1, R=2, D=4, L=8; so `6` is a corner joining right and down, `a` a horizontal straight, `5` a vertical one).
 - `rules`, `tier`, `score`: difficulty from the human-style solver (`tools/generate.mjs` fills them in).
