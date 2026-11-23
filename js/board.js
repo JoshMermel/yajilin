@@ -5,7 +5,7 @@
 //   * a right-click on a cell              -> handlers.onRight(cell)
 //   * a press that moves into other cells  -> handlers.onStep(fromCell, toCell, isFirstStep) for each step
 // handlers.onStart() / handlers.onEnd() bracket every gesture, so a whole gesture is one undo step.
-import { colName } from './logic.js';
+import { colName, hexStep, HEX_ARROWS } from './logic.js';
 import { makeColorKeeper, assignPathColors } from './pathcolors.js';
 import { makeGrace } from './grace.js';
 import { otherEnd } from './lineends.js';
@@ -14,6 +14,9 @@ const S = 44;     // cell size in SVG units
 const PAD = 4;    // room for the frame
 export const LABEL = 16; // extra room at the top and left for row/column numbers
 const ARROWS = ['↑', '→', '↓', '←', '↗', '↘', '↙', '↖'];
+// Hex boards: pointy-top hexagons that are S wide (flat side to flat side), every odd row shifted half a cell right (see logic.js).
+const HR = S / Math.sqrt(3);          // the hexagon's circumradius
+const HROW = 1.5 * HR;                // distance between the centres of two rows
 const BAD_DELAY_MS = 300; // how long a newly red arrow or box waits, so a double tap can finish first (see js/grace.js)
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -69,7 +72,7 @@ export class Board {
     const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
     for (let x = 0; x < P.numEdges; x++) {
       if (!marks.edges[x]) continue;
-      const a = x >> 1, b = (x & 1) ? a + P.cols : a + 1;
+      const a = P.edgeA[x], b = P.edgeB[x];
       deg[a]++; deg[b]++;
       const ra = find(a), rb = find(b);
       if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb); // the root is the path's lowest cell
@@ -77,8 +80,8 @@ export class Board {
     // colors stay with their lines: see pathcolors.js (a new line never recolors the others; a joined line keeps the older color)
     if (!this.colors || this.colors.birth.length !== P.numEdges) this.colors = makeColorKeeper(P.numEdges);
     const alike = this.opts.pathAlike;
-    const near = alike ? { cols: P.cols, alike: (i, j) => alike[i][j] } : null;
-    const colorOf = assignPathColors(this.colors, marks.edges, (x) => find(x >> 1), (this.opts.pathColors || [0]).length, near);
+    const near = alike && !P.hex ? { cols: P.cols, alike: (i, j) => alike[i][j] } : null;       // (the colour-spacing aid is square-only for now)
+    const colorOf = assignPathColors(this.colors, marks.edges, (x) => find(P.edgeA[x]), (this.opts.pathColors || [0]).length, near);
     return { deg, colorOf, find };
   }
 
@@ -105,6 +108,7 @@ export class Board {
       clearTimeout(this._badTimer);
       this._badTimer = setTimeout(() => { this.grace.commit(); if (this.marks) this.render(this.marks, this.info, this.hint); }, BAD_DELAY_MS);
     }
+    if (P.hex) { this.el.innerHTML = this.hexMarkup(marks, info, show); return; }
     const OFF = this.offset;
     const W = P.cols * S + 2 * PAD + OFF, H = P.rows * S + 2 * PAD + OFF;
     const cx = (c) => PAD + c * S + S / 2, cy = (r) => PAD + r * S + S / 2;
@@ -247,13 +251,114 @@ export class Board {
     this.el.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img">${defs}<g transform="translate(${OFF} ${OFF})">${g}</g></svg>`;
   }
 
+  /** The drawing's size in SVG units (labels included). */
+  size() {
+    const P = this.P, OFF = this.offset;
+    return P.hex ? { W: P.cols * S + S / 2 + 2 * PAD + OFF, H: HROW * P.rows + HR / 2 + 2 * PAD + OFF } : { W: P.cols * S + 2 * PAD + OFF, H: P.rows * S + 2 * PAD + OFF };
+  }
+
+  /** Centre of a hex cell, in the board's own coordinates (before the label offset). */
+  hexCenter(r, c) { return [PAD + S / 2 + c * S + (r & 1) * (S / 2), PAD + HR + r * HROW]; }
+
+  /** The markup of a hex board. The same marks, colours and classes as the square board; no hint overlay yet. */
+  hexMarkup(marks, info, show) {
+    const P = this.P, OFF = this.offset, { W, H } = this.size();
+    const ctr = (i) => this.hexCenter((i / P.cols) | 0, i % P.cols);
+    const verts = (i, k = 1) => {
+      const [x, y] = ctr(i), w = (S / 2) * k, h = (HR / 2) * k, t = HR * k;
+      return [[x, y - t], [x + w, y - h], [x + w, y + h], [x, y + t], [x - w, y + h], [x - w, y - h]];
+    };
+    const points = (i, k = 1) => verts(i, k).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+    const outline = (i) => 'M' + verts(i).map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L') + 'Z';
+    const { deg, colorOf, find } = this.analyseLines(marks);
+    let g = '', bg = '';
+    for (let i = 0; i < P.N; i++) bg += outline(i);
+    g += `<path class="cell-bg" d="${bg}"/><path class="grid-line" fill="none" d="${bg}"/>`;
+    for (let k = 0; k < P.clues.length; k++) {
+      const cl = P.clues[k], i = cl.r * P.cols + cl.c, [x, y] = ctr(i);
+      if (cl.n < 0) { g += `<polygon class="void-bg" points="${points(i)}"/>`; continue; }
+      const st = info.clueState[k] === 'bad' ? (show.has(`c${k}`) ? 'bad' : '') : info.clueState[k] || '';
+      const horiz = cl.d === 0 || cl.d === 3;
+      g += `<polygon class="clue-bg ${st}" points="${points(i)}"/>`;
+      g += `<text class="clue-text" x="${x - (horiz ? 0 : 7)}" y="${y + (horiz ? -8 : 1)}" font-size="${S * 0.46}">${cl.n}</text>`;
+      g += `<text class="clue-text" x="${x + (horiz ? 0 : 11)}" y="${y + (horiz ? 12 : 1)}" font-size="${S * 0.42}">${HEX_ARROWS[cl.d]}</text>`;
+    }
+    // an arrow that is hovered (or tapped, which keeps it) tints the cells it counts in
+    for (const at of new Set([this.gesture ? -1 : this.hoverCell, this.pinned])) {
+      const k = at >= 0 ? P.clueAt[at] : -1;
+      if (k >= 0 && P.clues[k].n >= 0) for (const i of P.rays[k]) g += `<polygon class="hover-ray${marks.cells[i] === 0 && deg[i] === 0 ? '' : ' decided'}" points="${points(i)}"/>`;
+    }
+    // the board's outline: every side of a cell that has no neighbour
+    let wall = '';
+    for (let i = 0; i < P.N; i++) {
+      const v = verts(i), r = (i / P.cols) | 0, c = i % P.cols;
+      for (let d = 0; d < 6; d++) {
+        const [nr, nc] = hexStep(r, c, d);
+        if (nr >= 0 && nc >= 0 && nr < P.rows && nc < P.cols) continue;
+        const [a, b] = [[v[1], v[2]], [v[2], v[3]], [v[3], v[4]], [v[4], v[5]], [v[5], v[0]], [v[0], v[1]]][d];       // the side facing direction d
+        wall += `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+      }
+    }
+    g += `<path class="frame" stroke-linejoin="round" d="${wall}"/>`;
+    for (let i = 0; i < P.N; i++) if (deg[i] > 2) g += `<polygon class="over" points="${points(i, 0.85)}"/>`;
+    for (let i = 0; i < P.N; i++) {
+      const [x, y] = ctr(i);
+      if (marks.cells[i] === 1) g += `<polygon class="shaded ${show.has(`s${i}`) ? 'bad' : ''}" stroke-linejoin="round" points="${points(i, 0.72)}"/>`;
+      else if (marks.cells[i] === 2 && deg[i] === 0) g += `<circle class="dot${marks.auto && marks.auto[i] ? ' auto' : ''}" cx="${x}" cy="${y}" r="${S * 0.055}"/>`;
+    }
+    for (let x = 0; x < P.numEdges; x++) {
+      if (!marks.edges[x]) continue;
+      const a = P.edgeA[x], b = P.edgeB[x], [x1, y1] = ctr(a), [x2, y2] = ctr(b), pc = this.opts.pathColors;
+      const style = this.opts.colorLines && pc ? ` style="stroke:${pc[colorOf.get(find(a)) % pc.length]}"` : '';
+      g += `<line class="seg"${style} stroke-width="${S * 0.13}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+    }
+    const over = this.gesture ? -1 : this.hoverCell;
+    if (over >= 0) {
+      g += `<polygon class="hover" points="${points(over)}"/>`;
+      for (const k of pointersAt(P, over)) g += `<polygon class="hover-pointer" stroke-linejoin="round" points="${points(P.clues[k].r * P.cols + P.clues[k].c, 0.92)}"/>`;
+    }
+    if (over >= 0 && deg[over] === 1) {
+      const far = otherEnd(P, marks.edges, over);
+      if (far >= 0) for (const i of [over, far]) { const [x, y] = ctr(i); g += `<circle class="line-end-halo" cx="${x}" cy="${y}" r="${S * 0.19}"/><circle class="line-end" cx="${x}" cy="${y}" r="${S * 0.19}"/>`; }
+    }
+    const hc = over >= 0 ? over % P.cols : -1, hr = over >= 0 ? (over / P.cols) | 0 : -1;
+    for (let c = 0; c < P.cols; c++) g += `<text class="axis-label${c === hc ? ' here' : ''}" x="${this.hexCenter(0, c)[0]}" y="${PAD - 6}">${colName(c)}</text>`;
+    for (let r = 0; r < P.rows; r++) g += `<text class="axis-label side${r === hr ? ' here' : ''}" x="${PAD - 6}" y="${this.hexCenter(r, 0)[1]}">${r + 1}</text>`;
+    return `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img"><g transform="translate(${OFF} ${OFF})">${g}</g></svg>`;
+  }
+
   // ---- pointer decoding
+
+  /** The hex cell under a point in board coordinates (SVG units, label offset already removed), or -1. */
+  hexCellAt(px, py) {
+    const P = this.P;
+    let best = -1, bestD = Infinity;
+    const r0 = Math.round((py - PAD - HR) / HROW);
+    for (let r = Math.max(0, r0 - 1); r <= Math.min(P.rows - 1, r0 + 1); r++) {
+      const c = Math.min(P.cols - 1, Math.max(0, Math.round((px - PAD - S / 2 - (r & 1) * (S / 2)) / S)));
+      const [x, y] = this.hexCenter(r, c), d = Math.hypot(px - x, py - y);
+      if (d < bestD) { bestD = d; best = r * P.cols + c; }
+    }
+    return bestD <= HR ? best : -1;                       // (the hexagon fits inside a circle of its circumradius)
+  }
+
+  /** Do two cells touch (a step of the loop from one to the other)? */
+  adjacent(a, b) {
+    const P = this.P;
+    if (!P.hex) return Math.abs(((a / P.cols) | 0) - ((b / P.cols) | 0)) + Math.abs((a % P.cols) - (b % P.cols)) === 1;
+    for (let d = 0; d < 6; d++) { const [r, c] = hexStep((a / P.cols) | 0, a % P.cols, d); if (r * P.cols + c === b && c >= 0 && c < P.cols) return true; }
+    return false;
+  }
 
   cellAtPoint(clientX, clientY) {
     const svg = this.el.querySelector('svg');
     if (!svg || !this.P) return -1;
     const rect = svg.getBoundingClientRect();
     const OFF = this.offset;
+    if (this.P.hex) {
+      const { W, H } = this.size();
+      return this.hexCellAt(((clientX - rect.left) / rect.width) * W - OFF, ((clientY - rect.top) / rect.height) * H - OFF);
+    }
     const px = ((clientX - rect.left) / rect.width) * (this.P.cols * S + 2 * PAD + OFF) - PAD - OFF;
     const py = ((clientY - rect.top) / rect.height) * (this.P.rows * S + 2 * PAD + OFF) - PAD - OFF;
     const c = Math.floor(px / S), r = Math.floor(py / S);
@@ -282,9 +387,7 @@ export class Board {
     for (let t = 1; t <= n; t++) {
       const cell = this.cellAtPoint(gs.x + ((e.clientX - gs.x) * t) / n, gs.y + ((e.clientY - gs.y) * t) / n);
       if (cell < 0 || cell === gs.last) continue;
-      const dr = Math.abs(((cell / this.P.cols) | 0) - ((gs.last / this.P.cols) | 0));
-      const dc = Math.abs((cell % this.P.cols) - (gs.last % this.P.cols));
-      if (dr + dc === 1) { gs.moved = true; this.h.onStep(gs.last, cell, gs.steps++ === 0); }
+      if (this.adjacent(gs.last, cell)) { gs.moved = true; this.h.onStep(gs.last, cell, gs.steps++ === 0); }
       gs.last = cell;
     }
     gs.x = e.clientX; gs.y = e.clientY;
@@ -309,7 +412,7 @@ export class Board {
   cellPixels() {
     const svg = this.el.querySelector('svg');
     if (!svg || !this.P) return S;
-    return (svg.getBoundingClientRect().width / (this.P.cols * S + 2 * PAD + this.offset)) * S;
+    return (svg.getBoundingClientRect().width / this.size().W) * S;
   }
 
   up() {

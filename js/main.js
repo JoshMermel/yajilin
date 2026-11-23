@@ -99,7 +99,7 @@ function cycleCell(i) {
   const m = state.marks, before = state.pending || snapshot();
   // empty -> dot -> box -> empty; a cell a segment passes through is already on the loop, so it goes straight to a box (see js/marks.js)
   let lined = false;
-  for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0 && m.edges[x]) lined = true; }
+  for (let d = 0; d < P.K; d++) { const x = P.ed[i * P.K + d]; if (x >= 0 && m.edges[x]) lined = true; }
   const next = nextMark(m.cells[i], lined);
   if (next === 1) shade(i); else { m.cells[i] = next; m.auto[i] = 0; }
   reconcile(P, before, m);
@@ -118,13 +118,13 @@ function toggleBox(i) {
 
 function removeEdgesAt(i) {
   const P = state.P;
-  for (let d = 0; d < 4; d++) { const x = P.ed[i * 4 + d]; if (x >= 0) state.marks.edges[x] = 0; }
+  for (let d = 0; d < P.K; d++) { const x = P.ed[i * P.K + d]; if (x >= 0) state.marks.edges[x] = 0; }
 }
 
 function dragStep(a, b, first) {
   const P = state.P, m = state.marks;
   let x = -1;
-  for (let d = 0; d < 4; d++) if (P.nb[a * 4 + d] === b) x = P.ed[a * 4 + d];
+  for (let d = 0; d < P.K; d++) if (P.nb[a * P.K + d] === b) x = P.ed[a * P.K + d];
   if (x < 0 || m.cells[a] === 1 || m.cells[b] === 1) return; // clue cells and shaded cells carry no loop
   if (first) state.drawMode = m.edges[x] ? 0 : 1;
   m.edges[x] = state.drawMode;
@@ -171,7 +171,7 @@ function analyse() {
   const badShaded = new Set();
   for (let i = 0; i < P.N; i++) {
     if (m.cells[i] !== 1) continue;
-    for (let d = 0; d < 4; d++) { const j = P.nb[i * 4 + d]; if (j >= 0 && m.cells[j] === 1) { badShaded.add(i); badShaded.add(j); } }
+    for (let d = 0; d < P.K; d++) { const j = P.nb[i * P.K + d]; if (j >= 0 && m.cells[j] === 1) { badShaded.add(i); badShaded.add(j); } }
   }
   return { clueState, badShaded };
 }
@@ -189,7 +189,7 @@ function fitBoard() {
   const off = LABEL;
   const avail = Math.min(window.innerWidth - 24, 1500);
   const px = Math.max(26, Math.min(46, Math.floor(avail / (P.cols + 0.5))));
-  const width = Math.round(((P.cols * 44 + 8 + off) * px) / 44);
+  const width = Math.round((board.size().W * px) / 44);
   $('board').style.width = `${width}px`;
   $('game-container').style.maxWidth = `${Math.max(640, width + 24)}px`;
 }
@@ -233,7 +233,7 @@ function load(P) {
     if (s && s.c.length === O.N && s.e.length === O.numEdges) {
       m = emptyMarks(O);
       for (let i = 0; i < O.N; i++) m.cells[i] = +s.c[i];
-      const real = realEdges(O.rows, O.cols);       // saves written by an older build may hold segments on slots that are no edge (a turning bug): drop them
+      const real = O.hex ? Array.from(O.edgeA, (a) => a >= 0) : realEdges(O.rows, O.cols);       // saves written by an older build may hold segments on slots that are no edge (a turning bug): drop them
       for (let i = 0; i < O.numEdges; i++) m.edges[i] = real[i] ? +s.e[i] : 0;
       if (s.a && s.a.length === O.N) for (let i = 0; i < O.N; i++) m.auto[i] = +s.a[i];
       if (P.rotated) m = turnMarks(m, O.rows, O.cols, true);
@@ -328,6 +328,7 @@ function solverState() {
 function hint() {
   const P = state.P, m = state.marks;
   if (state.solved) { toast('Already solved!'); return; }
+  if (P.hex) { toast("Hint isn't available on hex boards yet (Check still works)."); return; }       // the rules behind Hint are written for square boards
   const sig = signature();
   const h = state.hint;
   if (h && h.sig === sig) {
@@ -480,7 +481,7 @@ function openPuzzle(idx) {
 function showInfo() {
   const P = state.P, tier = P.tier ? ` · ${P.tier}` : '';
   $('puz-info').textContent = `${P.name} · ${P.cols}×${P.rows}${tier}`;
-  $('rotate-btn').hidden = !state.orig || state.orig.rows === state.orig.cols && !state.flip;   // a square board looks the same turned
+  $('rotate-btn').hidden = !state.orig || state.orig.hex || state.orig.rows === state.orig.cols && !state.flip;   // a square board looks the same turned (a hex board is never turned)
 }
 
 /** How big a cell could be if a rows x cols board had the window to itself (the width AND the height count). */
@@ -491,6 +492,7 @@ function cellFit(rows, cols) {
 }
 /** The puzzle as it is shown: a quarter turn if that gives bigger cells, flipped by the Rotate button. */
 function shownPuzzle(orig) {
+  if (orig.hex) return orig;
   const sideways = orig.rows !== orig.cols && cellFit(orig.cols, orig.rows) > cellFit(orig.rows, orig.cols) * 1.1;
   return sideways !== !!state.flip ? rotated(orig, puzzleHash(orig)) : orig;
 }
@@ -634,6 +636,7 @@ function setupPrint() {
   keyBox.checked = store.get('yj_printKey') !== '0';
   const update = () => {
     const puzzles = state.book ? state.book.puzzles : [];
+    if (puzzles.some((p) => p.hex)) { err.hidden = false; err.textContent = "Printing isn't available for hex books yet."; go.disabled = true; summary.textContent = ''; return null; }
     const { ids, error } = parseSelection(sel.value, puzzles.length);
     err.hidden = !error; err.textContent = error ?? ''; go.disabled = Boolean(error);
     if (error) { summary.textContent = ''; return null; }
