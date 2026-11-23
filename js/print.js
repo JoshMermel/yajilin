@@ -194,7 +194,7 @@ function hexBoardSvg(P, sol) {
       wall += `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}`;
     }
   }
-  g += `<path class="frame" d="${wall}" fill="none" stroke="${INK}" stroke-width="0.08" stroke-linejoin="round" stroke-linecap="round"/>`;
+  g += `<path class="print-frame" d="${wall}" fill="none" stroke="${INK}" stroke-width="0.08" stroke-linejoin="round" stroke-linecap="round"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" class="print-board" viewBox="${-pad} ${-pad} ${W + 2 * pad} ${Hh + 2 * pad}">${g}</svg>`;
 }
 

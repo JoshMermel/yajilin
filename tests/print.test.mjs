@@ -112,3 +112,16 @@ test('a hex board prints hexagons: a clue and an arrow per arrow cell, and the a
   const m = /viewBox="([-\d. ]+)"/.exec(ans)[1].split(' ').map(Number);
   assert.ok(Math.abs(m[2] - (w - 0.12 + 0.12)) < 0.2 && Math.abs(m[3] - h) < 0.2, 'the svg box matches boardUnits');
 });
+
+test('printed boards use no class that the app stylesheet styles (a CSS rule would override the drawing, e.g. a heavy .frame outline)', () => {
+  const css = fs.readFileSync(`${root}style.css`, 'utf8');
+  const styled = new Set([...css.matchAll(/\.([a-z][\w-]*)/gi)].map((m) => m[1]));
+  for (const id of ['hex-6x6', 'bonus-5x5']) {
+    const file = `${root}data/${id}.csv`;
+    if (!fs.existsSync(file)) continue;
+    const P = compile(parseCsv(fs.readFileSync(file, 'utf8'))[3]);
+    const svg = boardSvg(P, decodeSolution(P, P.solution));
+    const used = new Set([...svg.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)));
+    for (const c of used) if (c !== 'print-board') assert.ok(!styled.has(c), `${id}: class "${c}" is styled by style.css`);
+  }
+});
