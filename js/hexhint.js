@@ -1,0 +1,107 @@
+// The Hint button on hex boards. The human-style rules (rating.js, explain.js) are written for square boards, so a hex hint is the machine's own
+// reasoning, the same two kinds of step the generator uses to promise a hex puzzle can be solved without guessing (js/generator_hex.js):
+//
+//   * 'forced': marks that follow from the position by propagation alone (the arrows' counts, the loop's degree, boxes never touching, no early
+//     close); at most MAX_FORCED of them, the ones nearest the first
+//   * 'imagine': nothing is forced directly, so one cell where imagining a box (or a dot) makes the position impossible; the mark that must be
+//     right instead, and the lines the imagined box would have forced (the contradiction is found by propagation)
+//
+// Pure (no DOM). Marks the player can make are boxes, dots and loop segments: a fact that only rules a segment out has nothing to mark, so it is
+// never a step by itself.
+import { cloneState, propagate, UNKNOWN, SHADED, LOOP, E_UNKNOWN, E_ON, E_OFF } from './logic.js';
+
+const MAX_FORCED = 8;
+
+/** The cells and loop segments that `after` decides and `before` did not (only what can be marked: a box, a dot, a segment). */
+function newFacts(P, before, after) {
+  const shaded = [], loop = [], segOn = [];
+  for (let i = 0; i < P.N; i++) if (before.cell[i] === UNKNOWN && after.cell[i] === SHADED) shaded.push(i); else if (before.cell[i] === UNKNOWN && after.cell[i] === LOOP) loop.push(i);
+  for (let x = 0; x < P.numEdges; x++) if (before.e[x] === E_UNKNOWN && after.e[x] === E_ON) segOn.push(x);
+  return { shaded, loop, segOn };
+}
+
+/** The cell nearest to `from` first (by hex distance on the board's own grid, good enough for choosing a neighbourhood). */
+function byDistance(P, from, cells) {
+  const at = (i) => { const r = (i / P.cols) | 0, c = i % P.cols; return [c + (r & 1) * 0.5, r * 0.866]; };
+  const [fx, fy] = at(from);
+  return cells.slice().sort((a, b) => { const [ax, ay] = at(a), [bx, by] = at(b); return Math.hypot(ax - fx, ay - fy) - Math.hypot(bx - fx, by - fy); });
+}
+
+/** The cell a fact is about (a segment: its first end). */
+const cellOf = (P, fact) => (fact.cell >= 0 ? fact.cell : P.edgeA[fact.edge]);
+
+/**
+ * The next step from the position `st` (a solver state: the player's boxes, dots and segments), or null if there is none (solved, or stuck for
+ * the machine, or the position is contradictory). Returns
+ *   { kind: 'forced', shaded, loop, segOn, focus: [cells], chain: [] }
+ *   { kind: 'imagine', imagined: 'box' | 'dot' | 'gap', focus: [cell] (a gap: the segment's two cells), shaded, loop, segOn, chain: [segments] }
+ */
+export function hexNextStep(P, st) {
+  const t = cloneState(st);
+  // `t` is the position with everything propagation (and the unmarkable segment-off lookaheads below) has settled; the loop ends when a step shows
+  for (let round = 0; round <= P.numEdges; round++) {
+    if (!propagate(P, t)) return null;
+    const f = newFacts(P, st, t);
+    const all = [...f.shaded.map((i) => ({ cell: i, edge: -1, v: 's' })), ...f.loop.map((i) => ({ cell: i, edge: -1, v: 'l' })), ...f.segOn.map((x) => ({ cell: -1, edge: x, v: 'e' }))];
+    if (all.length) {
+      // the facts near the first one: a hint is one place to look, not the whole board
+      const order = byDistance(P, cellOf(P, all[0]), all.map((a) => cellOf(P, a)));
+      const keep = new Set(), picked = [];
+      for (const c of order) for (const a of all) if (!keep.has(a) && cellOf(P, a) === c && picked.length < MAX_FORCED) { keep.add(a); picked.push(a); }
+      return {
+        kind: 'forced',
+        shaded: picked.filter((a) => a.v === 's').map((a) => a.cell), loop: picked.filter((a) => a.v === 'l').map((a) => a.cell), segOn: picked.filter((a) => a.v === 'e').map((a) => a.edge),
+        focus: [], chain: [], total: all.length,
+      };
+    }
+    // nothing is forced directly: imagine a value in an undecided cell, and see which one cannot be right (the one with the shortest story first)
+    let best = null;
+    const chainOf = (apply) => {                                       // what the imagined mark forces before the contradiction shows (a failed propagate keeps what it set)
+      const v = cloneState(t); apply(v); propagate(P, v);
+      const chain = [];
+      for (let x = 0; x < P.numEdges; x++) if (t.e[x] === E_UNKNOWN && v.e[x] === E_ON) chain.push(x);
+      return chain;
+    };
+    for (let i = 0; i < P.N; i++) {
+      if (t.cell[i] !== UNKNOWN) continue;
+      for (const [imagined, value, other] of [['box', SHADED, LOOP], ['dot', LOOP, SHADED]]) {
+        const u = cloneState(t);
+        u.cell[i] = value;
+        if (propagate(P, u)) continue;                                 // no contradiction: this one cannot be ruled out here
+        const chain = chainOf((v) => { v.cell[i] = value; });
+        if (!best || chain.length < best.chain.length) best = { kind: 'imagine', imagined, focus: [i], chain, shaded: other === SHADED ? [i] : [], loop: other === LOOP ? [i] : [], segOn: [] };
+      }
+    }
+    if (best) return best;
+    // a segment: imagining it missing and failing means it is there (a step); imagining it there and failing only rules it out (nothing to mark: keep it and go round again)
+    let progress = false;
+    for (let x = 0; x < P.numEdges && !best; x++) {
+      const a = P.edgeA[x];
+      if (a < 0 || t.e[x] !== E_UNKNOWN || t.cell[a] === SHADED || t.cell[P.edgeB[x]] === SHADED || P.clueAt[a] >= 0 || P.clueAt[P.edgeB[x]] >= 0) continue;
+      const off = cloneState(t); off.e[x] = E_OFF;
+      if (!propagate(P, off)) { best = { kind: 'imagine', imagined: 'gap', focus: [a, P.edgeB[x]], chain: [], shaded: [], loop: [], segOn: [x] }; break; }
+      const on = cloneState(t); on.e[x] = E_ON;
+      if (!propagate(P, on)) { t.e[x] = E_OFF; progress = true; }
+    }
+    if (best) return best;
+    if (!progress) return null;
+  }
+  return null;
+}
+
+/** The text of a step, in the app's voice. `name(i)` is a cell's name ("C4"). */
+export function describeHexStep(step, name) {
+  if (step.kind === 'forced') {
+    const n = step.shaded.length + step.loop.length + step.segOn.length;
+    const parts = [];
+    if (step.shaded.length) parts.push(`${step.shaded.length === 1 ? 'a box' : `${step.shaded.length} boxes`} (${step.shaded.map(name).join(', ')})`);
+    if (step.loop.length) parts.push(`${step.loop.length === 1 ? 'a dot' : `${step.loop.length} dots`} (${step.loop.map(name).join(', ')})`);
+    if (step.segOn.length) parts.push(`${step.segOn.length === 1 ? 'a line segment' : `${step.segOn.length} line segments`}`);
+    const more = step.total > n ? ` (${step.total - n} more follow after these)` : '';
+    return `The arrows' counts and the shape of the loop force ${parts.join(', ')}.${more}`;
+  }
+  if (step.imagined === 'gap') return `Imagine no line between ${name(step.focus[0])} and ${name(step.focus[1])}: the position can no longer be completed. So the loop runs between them.`;
+  const c = name(step.focus[0]);
+  const want = step.shaded.length ? 'a box' : 'a dot';
+  return `Imagine ${step.imagined === 'box' ? 'a box' : 'a dot'} at ${c}: the position can no longer be completed${step.chain.length ? ' (the dashed lines are what the box would force)' : ''}. So ${c} must be ${want}.`;
+}

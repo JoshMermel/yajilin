@@ -71,7 +71,8 @@ name,rows,cols,clues,solution,rules,tier,score
   one loop through every other cell. `compile` (js/logic.js) takes `p.grid === 'hex'` and builds the topology (`P.K` = 6 neighbours, `P.edgeA/edgeB` = the two cells
   of every edge, edge `3i + 0/1/2` = cell i's east / south-east / south-west edge), and the solver, checker, clue colouring and board work on it. In a hex
   `solution` string a loop cell's exits are one of 64 symbols (bit d = direction d), not a hex digit. Not yet for hex: the human-style rules and
-  rating (rating.js is square-only), Hint, and turning the board. A hex board's symmetries (`hexSymmetries`: a vertical flip when the rows are odd, a half
+  rating (rating.js is square-only) and turning the board. Hint works (js/hexhint.js): the marks propagation forces, or else one cell where imagining a box
+  (or a dot, or a missing segment) makes the position impossible; following the hints from an empty board always solves a hex puzzle. A hex board's symmetries (`hexSymmetries`: a vertical flip when the rows are odd, a half
   turn when they are even; never a horizontal mirror) are folded into `symmetryKey`, and printing draws hexagons (`hexBoardSvg` in js/print.js).
   Generator: `generateHex` (js/generator_hex.js): a plateau search for a set of non-loop cells with exactly one loop through the rest, then every one of them
   an arrow, then arrows taken away (turned into boxes the solver must find) while the puzzle still falls to propagation plus a one-step lookahead

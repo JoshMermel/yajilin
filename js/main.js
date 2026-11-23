@@ -1,8 +1,9 @@
 // App controller: books and puzzle selection, marks, undo/redo, persistence, checks, settings.
 import { rotated, turnMarks, realEdges } from './rotate.js';
 import { parseSelection, planPrint, buildPrintRoot } from './print.js';
-import { compile, parseCsv, puzzleHash, solve, decodeSolution, checkSolved, initialState, E_ON, SHADED, LOOP, UNKNOWN } from './logic.js';
+import { compile, parseCsv, puzzleHash, colName, solve, decodeSolution, checkSolved, initialState, E_ON, SHADED, LOOP, UNKNOWN } from './logic.js';
 import { RULES } from './rating.js';
+import { hexNextStep, describeHexStep } from './hexhint.js';
 import { nextMarkableStep, reliesOn } from './hintstep.js';
 import { explainStep, describeMarks, ROLES } from './explain.js';
 import { Board, LABEL } from './board.js';
@@ -328,7 +329,6 @@ function solverState() {
 function hint() {
   const P = state.P, m = state.marks;
   if (state.solved) { toast('Already solved!'); return; }
-  if (P.hex) { toast("Hint isn't available on hex boards yet (Check still works)."); return; }       // the rules behind Hint are written for square boards
   const sig = signature();
   const h = state.hint;
   if (h && h.sig === sig) {
@@ -348,6 +348,17 @@ function hint() {
     } else {
       const st = solverState();
       const t0 = performance.now();
+      if (P.hex) {                                 // hex boards: the machine's own reasoning (js/hexhint.js), not the square rules
+        const step = hexNextStep(P, st), ms = Math.round(performance.now() - t0);
+        if (step) state.hint = { sig, kind: 'hexstep', visible: true, step, ms };
+        else {
+          const undecided = [];
+          for (let i = 0; i < P.N; i++) if (st.cell[i] === UNKNOWN) undecided.push(i);
+          state.hint = { sig, kind: 'stuck', visible: true, undecided, ms };
+        }
+        showHint();
+        return;
+      }
       const next = nextMarkableStep(P, st);       // skips steps that only rule a segment out (nothing to mark); see js/hintstep.js
       const res = next && next.res;
       const ms = Math.round(performance.now() - t0);
@@ -399,9 +410,14 @@ function showHint() {
     const n = h.wrongCells.length + h.wrongEdges.length;
     line('hint-meta', 'mistake');
     line('', `${n} mark${n === 1 ? ' is' : 's are'} incorrect (shown in red). Fix them before asking for a step.`);
+  } else if (h.kind === 'hexstep') {
+    const s = h.step, name = (i) => `${colName(i % P.cols)}${((i / P.cols) | 0) + 1}`;
+    overlay = { roles: { focus: s.focus }, shaded: s.shaded, loop: s.loop, segOn: s.segOn, chain: s.chain };
+    line('hint-meta', `${s.kind === 'forced' ? 'forced' : 'imagine'} · ${h.ms} ms`);
+    line('', describeHexStep(s, name));
   } else if (h.kind === 'stuck') {
     overlay = { undecided: h.undecided };
-    line('hint-meta', `stuck · ${RULES.filter((r) => !r.free).length} rules tried · ${h.ms} ms`);
+    line('hint-meta', P.hex ? `stuck · ${h.ms} ms` : `stuck · ${RULES.filter((r) => !r.free).length} rules tried · ${h.ms} ms`);
     line('', `The draft solver is stuck: none of its rules finds a next step from here. The tinted cells are the ${h.undecided.length} it still cannot decide.`);
     line('hint-more', 'This is a place to look for an inference the solver is missing.');
   } else {

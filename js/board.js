@@ -108,7 +108,7 @@ export class Board {
       clearTimeout(this._badTimer);
       this._badTimer = setTimeout(() => { this.grace.commit(); if (this.marks) this.render(this.marks, this.info, this.hint); }, BAD_DELAY_MS);
     }
-    if (P.hex) { this.el.innerHTML = this.hexMarkup(marks, info, show); return; }
+    if (P.hex) { this.el.innerHTML = this.hexMarkup(marks, info, show, hint); return; }
     const OFF = this.offset;
     const W = P.cols * S + 2 * PAD + OFF, H = P.rows * S + 2 * PAD + OFF;
     const cx = (c) => PAD + c * S + S / 2, cy = (r) => PAD + r * S + S / 2;
@@ -260,8 +260,8 @@ export class Board {
   /** Centre of a hex cell, in the board's own coordinates (before the label offset). */
   hexCenter(r, c) { return [PAD + S / 2 + c * S + (r & 1) * (S / 2), PAD + HR + r * HROW]; }
 
-  /** The markup of a hex board. The same marks, colours and classes as the square board; no hint overlay yet. */
-  hexMarkup(marks, info, show) {
+  /** The markup of a hex board: the same marks, colours and classes as the square board. The hint overlay is the part of the square one that js/hexhint.js uses. */
+  hexMarkup(marks, info, show, hint = null) {
     const P = this.P, OFF = this.offset, { W, H } = this.size();
     const ctr = (i) => this.hexCenter((i / P.cols) | 0, i % P.cols);
     const verts = (i, k = 1) => {
@@ -282,6 +282,11 @@ export class Board {
       g += `<polygon class="clue-bg ${st}" points="${points(i)}"/>`;
       g += `<text class="clue-text" x="${x - (horiz ? 0 : 7)}" y="${y + (horiz ? -8 : 1)}" font-size="${S * 0.46}">${cl.n}</text>`;
       g += `<text class="clue-text" x="${x + (horiz ? 0 : 11)}" y="${y + (horiz ? 12 : 1)}" font-size="${S * 0.42}">${HEX_ARROWS[cl.d]}</text>`;
+    }
+    const roles = (hint && hint.roles) || {};
+    if (hint) {
+      for (const i of hint.undecided || []) g += `<polygon class="hint-undecided" points="${points(i)}"/>`;
+      for (const i of roles.focus || []) g += `<polygon class="hint-focus" points="${points(i)}"/>`;
     }
     // an arrow that is hovered (or tapped, which keeps it) tints the cells it counts in
     for (const at of new Set([this.gesture ? -1 : this.hoverCell, this.pinned])) {
@@ -311,6 +316,19 @@ export class Board {
       const a = P.edgeA[x], b = P.edgeB[x], [x1, y1] = ctr(a), [x2, y2] = ctr(b), pc = this.opts.pathColors;
       const style = this.opts.colorLines && pc ? ` style="stroke:${pc[colorOf.get(find(a)) % pc.length]}"` : '';
       g += `<line class="seg"${style} stroke-width="${S * 0.13}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+    }
+    if (hint) {
+      const seg = (x) => { const [x1, y1] = ctr(P.edgeA[x]), [x2, y2] = ctr(P.edgeB[x]); return [x1, y1, x2, y2]; };
+      for (const i of roles.focus || []) g += `<polygon class="hint-focus-ring" stroke-linejoin="round" points="${points(i, 0.94)}"/>`;
+      for (const i of hint.shaded || []) g += `<polygon class="ghost-shade" stroke-linejoin="round" points="${points(i, 0.5)}"/>`;
+      for (const i of hint.loop || []) { const [x, y] = ctr(i); g += `<circle class="ghost-dot" cx="${x}" cy="${y}" r="${S * 0.1}"/>`; }
+      for (const x of hint.chain || []) { const [x1, y1, x2, y2] = seg(x); g += `<line class="chain-seg" stroke-width="${S * 0.1}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; }
+      for (const x of hint.segOn || []) {                                      // ghost segments stop short of the centres, so a dot or box in the cell stays visible
+        const [x1, y1, x2, y2] = seg(x), k = (S * 0.3) / Math.hypot(x2 - x1, y2 - y1);
+        g += `<line class="ghost-seg" stroke-width="${S * 0.12}" x1="${x1 + (x2 - x1) * k}" y1="${y1 + (y2 - y1) * k}" x2="${x2 - (x2 - x1) * k}" y2="${y2 - (y2 - y1) * k}"/>`;
+      }
+      for (const i of hint.wrongCells || []) g += `<polygon class="wrong" stroke-linejoin="round" points="${points(i, 0.92)}"/>`;
+      for (const x of hint.wrongEdges || []) { const [x1, y1, x2, y2] = seg(x); g += `<line class="wrong-seg" stroke-width="${S * 0.2}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`; }
     }
     const over = this.gesture ? -1 : this.hoverCell;
     if (over >= 0) {
